@@ -380,6 +380,24 @@ body.adminmode main{padding:0}
 .viewbar{padding:7px 14px;background:rgba(74,222,128,.10);border-top:1px solid var(--line);
   color:var(--dim);font-size:12.5px}
 .viewbar b{color:var(--ink)}
+
+/* --card and --muted were used by the swap pane but never defined, so those cards had no
+   background and their names inherited a colour meant for a light surface — invisible on the
+   dark ground. Alias them to the real tokens rather than hunting every use. */
+:root{--card:#16212E;--muted:#8A9BAD}
+/* the rule verdicts were light-mode boxes (near-white) with light text on top */
+.swprob{background:rgba(248,113,113,.12)!important;border:1px solid #F87171!important;color:#FCA5A5!important}
+.swrule.bad{background:rgba(248,113,113,.12)!important;border:1px solid #F87171!important;color:#FCA5A5!important}
+.swrule.ok{background:rgba(74,222,128,.12)!important;border:1px solid #4ADE80!important;color:#86EFAC!important}
+.swwho{color:var(--dim)}
+.swcard{background:var(--panel);border:1px solid var(--line)}
+
+.acctbar{display:flex;align-items:center;gap:10px;padding:7px 14px;border-top:1px solid var(--line)}
+.acctwho{font-family:var(--mono);font-size:12px;color:var(--dim);flex:1;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.acctout{background:transparent;border:1px solid var(--line2);color:var(--ink);font:inherit;
+  font-size:12px;border-radius:8px;padding:6px 12px;min-height:34px;cursor:pointer}
+.acctout:hover{border-color:#3B506A}
 </style>
 
 <header class="top">
@@ -1398,6 +1416,19 @@ async function bootApi(){
   if(CUR==='req')renderReq();
   if(CUR==='swap')renderSwap();
 }
+function accountBar(){
+  // There was only a name chip that opened a sheet; people looked for "sign out" and found
+  // nothing. Make it explicit and always present.
+  let a=document.querySelector('#acctBar');
+  if(!a){a=el('div','acctbar');a.id='acctBar';document.querySelector('header').appendChild(a);}
+  a.innerHTML='<span class="acctwho">'+esc((ACCT&&ACCT.person)||'Signed in')+
+    (ROLE==='admin'?' · admin':'')+'</span>'+
+    '<button class="acctout" id="signOutBtn">Sign out</button>';
+  document.querySelector('#signOutBtn').onclick=()=>{
+    try{sessionStorage.clear();localStorage.removeItem('ccpsa_me');}catch(e){}
+    location.reload();
+  };
+}
 function adminBar(){
   if(ROLE!=='admin')return;
   if(document.querySelector('#admBar'))return;
@@ -1468,6 +1499,7 @@ function boot(){
   $('#whoami').hidden=false;
   $('#whoNm').textContent=ME?((p.first?p.first.charAt(0)+'. ':'')+ME)
                             :((ACCT&&ACCT.label)||'Admin');
+  accountBar();
   adminBar();
   const vb=document.querySelector('#viewingBanner');
   if(ROLE==='admin'&&ME&&ACCT&&ME!==ACCT.person){
