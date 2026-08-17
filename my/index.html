@@ -344,6 +344,14 @@ body.locked header,body.locked main,body.locked .tabs{display:none}
 .ab.on{background:var(--signal);border-color:var(--signal);color:#04121e;font-weight:650}
 .admwrap{padding:18px 16px}
 .pitem .nm{font-size:15px}
+
+.pwwrap{position:relative;display:block}
+.pwwrap input{padding-right:64px;width:100%}
+.pweye{position:absolute;right:6px;top:50%;transform:translateY(-50%);
+  width:auto;margin:0;background:transparent;border:0;cursor:pointer;
+  font:inherit;font-size:12px;font-weight:600;letter-spacing:.02em;padding:6px 9px;border-radius:7px}
+.pweye:hover{background:rgba(127,145,165,.14)}
+.signin .pweye{color:var(--signal)}
 </style>
 
 <header class="top">
@@ -1375,9 +1383,35 @@ function siShell(body){
     <div class="siMsg" id="siMsg"></div>
   </div></div>`;
 }
+
+/* Show/hide on every password box. Typing a 12+ character passphrase blind on a phone keyboard
+   is where most sign-in attempts actually fail. */
+function wireReveal(root){
+  (root||document).querySelectorAll('input[type=password]').forEach(inp=>{
+    if(inp.dataset.reveal)return;
+    inp.dataset.reveal='1';
+    const wrap=document.createElement('div');
+    wrap.className='pwwrap';
+    inp.parentNode.insertBefore(wrap,inp);
+    wrap.appendChild(inp);
+    const b=document.createElement('button');
+    b.type='button'; b.className='pweye'; b.textContent='Show';
+    b.setAttribute('aria-label','Show password');
+    b.onclick=()=>{
+      const on=inp.type==='password';
+      inp.type=on?'text':'password';
+      b.textContent=on?'Hide':'Show';
+      b.setAttribute('aria-label',(on?'Hide':'Show')+' password');
+      inp.focus();
+    };
+    wrap.appendChild(b);
+  });
+}
+
 function siPaint(body){
   const old=document.querySelector('.signin'); if(old)old.remove();
   document.body.insertAdjacentHTML('beforeend',siShell(body));
+  wireReveal(document.querySelector('.signin'));
 }
 function siSay(t,bad){const m=document.querySelector('#siMsg'); if(!m)return;
   m.textContent=t||''; m.className='siMsg'+(t?' on':'')+(bad?' bad':'');}
