@@ -337,6 +337,13 @@ body.locked header,body.locked main,body.locked .tabs{display:none}
 .siGhost:hover{opacity:1;background:rgba(255,255,255,.03)}
 .siCard .siNote{font-size:11.5px;line-height:1.5;margin-top:14px}
 .siL{font-size:9.5px;letter-spacing:.13em;margin:15px 0 5px}
+
+.admbar{display:flex;gap:6px;padding:8px 14px 10px;border-top:1px solid var(--line)}
+.ab{flex:1;background:var(--panel2);border:1px solid var(--line2);color:var(--dim);
+  font:inherit;font-size:12.5px;border-radius:9px;padding:8px 6px;cursor:pointer}
+.ab.on{background:var(--signal);border-color:var(--signal);color:#04121e;font-weight:650}
+.admwrap{padding:18px 16px}
+.pitem .nm{font-size:15px}
 </style>
 
 <header class="top">
@@ -371,10 +378,10 @@ body.locked header,body.locked main,body.locked .tabs{display:none}
 
 <div id="gate"><div class="in">
   <div class="eyebrow">CCPSA Critical Care · Q4 2026</div>
-  <h1>Who are you?</h1>
-  <div class="note" style="margin-top:2px">Pick your name once. This device will remember it.</div>
-  <label class="sr" for="gateSearch">Search for your name</label>
-  <input id="gateSearch" type="search" placeholder="Type your last name" autocomplete="off" autocapitalize="off" spellcheck="false">
+  <h1 id="gateH">Physicians</h1>
+  <div class="note" style="margin-top:2px" id="gateNote">Choose whose schedule to open.</div>
+  <label class="sr" for="gateSearch">Search by name</label>
+  <input id="gateSearch" type="search" placeholder="Search by name" autocomplete="off" autocapitalize="off" spellcheck="false">
   <div class="plist" id="gateList"></div>
 </div></div>
 
@@ -408,11 +415,13 @@ function setIdentity(person,role){
   ROLE=role||'doctor';
   ACCT={person,role:ROLE,label:person};
   CAN_SWITCH=(ROLE==='admin');
+  // A physician is fixed to themselves. An admin who is also a physician (Nadon) opens on their
+  // OWN schedule with a toggle to the admin view; an admin who is not (Sam) has no schedule of
+  // their own, so they go straight to the admin view.
   ME=(person&&DATA.people.includes(person))?person:null;
-  if(!ME&&CAN_SWITCH){try{ME=localStorage.getItem('ccpsa_me');}catch(e){}
-    if(ME&&!DATA.people.includes(ME))ME=null;}
-  if(!ME&&CAN_SWITCH&&DATA.people.length)ME=DATA.people[0];
+  IS_ADMIN_ONLY=(ROLE==='admin'&&!ME);
 }
+let IS_ADMIN_ONLY=false;
 
 function initials(n){const p=DATA.providers[n]||{};return ((p.first||n)[0]+n[0]).toUpperCase();}
 const firstOf=n=>((DATA.providers[n]||{}).first||n);
@@ -424,9 +433,10 @@ function renderGate(filter){
   if(!ppl.length){list.innerHTML='<div style="padding:16px;color:#8AA0B4;font-size:13.5px">No one by that name. Check the spelling, or ask Sam to add you.</div>';return;}
   ppl.forEach(n=>{
     const p=DATA.providers[n];
+    // Names only. Employed / APP / moonlighter / partner is a contracting distinction and has
+    // no business on a screen whose only job is "open this person's schedule".
     const b=el('button','pitem',`<span class="av">${esc(initials(n))}</span>
-      <span><span class="nm">${esc(p.first?p.first+' '+n:n)}${p.cred?', '+esc(p.cred):''}</span>
-      <span class="ct">${esc(p.cat||'')}</span></span>`);
+      <span><span class="nm">${esc(p.first?p.first+' '+n:n)}</span></span>`);
     b.onclick=()=>{ME=n;try{localStorage.setItem('ccpsa_me',n);}catch(e){}closeGate();boot();};
     list.appendChild(b);
   });
@@ -1309,12 +1319,50 @@ async function bootApi(){
   if(CUR==='req')renderReq();
   if(CUR==='swap')renderSwap();
 }
+function adminBar(){
+  if(ROLE!=='admin')return;
+  if(document.querySelector('#admBar'))return;
+  const bar=el('div','admbar');bar.id='admBar';
+  bar.innerHTML=(ME?'<button class="ab on" data-v="mine">My schedule</button>':'')+
+    '<button class="ab'+(ME?'':' on')+'" data-v="admin">Admin view</button>'+
+    '<button class="ab" data-v="pick">Physicians</button>';
+  document.querySelector('header').appendChild(bar);
+  bar.querySelectorAll('.ab').forEach(b=>b.onclick=()=>{
+    const v=b.dataset.v;
+    if(v==='pick'){openGate();return;}
+    bar.querySelectorAll('.ab').forEach(x=>x.classList.toggle('on',x===b));
+    if(v==='admin'){showAdminView();}
+    else{hideAdminView();if(ACCT&&ACCT.person){ME=ACCT.person;boot();go('now');}}
+  });
+}
+function showAdminView(){
+  let w=document.querySelector('#admWrap');
+  if(!w){
+    w=el('section','pane admwrap');w.id='admWrap';
+    w.innerHTML='<h2 class="sec">Admin dashboard</h2>'+
+      '<div class="note" style="margin-top:0">Coverage grid, contract attainment, validation, '+
+      'schedule editing and the Excel backup. Best on a laptop.</div>'+
+      '<div class="btnrow"><a class="btn pri" href="/" target="_blank" rel="noopener">'+
+      'Open the admin dashboard</a></div>'+
+      '<div class="note">Opens in a new tab. It asks for the site password separately for now.</div>';
+    document.querySelector('main').appendChild(w);
+  }
+  $$('.pane').forEach(p=>p.classList.remove('on'));
+  w.classList.add('on');
+  document.querySelector('.tabs').style.display='none';
+}
+function hideAdminView(){
+  const w=document.querySelector('#admWrap'); if(w)w.classList.remove('on');
+  document.querySelector('.tabs').style.display='';
+}
 function boot(){
   const p=DATA.providers[ME]||{};
   $('#whoami').hidden=false;
   $('#whoNm').textContent=ME?((p.first?p.first.charAt(0)+'. ':'')+ME)
                             :((ACCT&&ACCT.label)||'Admin');
-  go(ME?'now':(ADMIN_HTML?'admin':'now'));
+  adminBar();
+  if(IS_ADMIN_ONLY){showAdminView();return;}   // Sam: straight to the admin view
+  go('now');
 }
 /* ---------- sign in, then load ----------
    Nothing renders until the API says who you are and hands back your schedule. */
