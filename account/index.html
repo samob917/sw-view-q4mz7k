@@ -69,6 +69,14 @@ button:not(.ghost):hover{filter:brightness(1.06)}
 .card{animation:rise .2s ease-out}
 @keyframes rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 @media (prefers-reduced-motion:reduce){.card{animation:none}}
+
+.pwwrap{position:relative;display:block}
+.pwwrap input{padding-right:64px;width:100%}
+.pweye{position:absolute;right:6px;top:50%;transform:translateY(-50%);
+  width:auto;margin:0;background:transparent;border:0;cursor:pointer;
+  font:inherit;font-size:12px;font-weight:600;letter-spacing:.02em;padding:6px 9px;border-radius:7px}
+.pweye:hover{background:rgba(127,145,165,.14)}
+.pweye{color:var(--go)}
 </style>
 
 <div class="wrap">
@@ -185,12 +193,38 @@ const $=s=>document.querySelector(s);
 const PAGES=['p1','p2','p3','p4','pDone','pPw','pSignin','pSignin2'];
 let STATE={person:null,email:null,password:null,token:null};
 
+
+/* Show/hide on every password box. Typing a 12+ character passphrase blind on a phone keyboard
+   is where most sign-in attempts actually fail. */
+function wireReveal(root){
+  (root||document).querySelectorAll('input[type=password]').forEach(inp=>{
+    if(inp.dataset.reveal)return;
+    inp.dataset.reveal='1';
+    const wrap=document.createElement('div');
+    wrap.className='pwwrap';
+    inp.parentNode.insertBefore(wrap,inp);
+    wrap.appendChild(inp);
+    const b=document.createElement('button');
+    b.type='button'; b.className='pweye'; b.textContent='Show';
+    b.setAttribute('aria-label','Show password');
+    b.onclick=()=>{
+      const on=inp.type==='password';
+      inp.type=on?'text':'password';
+      b.textContent=on?'Hide':'Show';
+      b.setAttribute('aria-label',(on?'Hide':'Show')+' password');
+      inp.focus();
+    };
+    wrap.appendChild(b);
+  });
+}
+
 function go(id,stepIdx,title){
   PAGES.forEach(p=>{const e=$('#'+p); if(e)e.hidden=(p!==id);});
   const bars=[...document.querySelectorAll('#prog i')];
   bars.forEach((b,i)=>b.classList.toggle('on', stepIdx!=null && i<stepIdx));
   $('#prog').style.visibility = stepIdx==null ? 'hidden' : 'visible';
   if(title)$('#h1').textContent=title;
+  wireReveal(document.querySelector('#'+id));
   window.scrollTo(0,0);
 }
 function say(sel,text,kind){const m=$(sel);if(!m)return;m.textContent=text||'';
