@@ -489,11 +489,18 @@ function openGate(){
   GATE_FROM=document.querySelector('#admWrap.on')?'admin':'mine';
   const top=$('#gateTop');
   if(top){
-    top.innerHTML='<button class="gback" id="gateBack">← Back</button>'+
-      (ROLE==='admin'?'<button class="gback" id="gateAdmin">Admin view</button>':'');
-    $('#gateBack').onclick=()=>{closeGate();restoreFromGate();};
-    const ga=$('#gateAdmin');
-    if(ga)ga.onclick=()=>{closeGate();showAdminView();markBar('admin');};
+    // The same three controls, not a lone back arrow: the overlay covers the header, so the
+    // toggle has to exist here or it looks like it vanished.
+    top.innerHTML=(ACCT&&ACCT.person?'<button class="gback" data-g="mine">My schedule</button>':'')+
+      (ROLE==='admin'?'<button class="gback" data-g="admin">Admin view</button>':'')+
+      '<button class="gback on" data-g="pick">Physicians</button>';
+    top.querySelectorAll('.gback').forEach(bt=>bt.onclick=()=>{
+      const v=bt.dataset.g;
+      if(v==='pick')return;
+      closeGate();
+      if(v==='admin'){showAdminView();markBar('admin');}
+      else{hideAdminView();ME=ACCT.person;boot();go('now');markBar('mine');}
+    });
   }
   $('#gate').style.display='block';$('#gateSearch').value='';renderGate('');
 }
@@ -1392,6 +1399,7 @@ function adminBar(){
   bar.querySelectorAll('.ab').forEach(b=>b.onclick=()=>{
     const v=b.dataset.v;
     if(v==='pick'){openGate();return;}
+    hideAdminView();
     bar.querySelectorAll('.ab').forEach(x=>x.classList.toggle('on',x===b));
     if(v==='admin'){showAdminView();}
     else{hideAdminView();if(ACCT&&ACCT.person){ME=ACCT.person;boot();go('now');}}
@@ -1441,7 +1449,8 @@ window.addEventListener('orientationchange',()=>setTimeout(sizeAdminFrame,250));
 
 function hideAdminView(){
   const w=document.querySelector('#admWrap'); if(w)w.classList.remove('on');
-  document.querySelector('.tabs').style.display='';
+  const t=document.querySelector('.tabs');
+  if(t){t.style.display='';t.hidden=false;}   // Schedule / Requests / Swaps come back
   document.body.classList.remove('adminmode');
 }
 function boot(){
