@@ -12,22 +12,23 @@
 *{box-sizing:border-box}
 body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--sans);
   font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased}
-.wrap{max-width:440px;margin:0 auto;padding:24px 18px 60px}
+.wrap{max-width:420px;margin:0 auto;padding:34px 18px 60px}
 .eyebrow{font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--faint)}
-h1{font-family:var(--mono);font-size:21px;font-weight:600;letter-spacing:-.02em;margin:6px 0 18px}
+h1{font-family:var(--mono);font-size:24px;font-weight:600;letter-spacing:-.025em;margin:6px 0 20px}
 
 /* progress: only meaningful because setup really is a fixed sequence */
 .prog{display:flex;gap:6px;margin-bottom:18px}
 .prog i{flex:1;height:3px;border-radius:2px;background:var(--line2)}
 .prog i.on{background:var(--go)}
 
-.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:22px 20px;
+  box-shadow:0 10px 30px rgba(0,0,0,.25)}
 h2{font-size:16px;font-weight:650;margin:0 0 4px}
 .sub{color:var(--dim);font-size:13.5px;margin:0 0 4px}
 label{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;
   color:var(--faint);margin:14px 0 5px}
 input{width:100%;background:var(--panel2);border:1px solid var(--line2);color:var(--ink);
-  border-radius:10px;padding:12px;font:inherit;font-size:16px}
+  border-radius:11px;padding:13px 14px;font:inherit;font-size:16px}
 input:focus{outline:2px solid var(--go);outline-offset:1px}
 #totp,#liTotp{font-family:var(--mono);letter-spacing:.3em;text-align:center;font-size:22px}
 button{width:100%;margin-top:16px;background:var(--go);border:0;color:#04121e;font:inherit;
@@ -51,6 +52,23 @@ button:disabled{opacity:.55}
 a{color:var(--go)}
 .hint{font-size:12px;color:var(--faint);margin-top:5px}
 .hint.bad{color:#FCA5A5}
+
+/* ---- sign-in surface ---- */
+.card{position:relative;overflow:hidden}
+.card::before{content:'';position:absolute;inset:0 0 auto 0;height:2px;
+  background:linear-gradient(90deg,#FF6B6B,#FFC94D,#4ADE80,#60A5FA,#818CF8,#F472B6);opacity:.85}
+h2{font-family:var(--mono);letter-spacing:-.01em}
+.step{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--faint);margin-bottom:6px}
+input{transition:border-color .15s,background .15s}
+input::placeholder{color:var(--faint)}
+input:hover{border-color:#3B506A}
+button{transition:transform .06s ease,filter .15s}
+button:active{transform:translateY(1px)}
+button:not(.ghost):hover{filter:brightness(1.06)}
+.card{animation:rise .2s ease-out}
+@keyframes rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.card{animation:none}}
 </style>
 
 <div class="wrap">
@@ -141,14 +159,21 @@ a{color:var(--go)}
     <input id="liEmail" type="email" autocomplete="email" autocapitalize="none" spellcheck="false">
     <label for="liPw">Password</label>
     <input id="liPw" type="password" autocomplete="current-password">
-    <div id="totpWrap" hidden>
-      <label for="liTotp">6-digit code from your app</label>
-      <input id="liTotp" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000">
-      <div class="hint">Lost your phone? Enter one of your recovery codes here instead.</div>
-    </div>
     <button id="bSignin">Sign in</button>
     <div class="msg err" id="mSignin"></div>
     <p class="small">Not set up yet? <a href="#" id="toSetup">Start with your access code</a></p>
+  </section>
+
+  <!-- ============ sign in · code ============ -->
+  <section class="card" id="pSignin2" hidden>
+    <div class="step">Step 2 of 2</div>
+    <h2>Enter your code</h2>
+    <p class="sub">The 6-digit code from your authenticator app.</p>
+    <input id="liTotp" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000">
+    <button id="bSignin2">Verify and sign in</button>
+    <button class="ghost" id="liBack">Back</button>
+    <div class="msg err" id="mSignin2"></div>
+    <p class="note">Lost your phone? Enter one of your recovery codes above instead.</p>
   </section>
 
   <p class="small">Trouble? Contact Dr. Nadon. Your code and password are personal — don't share them.</p>
@@ -157,7 +182,7 @@ a{color:var(--go)}
 <script>
 const API='https://elig-api.vercel.app/api';
 const $=s=>document.querySelector(s);
-const PAGES=['p1','p2','p3','p4','pDone','pPw','pSignin'];
+const PAGES=['p1','p2','p3','p4','pDone','pPw','pSignin','pSignin2'];
 let STATE={person:null,email:null,password:null,token:null};
 
 function go(id,stepIdx,title){
@@ -191,7 +216,6 @@ $('#b1').onclick=async()=>{
       say('#m1','This account is already set up. Sign in with your email and password.');
       go('pSignin',null,'Sign in');
       if(j.email)$('#liEmail').value=j.email;
-      $('#totpWrap').hidden=false;
     }else{
       $('#who2').textContent=j.person+(j.role==='admin'?' · admin':'');
       go('p2',1,'Set up your account');
@@ -200,7 +224,7 @@ $('#b1').onclick=async()=>{
   }catch(e){ say('#m1',e.message); }
   busy(b,false,'Continue');
 };
-$('#toSignin').onclick=e=>{e.preventDefault();$('#totpWrap').hidden=false;go('pSignin',null,'Sign in');};
+$('#toSignin').onclick=e=>{e.preventDefault();go('pSignin',null,'Sign in');};
 $('#toSetup').onclick=e=>{e.preventDefault();go('p1',0,'Set up your account');};
 $('#back1').onclick=e=>{e.preventDefault();go('p1',0,'Set up your account');};
 
@@ -257,23 +281,29 @@ function signedIn(msg){
 }
 
 /* ---- sign in ---- */
-$('#bSignin').onclick=async()=>{
-  say('#mSignin','');
-  const b=$('#bSignin'); busy(b,true,'Signing in…');
+async function doSignin(totp,msgSel,btn){
+  say(msgSel,'');
+  busy(btn,true,'Signing in…');
   try{
     const j=await api('/session',{email:$('#liEmail').value.trim(),
-      password:$('#liPw').value, totp:($('#liTotp').value||'').trim()});
+      password:$('#liPw').value, totp:totp||''});
     STATE.token=j.token; STATE.person=j.person; STATE.email=$('#liEmail').value.trim();
     signedIn('Signed in as '+j.person+(j.twoFactor?'. Two-factor is on.':'.'));
   }catch(e){
+    // The code is asked for on its own screen, and only once the password is known good.
     if(e.payload&&e.payload.need==='2fa'){
-      $('#totpWrap').hidden=false;
-      say('#mSignin','Enter the 6-digit code from your authenticator app.');
+      go('pSignin2',null,'Sign in');
       setTimeout(()=>$('#liTotp').focus(),60);
-    }else say('#mSignin',e.message);
+    }else say(msgSel,e.message);
   }
-  busy(b,false,'Sign in');
-};
+  busy(btn,false,btn.id==='bSignin'?'Sign in':'Verify and sign in');
+}
+$('#bSignin').onclick=()=>doSignin('', '#mSignin', $('#bSignin'));
+$('#bSignin2').onclick=()=>doSignin($('#liTotp').value.trim(), '#mSignin2', $('#bSignin2'));
+$('#liBack').onclick=()=>go('pSignin',null,'Sign in');
+$('#liTotp').addEventListener('input',()=>{
+  if($('#liTotp').value.replace(/\D/g,'').length===6)$('#bSignin2').click();
+});
 
 /* ---- done page ---- */
 $('#goSched').onclick=()=>{ location.href='/my/'; };
@@ -297,9 +327,9 @@ $('#bPw').onclick=async()=>{
   .forEach(id=>{const e=$('#'+id); if(e)e.addEventListener('keydown',ev=>{
     if(ev.key!=='Enter')return; ev.preventDefault();
     ({code:'b1',email:'b2',pw:'b2',pw2:'b2',totp:'b3',
-      liEmail:'bSignin',liPw:'bSignin',liTotp:'bSignin',
+      liEmail:'bSignin',liPw:'bSignin',liTotp:'bSignin2',
       cpCur:'bPw',cpNew:'bPw',cpNew2:'bPw'})[id] && $('#'+({code:'b1',email:'b2',pw:'b2',pw2:'b2',
-      totp:'b3',liEmail:'bSignin',liPw:'bSignin',liTotp:'bSignin',cpCur:'bPw',cpNew:'bPw',
+      totp:'b3',liEmail:'bSignin',liPw:'bSignin',liTotp:'bSignin2',cpCur:'bPw',cpNew:'bPw',
       cpNew2:'bPw'})[id]).click();
   });});
 
