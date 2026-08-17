@@ -303,6 +303,17 @@ body.locked header,body.locked main,body.locked .tabs{display:none}
 .siMsg.bad{border-color:#F87171;color:#FCA5A5;background:rgba(248,113,113,.1)}
 .siNote{color:var(--faint);font-size:12px;margin-top:14px;line-height:1.5}
 .siNote a{color:var(--signal)}
+
+.siStep{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--faint);margin-top:10px}
+.siLead{font-size:13.5px;color:var(--dim);margin:6px 0 4px;line-height:1.5}
+.siCode{font-family:var(--mono);letter-spacing:.34em;text-align:center;font-size:23px}
+.siGhost{width:100%;margin-top:9px;background:transparent;border:1px solid var(--line2);
+  color:var(--ink);font:inherit;font-size:14px;border-radius:10px;padding:11px;cursor:pointer}
+.siQr{background:#fff;padding:10px;border-radius:12px;display:grid;place-items:center;margin:12px 0}
+.siQr img{display:block;width:190px;height:190px;image-rendering:pixelated}
+.siKey{font-family:var(--mono);font-size:11.5px;word-break:break-all;color:var(--faint);
+  background:var(--panel2);border:1px dashed var(--line2);border-radius:8px;padding:8px}
 </style>
 
 <header class="top">
@@ -1284,26 +1295,21 @@ function boot(){
 }
 /* ---------- sign in, then load ----------
    Nothing renders until the API says who you are and hands back your schedule. */
-function gateHTML(){
-  return `<div class="signin">
-    <div class="siCard">
-      <div class="siLogo">⚡</div>
-      <h1 class="siH">My schedule</h1>
-      <div class="siSub">CCPSA Critical Care</div>
-      <label class="siL" for="siEmail">Email</label>
-      <input class="siI" id="siEmail" type="email" autocomplete="email" autocapitalize="none" spellcheck="false">
-      <label class="siL" for="siPw">Password</label>
-      <input class="siI" id="siPw" type="password" autocomplete="current-password">
-      <div id="siTotpWrap" hidden>
-        <label class="siL" for="siTotp">6-digit code</label>
-        <input class="siI" id="siTotp" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000">
-      </div>
-      <button class="siB" id="siGo">Sign in</button>
-      <div class="siMsg" id="siMsg"></div>
-      <div class="siNote">No account yet? <a href="/account/">Set one up</a> with the access code
-        you were sent. Trouble? Contact Dr. Nadon.</div>
-    </div></div>`;
+function siShell(body){
+  return `<div class="signin"><div class="siCard">
+    <div class="siLogo">⚡</div>
+    <h1 class="siH">My schedule</h1>
+    <div class="siSub">CCPSA Critical Care</div>
+    ${body}
+    <div class="siMsg" id="siMsg"></div>
+  </div></div>`;
 }
+function siPaint(body){
+  const old=document.querySelector('.signin'); if(old)old.remove();
+  document.body.insertAdjacentHTML('beforeend',siShell(body));
+}
+function siSay(t,bad){const m=document.querySelector('#siMsg'); if(!m)return;
+  m.textContent=t||''; m.className='siMsg'+(t?' on':'')+(bad?' bad':'');}
 async function loadPortal(token){
   const r=await fetch(API+'/portal',{headers:{Authorization:'Bearer '+token}});
   const j=await r.json();
@@ -1314,37 +1320,131 @@ async function loadPortal(token){
   setIdentity(j.person,j.role);
   document.body.classList.remove('locked');
   const g=document.querySelector('.signin'); if(g)g.remove();
-  document.querySelector('main').hidden=false;
-  document.querySelector('.tabs').hidden=false;
-  document.querySelector('header').hidden=false;
   boot(); bootApi();
 }
-function showGate(){
-  document.body.insertAdjacentHTML('beforeend',gateHTML());
+
+/* Step 1 — email and password only. The 6-digit code gets its own screen: putting it on the
+   login form asks for something most people do not have open yet, and makes a fresh account
+   look like it is missing a field. */
+function stepPassword(email){
+  siPaint(`
+    <label class="siL" for="siEmail">Email</label>
+    <input class="siI" id="siEmail" type="email" autocomplete="email" autocapitalize="none"
+           spellcheck="false" value="${email?String(email).replace(/"/g,'&quot;'):''}">
+    <label class="siL" for="siPw">Password</label>
+    <input class="siI" id="siPw" type="password" autocomplete="current-password">
+    <button class="siB" id="siGo">Sign in</button>
+    <div class="siNote">No account yet? <a href="/account/">Set one up</a> with the access code
+      you were sent. Trouble? Contact Dr. Nadon.</div>`);
   const go=async()=>{
-    const m=document.querySelector('#siMsg');
-    m.textContent='Signing in…'; m.className='siMsg on';
+    const em=document.querySelector('#siEmail').value.trim();
+    const pw=document.querySelector('#siPw').value;
+    if(!em||!pw){siSay('Enter your email and password.',true);return;}
+    siSay('Signing in…');
     try{
       const r=await fetch(API+'/session',{method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({email:document.querySelector('#siEmail').value.trim(),
-                             password:document.querySelector('#siPw').value,
-                             totp:(document.querySelector('#siTotp')||{}).value||''})});
+        body:JSON.stringify({email:em,password:pw})});
       const j=await r.json();
-      if(!r.ok){
-        if(j.need==='2fa'){document.querySelector('#siTotpWrap').hidden=false;
-          m.textContent='Enter the 6-digit code from your authenticator app.';m.className='siMsg on bad';
-          document.querySelector('#siTotp').focus();return;}
-        m.textContent=j.error||'Could not sign in'; m.className='siMsg on bad'; return;
+      if(r.ok){                                   // no two-factor yet — offer it, do not force it
+        try{sessionStorage.setItem('__tok',j.token);}catch(e){}
+        stepOffer2fa(em,pw,j.token);
+        return;
       }
-      try{sessionStorage.setItem('__tok',j.token);}catch(e){}
-      await loadPortal(j.token);
-    }catch(e){ m.textContent=e.message||'Could not sign in'; m.className='siMsg on bad'; }
+      if(j.need==='2fa'){ step2fa(em,pw); return; }
+      siSay(j.error||'Could not sign in',true);
+    }catch(e){ siSay('Could not reach the server.',true); }
   };
   document.querySelector('#siGo').onclick=go;
-  ['siEmail','siPw','siTotp'].forEach(id=>{const e=document.querySelector('#'+id);
-    if(e)e.addEventListener('keydown',ev=>{if(ev.key==='Enter'){ev.preventDefault();go();}});});
-  setTimeout(()=>{const e=document.querySelector('#siEmail'); if(e)e.focus();},60);
+  ['siEmail','siPw'].forEach(id=>{const e=document.querySelector('#'+id);
+    e.addEventListener('keydown',ev=>{if(ev.key==='Enter'){ev.preventDefault();go();}});});
+  setTimeout(()=>{const e=document.querySelector('#siEmail'); if(e&&!e.value)e.focus();
+                  else document.querySelector('#siPw').focus();},60);
 }
+
+/* Step 2a — this account already has an authenticator. */
+function step2fa(email,pw){
+  siPaint(`
+    <div class="siStep">Step 2 of 2</div>
+    <div class="siLead">Enter the 6-digit code from your authenticator app.</div>
+    <input class="siI siCode" id="siTotp" inputmode="numeric" autocomplete="one-time-code"
+           maxlength="6" placeholder="000000">
+    <button class="siB" id="siGo2">Verify and sign in</button>
+    <button class="siGhost" id="siBack">Back</button>
+    <div class="siNote">Lost your phone? Enter one of your recovery codes above instead.</div>`);
+  const go=async()=>{
+    const code=document.querySelector('#siTotp').value.trim();
+    if(!code){siSay('Enter the code from your app.',true);return;}
+    siSay('Checking…');
+    try{
+      const r=await fetch(API+'/session',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({email,password:pw,totp:code})});
+      const j=await r.json();
+      if(!r.ok){siSay(j.error||'That code is not right.',true);return;}
+      try{sessionStorage.setItem('__tok',j.token);}catch(e){}
+      await loadPortal(j.token);
+    }catch(e){ siSay('Could not reach the server.',true); }
+  };
+  document.querySelector('#siGo2').onclick=go;
+  document.querySelector('#siBack').onclick=()=>stepPassword(email);
+  const t=document.querySelector('#siTotp');
+  t.addEventListener('keydown',ev=>{if(ev.key==='Enter'){ev.preventDefault();go();}});
+  t.addEventListener('input',()=>{if(t.value.replace(/\D/g,'').length===6)go();});
+  setTimeout(()=>t.focus(),60);
+}
+
+/* Step 2b — no authenticator yet. Offered, not imposed: locking someone out of their own
+   schedule because they have not set up 2FA yet is worse than letting them in and asking again. */
+function stepOffer2fa(email,pw,token){
+  siPaint(`
+    <div class="siStep">One more thing</div>
+    <div class="siLead">Protect your account with an authenticator app. It takes about a minute,
+      and means a stolen password alone is not enough to open your schedule.</div>
+    <button class="siB" id="siSetup">Set up two-factor</button>
+    <button class="siGhost" id="siLater">Not now — take me to my schedule</button>`);
+  document.querySelector('#siLater').onclick=()=>loadPortal(token).catch(e=>siSay(e.message,true));
+  document.querySelector('#siSetup').onclick=async()=>{
+    siSay('Preparing…');
+    try{
+      const r=await fetch(API+'/account',{method:'POST',
+        headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
+        body:JSON.stringify({action:'reset2fa',password:pw})});
+      const j=await r.json();
+      if(!r.ok){siSay(j.error||'Could not start setup',true);return;}
+      stepScan(email,pw,token,j);
+    }catch(e){ siSay('Could not reach the server.',true); }
+  };
+}
+function stepScan(email,pw,token,setup){
+  siPaint(`
+    <div class="siStep">Scan this</div>
+    <div class="siLead">Google Authenticator, Authy, 1Password, or the password app on iPhone.</div>
+    <div class="siQr"><img src="${setup.totpQr||''}" alt="QR code"></div>
+    <div class="siKey">${setup.totpSecret||''}</div>
+    <label class="siL" for="siNew">Then enter the 6-digit code</label>
+    <input class="siI siCode" id="siNew" inputmode="numeric" autocomplete="one-time-code"
+           maxlength="6" placeholder="000000">
+    <button class="siB" id="siDone">Turn on and sign in</button>
+    <button class="siGhost" id="siSkip">Skip for now</button>`);
+  document.querySelector('#siSkip').onclick=()=>loadPortal(token).catch(e=>siSay(e.message,true));
+  const go=async()=>{
+    siSay('Checking…');
+    try{
+      const r=await fetch(API+'/account',{method:'POST',
+        headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
+        body:JSON.stringify({action:'confirm2fa',
+                             totp:document.querySelector('#siNew').value.trim()})});
+      const j=await r.json();
+      if(!r.ok){siSay(j.error||'That code is not right.',true);return;}
+      await loadPortal(j.token||token);
+    }catch(e){ siSay('Could not reach the server.',true); }
+  };
+  document.querySelector('#siDone').onclick=go;
+  const n=document.querySelector('#siNew');
+  n.addEventListener('keydown',ev=>{if(ev.key==='Enter'){ev.preventDefault();go();}});
+  setTimeout(()=>n.focus(),60);
+}
+function showGate(){ stepPassword(''); }
+
 (async function start(){
   document.body.classList.add('locked');
   let tok=null; try{tok=sessionStorage.getItem('__tok');}catch(e){}
