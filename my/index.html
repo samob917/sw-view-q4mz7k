@@ -376,6 +376,10 @@ body.adminmode main{padding:0}
 @media (max-width:700px){
   .admload{padding:18px 14px}
 }
+
+.viewbar{padding:7px 14px;background:rgba(74,222,128,.10);border-top:1px solid var(--line);
+  color:var(--dim);font-size:12.5px}
+.viewbar b{color:var(--ink)}
 </style>
 
 <header class="top">
@@ -454,7 +458,7 @@ function setIdentity(person,role){
   ME=(person&&DATA.people.includes(person))?person:null;
   IS_ADMIN_ONLY=(ROLE==='admin'&&!ME);
 }
-let IS_ADMIN_ONLY=false;
+let IS_ADMIN_ONLY=false, BOOTED=false;
 
 function initials(n){const p=DATA.providers[n]||{};return ((p.first||n)[0]+n[0]).toUpperCase();}
 const firstOf=n=>((DATA.providers[n]||{}).first||n);
@@ -1376,9 +1380,15 @@ wireTabs();
 async function bootApi(){
   await signInApi();
   if(SESSION){
-    try{const r=await api('/requests');MYREQ=r.requests||{};CFG={...(CFG||{}),deadline:r.deadline,locked:r.locked,allowance:r.allowance};}catch(e){MYREQ={};}
+    // Viewing another physician means their requests, not the admin's own empty set.
+    const viewing=(ROLE==='admin'&&ME&&ACCT&&ME!==ACCT.person)?('?person='+encodeURIComponent(ME)):'';
+    try{const r=await api('/requests'+viewing);MYREQ=r.requests||{};
+        CFG={...(CFG||{}),deadline:r.deadline,locked:r.locked,allowance:r.allowance};}catch(e){MYREQ={};}
     try{const s=await api('/schedule');applyEdits(s.overrides||[]);}catch(e){applyEdits([]);}
     await loadSwaps();
+    if(ROLE==='admin'&&ME&&ACCT&&ME!==ACCT.person){
+      MYSWAPS=(MYSWAPS||[]).filter(w=>w.fromPerson===ME||w.toPerson===ME);
+    }
     renderNow();                       // the hero may now be a different shift
     if(CUR==='sched')renderSched();
   }else{
@@ -1459,7 +1469,17 @@ function boot(){
   $('#whoNm').textContent=ME?((p.first?p.first.charAt(0)+'. ':'')+ME)
                             :((ACCT&&ACCT.label)||'Admin');
   adminBar();
-  if(IS_ADMIN_ONLY){showAdminView();return;}   // Sam: straight to the admin view
+  const vb=document.querySelector('#viewingBanner');
+  if(ROLE==='admin'&&ME&&ACCT&&ME!==ACCT.person){
+    if(!vb){
+      const d=el('div','viewbar');d.id='viewingBanner';
+      document.querySelector('header').appendChild(d);
+    }
+    document.querySelector('#viewingBanner').innerHTML=
+      'Viewing <b>'+esc(fullOf(ME))+'</b> — their schedule, requests and swaps';
+  }else if(vb){vb.remove();}
+  if(IS_ADMIN_ONLY&&!BOOTED){BOOTED=true;showAdminView();return;}
+  BOOTED=true;
   go('now');
 }
 /* ---------- sign in, then load ----------
