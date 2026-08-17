@@ -5,137 +5,171 @@
 :root{
   --ground:#0E1621; --panel:#16212E; --panel2:#1D2A39;
   --ink:#E6EDF3; --dim:#8A9BAD; --faint:#5C7285;
-  --line:#22303F; --line2:#2E3F52; --go:#4ADE80; --bad:#F87171; --warn:#FBBF24;
+  --line:#22303F; --line2:#2E3F52; --go:#4ADE80; --bad:#F87171;
   --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
   --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
 }
 *{box-sizing:border-box}
 body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--sans);
   font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased}
-.wrap{max-width:460px;margin:0 auto;padding:26px 18px 60px}
+.wrap{max-width:440px;margin:0 auto;padding:24px 18px 60px}
 .eyebrow{font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--faint)}
-h1{font-family:var(--mono);font-size:22px;font-weight:600;letter-spacing:-.02em;margin:7px 0 4px}
-p.lede{color:var(--dim);font-size:14px;margin:0 0 20px}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:14px}
-h2{font-size:14.5px;font-weight:650;margin:0 0 3px}
-.sub{color:var(--dim);font-size:13px;margin:0 0 12px}
+h1{font-family:var(--mono);font-size:21px;font-weight:600;letter-spacing:-.02em;margin:6px 0 18px}
+
+/* progress: only meaningful because setup really is a fixed sequence */
+.prog{display:flex;gap:6px;margin-bottom:18px}
+.prog i{flex:1;height:3px;border-radius:2px;background:var(--line2)}
+.prog i.on{background:var(--go)}
+
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px}
+h2{font-size:16px;font-weight:650;margin:0 0 4px}
+.sub{color:var(--dim);font-size:13.5px;margin:0 0 4px}
 label{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;
-  color:var(--faint);margin:12px 0 5px}
+  color:var(--faint);margin:14px 0 5px}
 input{width:100%;background:var(--panel2);border:1px solid var(--line2);color:var(--ink);
   border-radius:10px;padding:12px;font:inherit;font-size:16px}
 input:focus{outline:2px solid var(--go);outline-offset:1px}
-input[inputmode=numeric]{font-family:var(--mono);letter-spacing:.32em;text-align:center;font-size:22px}
-button{width:100%;margin-top:14px;background:var(--go);border:0;color:#04121e;font:inherit;
+#totp,#liTotp{font-family:var(--mono);letter-spacing:.3em;text-align:center;font-size:22px}
+button{width:100%;margin-top:16px;background:var(--go);border:0;color:#04121e;font:inherit;
   font-weight:700;font-size:15px;border-radius:10px;padding:13px;cursor:pointer}
-button.ghost{background:transparent;border:1px solid var(--line2);color:var(--ink);font-weight:500}
-button:disabled{opacity:.5}
+button.ghost{background:transparent;border:1px solid var(--line2);color:var(--ink);font-weight:500;margin-top:8px}
+button:disabled{opacity:.55}
 .msg{margin-top:12px;font-size:13.5px;border-radius:9px;padding:10px 12px;display:none}
 .msg.on{display:block}
 .msg.err{background:rgba(248,113,113,.12);border:1px solid var(--bad);color:#FCA5A5}
 .msg.ok{background:rgba(74,222,128,.12);border:1px solid var(--go);color:#86EFAC}
-.qr{background:#fff;padding:12px;border-radius:12px;display:grid;place-items:center;margin:12px 0}
-.qr img{display:block;width:220px;height:220px;image-rendering:pixelated}
+.hello{font-size:19px;font-weight:700;margin:2px 0 2px}
+.qr{background:#fff;padding:12px;border-radius:12px;display:grid;place-items:center;margin:14px 0}
+.qr img{display:block;width:210px;height:210px;image-rendering:pixelated}
 .secret{font-family:var(--mono);font-size:12.5px;word-break:break-all;background:var(--panel2);
   border:1px dashed var(--line2);border-radius:8px;padding:9px;color:var(--dim)}
-.codes{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px}
-.codes span{font-family:var(--mono);font-size:13px;background:var(--panel2);border:1px solid var(--line2);
-  border-radius:7px;padding:7px;text-align:center}
-.note{color:var(--faint);font-size:12.5px;margin-top:10px}
-.steps{counter-reset:s;list-style:none;padding:0;margin:10px 0 0}
-.steps li{counter-increment:s;position:relative;padding-left:26px;margin:7px 0;font-size:13.5px;color:var(--dim)}
-.steps li::before{content:counter(s);position:absolute;left:0;top:1px;width:18px;height:18px;
-  border-radius:50%;background:var(--panel2);border:1px solid var(--line2);color:var(--faint);
-  font-family:var(--mono);font-size:10px;display:grid;place-items:center}
-.who{font-family:var(--mono);font-size:13px;color:var(--dim);margin-bottom:10px}
-.row{display:flex;gap:8px}.row button{margin-top:0}
+.codes{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:10px 0 0}
+.codes span{font-family:var(--mono);font-size:13.5px;background:var(--panel2);border:1px solid var(--line2);
+  border-radius:7px;padding:8px;text-align:center}
+.note{color:var(--faint);font-size:12.5px;margin-top:12px}
+.small{font-size:12.5px;color:var(--dim);text-align:center;margin-top:16px}
 a{color:var(--go)}
+.hint{font-size:12px;color:var(--faint);margin-top:5px}
+.hint.bad{color:#FCA5A5}
 </style>
 
 <div class="wrap">
   <div class="eyebrow">CCPSA Critical Care</div>
-  <h1>Your account</h1>
-  <p class="lede">Set up an email, a password and an authenticator app so your schedule is
-    protected by more than a single code.</p>
+  <h1 id="h1">Set up your account</h1>
+  <div class="prog" id="prog"><i></i><i></i><i></i><i></i></div>
 
-  <!-- STEP 1 -->
-  <section class="card" id="s-enrol">
-    <h2>Set up your account</h2>
-    <p class="sub">Use the personal access code you were sent. It works once — after this you
-      sign in with your email.</p>
-    <label for="code">Your access code</label>
+  <!-- ============ 1. access code ============ -->
+  <section class="card" id="p1">
+    <h2>Start with your access code</h2>
+    <p class="sub">The personal code you were sent — it looks like <code>lastname-xxxx</code>.</p>
+    <label for="code">Access code</label>
     <input id="code" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="lastname-xxxx">
-    <label for="email">Email</label>
-    <input id="email" type="email" autocomplete="email" autocapitalize="none" spellcheck="false">
-    <label for="pw">New password</label>
-    <input id="pw" type="password" autocomplete="new-password" placeholder="at least 12 characters">
-    <button id="goEnrol">Create my account</button>
-    <div class="msg err" id="mEnrol"></div>
-    <p class="note">A short phrase you'll remember beats a short jumble you won't.</p>
+    <button id="b1">Continue</button>
+    <div class="msg err" id="m1"></div>
+    <p class="small">Already set up? <a href="#" id="toSignin">Sign in instead</a></p>
   </section>
 
-  <!-- STEP 2 -->
-  <section class="card" id="s-2fa" hidden>
-    <h2>Add your authenticator</h2>
+  <!-- ============ 2. name + email + password ============ -->
+  <section class="card" id="p2" hidden>
+    <p class="sub">Signing up as</p>
+    <div class="hello" id="who2"></div>
+    <p class="sub">Not you? <a href="#" id="back1">Use a different code</a></p>
+    <label for="email">Your email</label>
+    <input id="email" type="email" autocomplete="email" autocapitalize="none" spellcheck="false" placeholder="you@example.org">
+    <label for="pw">Choose a password</label>
+    <input id="pw" type="password" autocomplete="new-password" placeholder="at least 12 characters">
+    <div class="hint" id="pwHint">A phrase you'll remember beats a jumble you won't.</div>
+    <label for="pw2">Confirm password</label>
+    <input id="pw2" type="password" autocomplete="new-password">
+    <div class="hint" id="pw2Hint"></div>
+    <button id="b2">Continue</button>
+    <div class="msg err" id="m2"></div>
+  </section>
+
+  <!-- ============ 3. authenticator ============ -->
+  <section class="card" id="p3" hidden>
+    <h2>Add your authenticator app</h2>
     <p class="sub">Scan this with Google Authenticator, Authy, 1Password, or the built-in
       password app on iPhone.</p>
-    <div class="qr"><img id="qr" alt="QR code for your authenticator app" width="220" height="220"></div>
-    <p class="note">Can't scan? Enter this key by hand:</p>
+    <div class="qr"><img id="qr" alt="QR code for your authenticator app"></div>
+    <p class="note">Can't scan? Type this key into the app instead:</p>
     <div class="secret" id="secret"></div>
-    <label for="totp">6-digit code from the app</label>
+    <label for="totp">Enter the 6-digit code it shows</label>
     <input id="totp" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000">
-    <button id="goConfirm">Turn on two-factor</button>
-    <div class="msg err" id="m2fa"></div>
+    <button id="b3">Finish setup</button>
+    <div class="msg err" id="m3"></div>
   </section>
 
-  <!-- STEP 3 -->
-  <section class="card" id="s-codes" hidden>
+  <!-- ============ 4. recovery codes ============ -->
+  <section class="card" id="p4" hidden>
     <h2>Save your recovery codes</h2>
-    <p class="sub">If you lose your phone, one of these gets you in. Each works once. Screenshot
-      them or write them down now — they are not shown again.</p>
+    <p class="sub">If you lose your phone, one of these gets you in. Each works once.
+      <b>They are not shown again.</b></p>
     <div class="codes" id="codes"></div>
-    <button id="goDone">I've saved them</button>
+    <button id="copyCodes" class="ghost">Copy all</button>
+    <button id="b4">I've saved them — take me in</button>
   </section>
 
-  <!-- SIGN IN -->
-  <section class="card" id="s-signin">
-    <h2>Sign in</h2>
-    <p class="sub">Once your account is set up.</p>
-    <label for="li-email">Email</label>
-    <input id="li-email" type="email" autocomplete="email" autocapitalize="none" spellcheck="false">
-    <label for="li-pw">Password</label>
-    <input id="li-pw" type="password" autocomplete="current-password">
-    <label for="li-totp">6-digit code (or a recovery code)</label>
-    <input id="li-totp" autocomplete="one-time-code" placeholder="000000">
-    <button id="goSignin">Sign in</button>
-    <div class="msg err" id="mSignin"></div>
+  <!-- ============ done ============ -->
+  <section class="card" id="pDone" hidden>
+    <h2>You're all set</h2>
+    <div class="msg ok on" id="doneMsg"></div>
+    <button id="goSched">Go to my schedule</button>
+    <button class="ghost" id="goPwChange">Change my password</button>
+    <button class="ghost" id="goOut">Sign out</button>
   </section>
 
-  <!-- SIGNED IN -->
-  <section class="card" id="s-in" hidden>
-    <h2>You're signed in</h2>
-    <div class="who" id="who"></div>
-    <div class="msg ok on" id="inMsg"></div>
-    <label for="cp-cur">Change password — current</label>
-    <input id="cp-cur" type="password" autocomplete="current-password">
-    <label for="cp-new">New password</label>
-    <input id="cp-new" type="password" autocomplete="new-password">
-    <button id="goPw">Change password</button>
+  <!-- ============ change password (after sign-in) ============ -->
+  <section class="card" id="pPw" hidden>
+    <h2>Change your password</h2>
+    <label for="cpCur">Current password</label>
+    <input id="cpCur" type="password" autocomplete="current-password">
+    <label for="cpNew">New password</label>
+    <input id="cpNew" type="password" autocomplete="new-password">
+    <label for="cpNew2">Confirm new password</label>
+    <input id="cpNew2" type="password" autocomplete="new-password">
+    <button id="bPw">Save new password</button>
+    <button class="ghost" id="pwBack">Back</button>
     <div class="msg err" id="mPw"></div>
-    <div class="row" style="margin-top:12px">
-      <button class="ghost" id="goOut">Sign out</button>
-      <button class="ghost" id="goSched">My schedule</button>
-    </div>
   </section>
 
-  <p class="note">Trouble? Contact Dr. Nadon. Your access code and password are personal —
-    don't share them.</p>
+  <!-- ============ sign in ============ -->
+  <section class="card" id="pSignin" hidden>
+    <h2>Sign in</h2>
+    <p class="sub">With the email and password you set up.</p>
+    <label for="liEmail">Email</label>
+    <input id="liEmail" type="email" autocomplete="email" autocapitalize="none" spellcheck="false">
+    <label for="liPw">Password</label>
+    <input id="liPw" type="password" autocomplete="current-password">
+    <div id="totpWrap" hidden>
+      <label for="liTotp">6-digit code from your app</label>
+      <input id="liTotp" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000">
+      <div class="hint">Lost your phone? Enter one of your recovery codes here instead.</div>
+    </div>
+    <button id="bSignin">Sign in</button>
+    <div class="msg err" id="mSignin"></div>
+    <p class="small">Not set up yet? <a href="#" id="toSetup">Start with your access code</a></p>
+  </section>
+
+  <p class="small">Trouble? Contact Dr. Nadon. Your code and password are personal — don't share them.</p>
 </div>
 
 <script>
 const API='https://elig-api.vercel.app/api';
 const $=s=>document.querySelector(s);
-const show=(id,on)=>{const e=$(id); if(e)e.hidden=!on;};
-function say(sel,text,kind){const m=$(sel);m.textContent=text||'';m.className='msg '+(kind||'err')+(text?' on':'');}
+const PAGES=['p1','p2','p3','p4','pDone','pPw','pSignin'];
+let STATE={person:null,email:null,password:null,token:null};
+
+function go(id,stepIdx,title){
+  PAGES.forEach(p=>{const e=$('#'+p); if(e)e.hidden=(p!==id);});
+  const bars=[...document.querySelectorAll('#prog i')];
+  bars.forEach((b,i)=>b.classList.toggle('on', stepIdx!=null && i<stepIdx));
+  $('#prog').style.visibility = stepIdx==null ? 'hidden' : 'visible';
+  if(title)$('#h1').textContent=title;
+  window.scrollTo(0,0);
+}
+function say(sel,text,kind){const m=$(sel);if(!m)return;m.textContent=text||'';
+  m.className='msg '+(kind||'err')+(text?' on':'');}
 async function api(path,body,tok){
   const r=await fetch(API+path,{method:'POST',
     headers:{'Content-Type':'application/json',...(tok?{Authorization:'Bearer '+tok}:{})},
@@ -144,66 +178,130 @@ async function api(path,body,tok){
   if(!r.ok)throw Object.assign(new Error(j.error||('HTTP '+r.status)),{payload:j,status:r.status});
   return j;
 }
-let PENDING=null, TOKEN=null;
+const busy=(b,on,label)=>{b.disabled=on;if(label)b.textContent=label;};
 
-/* The QR image is generated by the API and delivered as a data URI: encoding it correctly is
-   fiddly enough that a hand-rolled version produced an unscannable code, and sending the secret
-   to a third-party chart service would leak the credential being created. */
-/* ---------- flows ---------- */
-$('#goEnrol').onclick=async()=>{
-  say('#mEnrol','');
-  const b=$('#goEnrol'); b.disabled=true; b.textContent='Setting up…';
+/* ---- 1. access code ---- */
+$('#b1').onclick=async()=>{
+  say('#m1','');
+  const b=$('#b1'); busy(b,true,'Checking…');
+  try{
+    const j=await api('/account',{action:'identify',code:$('#code').value.trim()});
+    STATE.person=j.person;
+    if(j.alreadyEnrolled){
+      say('#m1','This account is already set up. Sign in with your email and password.');
+      go('pSignin',null,'Sign in');
+      if(j.email)$('#liEmail').value=j.email;
+      $('#totpWrap').hidden=false;
+    }else{
+      $('#who2').textContent=j.person+(j.role==='admin'?' · admin':'');
+      go('p2',1,'Set up your account');
+      setTimeout(()=>$('#email').focus(),60);
+    }
+  }catch(e){ say('#m1',e.message); }
+  busy(b,false,'Continue');
+};
+$('#toSignin').onclick=e=>{e.preventDefault();$('#totpWrap').hidden=false;go('pSignin',null,'Sign in');};
+$('#toSetup').onclick=e=>{e.preventDefault();go('p1',0,'Set up your account');};
+$('#back1').onclick=e=>{e.preventDefault();go('p1',0,'Set up your account');};
+
+/* ---- 2. email + password (+ confirmation) ---- */
+$('#pw2').addEventListener('input',()=>{
+  const a=$('#pw').value,b=$('#pw2').value;
+  const h=$('#pw2Hint');
+  if(!b){h.textContent='';h.className='hint';return;}
+  const same=a===b;
+  h.textContent=same?'Passwords match':'Passwords do not match yet';
+  h.className='hint'+(same?'':' bad');
+});
+$('#b2').onclick=async()=>{
+  say('#m2','');
+  if($('#pw').value!==$('#pw2').value){ say('#m2','The two passwords do not match.'); return; }
+  const b=$('#b2'); busy(b,true,'Creating…');
   try{
     const j=await api('/account',{action:'enrol',code:$('#code').value.trim(),
       email:$('#email').value.trim(),password:$('#pw').value});
-    PENDING=j;
-    $('#secret').textContent=j.totpSecret;
-    if(j.totpQr){ $('#qr').src=j.totpQr; }
-    else { $('#qr').closest('.qr').style.display='none'; }
+    STATE.email=j.email; STATE.password=$('#pw').value;
+    $('#qr').src=j.totpQr||''; $('#secret').textContent=j.totpSecret;
     $('#codes').innerHTML=j.recoveryCodes.map(c=>'<span>'+c+'</span>').join('');
-    show('#s-enrol',false); show('#s-signin',false); show('#s-2fa',true);
-    $('#totp').focus();
-  }catch(e){ say('#mEnrol',e.message); }
-  b.disabled=false; b.textContent='Create my account';
+    STATE.codes=j.recoveryCodes;
+    go('p3',2,'Add two-factor');
+    setTimeout(()=>$('#totp').focus(),60);
+  }catch(e){ say('#m2',e.message); }
+  busy(b,false,'Continue');
 };
-$('#goConfirm').onclick=async()=>{
-  say('#m2fa','');
-  const b=$('#goConfirm'); b.disabled=true;
+
+/* ---- 3. authenticator ---- */
+$('#b3').onclick=async()=>{
+  say('#m3','');
+  const b=$('#b3'); busy(b,true,'Checking…');
   try{
-    await api('/account',{action:'confirm2fa',person:PENDING.person,totp:$('#totp').value.trim()});
-    show('#s-2fa',false); show('#s-codes',true);
-  }catch(e){ say('#m2fa',e.message); }
-  b.disabled=false;
+    const j=await api('/account',{action:'confirm2fa',person:STATE.person,totp:$('#totp').value.trim()});
+    // Finishing setup signs you in — no second login with the details you just chose.
+    STATE.token=j.token||null;
+    go('p4',3,'Save your recovery codes');
+  }catch(e){ say('#m3',e.message); }
+  busy(b,false,'Finish setup');
 };
-$('#goDone').onclick=()=>{
-  show('#s-codes',false); show('#s-signin',true);
-  $('#li-email').value=PENDING.email; $('#li-pw').focus();
+
+/* ---- 4. recovery codes ---- */
+$('#copyCodes').onclick=async()=>{
+  try{ await navigator.clipboard.writeText((STATE.codes||[]).join('\n'));
+       $('#copyCodes').textContent='Copied'; }
+  catch(e){ $('#copyCodes').textContent='Select and copy them manually'; }
 };
-$('#goSignin').onclick=async()=>{
+$('#b4').onclick=()=>{ signedIn('Signed in as '+STATE.person+'. Two-factor is on.'); };
+
+function signedIn(msg){
+  say('#doneMsg',msg,'ok');
+  go('pDone',4,'You’re all set');
+}
+
+/* ---- sign in ---- */
+$('#bSignin').onclick=async()=>{
   say('#mSignin','');
-  const b=$('#goSignin'); b.disabled=true; b.textContent='Signing in…';
+  const b=$('#bSignin'); busy(b,true,'Signing in…');
   try{
-    const j=await api('/session',{email:$('#li-email').value.trim(),
-      password:$('#li-pw').value, totp:$('#li-totp').value.trim()});
-    TOKEN=j.token;
-    try{sessionStorage.setItem('__code','');}catch(e){}
-    $('#who').textContent=j.person+' · '+j.role+(j.twoFactor?' · two-factor on':'');
-    say('#inMsg','Signed in'+(j.recoveryLeft!=null?' — '+j.recoveryLeft+' recovery codes left':''),'ok');
-    show('#s-signin',false); show('#s-enrol',false); show('#s-in',true);
+    const j=await api('/session',{email:$('#liEmail').value.trim(),
+      password:$('#liPw').value, totp:($('#liTotp').value||'').trim()});
+    STATE.token=j.token; STATE.person=j.person; STATE.email=$('#liEmail').value.trim();
+    signedIn('Signed in as '+j.person+(j.twoFactor?'. Two-factor is on.':'.'));
   }catch(e){
-    say('#mSignin', e.payload&&e.payload.need==='2fa'
-      ? 'Enter the 6-digit code from your authenticator app.' : e.message);
+    if(e.payload&&e.payload.need==='2fa'){
+      $('#totpWrap').hidden=false;
+      say('#mSignin','Enter the 6-digit code from your authenticator app.');
+      setTimeout(()=>$('#liTotp').focus(),60);
+    }else say('#mSignin',e.message);
   }
-  b.disabled=false; b.textContent='Sign in';
+  busy(b,false,'Sign in');
 };
-$('#goPw').onclick=async()=>{
+
+/* ---- done page ---- */
+$('#goSched').onclick=()=>{ location.href='/my/'; };
+$('#goOut').onclick=()=>{ STATE={person:null,email:null,password:null,token:null};
+                          location.reload(); };
+$('#goPwChange').onclick=()=>go('pPw',null,'Change your password');
+$('#pwBack').onclick=()=>signedIn('Signed in as '+STATE.person+'.');
+$('#bPw').onclick=async()=>{
   say('#mPw','');
+  if($('#cpNew').value!==$('#cpNew2').value){ say('#mPw','The two new passwords do not match.'); return; }
+  const b=$('#bPw'); busy(b,true,'Saving…');
   try{
-    await api('/account',{action:'password',current:$('#cp-cur').value,password:$('#cp-new').value},TOKEN);
-    say('#mPw','Password changed.','ok');
-    $('#cp-cur').value=''; $('#cp-new').value='';
+    await api('/account',{action:'password',current:$('#cpCur').value,password:$('#cpNew').value},STATE.token);
+    $('#cpCur').value=$('#cpNew').value=$('#cpNew2').value='';
+    signedIn('Password changed. You are still signed in as '+STATE.person+'.');
   }catch(e){ say('#mPw',e.message); }
+  busy(b,false,'Save new password');
 };
-$('#goOut').onclick=()=>{TOKEN=null;location.reload();};
-$('#goSched').onclick=()=>{location.href='/my/';};
+
+['code','email','pw','pw2','totp','liEmail','liPw','liTotp','cpCur','cpNew','cpNew2']
+  .forEach(id=>{const e=$('#'+id); if(e)e.addEventListener('keydown',ev=>{
+    if(ev.key!=='Enter')return; ev.preventDefault();
+    ({code:'b1',email:'b2',pw:'b2',pw2:'b2',totp:'b3',
+      liEmail:'bSignin',liPw:'bSignin',liTotp:'bSignin',
+      cpCur:'bPw',cpNew:'bPw',cpNew2:'bPw'})[id] && $('#'+({code:'b1',email:'b2',pw:'b2',pw2:'b2',
+      totp:'b3',liEmail:'bSignin',liPw:'bSignin',liTotp:'bSignin',cpCur:'bPw',cpNew:'bPw',
+      cpNew2:'bPw'})[id]).click();
+  });});
+
+go('p1',0,'Set up your account');
 </script>
