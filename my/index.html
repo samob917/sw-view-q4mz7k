@@ -362,6 +362,20 @@ body.locked header,body.locked main,body.locked .tabs{display:none}
 #admFrame{width:100%;height:calc(100vh - 118px);border:0;background:#f1f5f9;display:block}
 .admload{padding:22px 16px;color:var(--dim);font-size:14px}
 body.adminmode main{padding-bottom:0}
+
+/* full-bleed dashboard: escape the 600px reading column */
+body.adminmode .wrap{max-width:none;padding:0}
+body.adminmode .topin{max-width:1500px}
+body.adminmode main{padding:0}
+#admWrap{width:100vw;margin-left:calc(50% - 50vw);padding:0}
+#admFrame{width:100%;border:0;background:#f1f5f9;display:block}
+/* touch: let the frame own its own scrolling and keep controls thumb-sized */
+#admWrap{-webkit-overflow-scrolling:touch}
+.ab{min-height:40px}
+.gback{min-height:40px}
+@media (max-width:700px){
+  .admload{padding:18px 14px}
+}
 </style>
 
 <header class="top">
@@ -1395,6 +1409,7 @@ function showAdminView(){
   w.classList.add('on');
   document.querySelector('.tabs').style.display='none';
   document.body.classList.add('adminmode');
+  sizeAdminFrame();
   if(!w.dataset.loaded){
     w.dataset.loaded='1';
     fetch(API+'/dashboard',{headers:{Authorization:'Bearer '+(SESSION&&SESSION.token)}})
@@ -1412,6 +1427,18 @@ function showAdminView(){
       });
   }
 }
+// The portal is phone-first (.wrap is 600px), so the dashboard was being squeezed into a
+// phone-width column on a laptop — which is what made its text overlap. In admin mode the pane
+// breaks out of that column and the frame is sized to the real viewport.
+function sizeAdminFrame(){
+  const f=document.querySelector('#admFrame'); if(!f)return;
+  const top=f.getBoundingClientRect().top;
+  const h=Math.max(320,(window.innerHeight||600)-top);
+  f.style.height=h+'px';
+}
+window.addEventListener('resize',()=>{if(document.body.classList.contains('adminmode'))sizeAdminFrame();});
+window.addEventListener('orientationchange',()=>setTimeout(sizeAdminFrame,250));
+
 function hideAdminView(){
   const w=document.querySelector('#admWrap'); if(w)w.classList.remove('on');
   document.querySelector('.tabs').style.display='';
@@ -1475,6 +1502,14 @@ async function loadPortal(token){
   if(!r.ok)throw new Error(j.error||'Could not load your schedule');
   DATA=j.data;
   SESSION={token,person:j.person,role:j.role};
+  // The dashboard runs in a same-origin frame and reads its identity from sessionStorage, so
+  // handing it the session here means signing in once covers both. Without this it showed its
+  // own "Sign in" button to someone who had just signed in.
+  try{
+    sessionStorage.setItem('__tok',token);
+    sessionStorage.setItem('__editTok',token);
+    sessionStorage.setItem('__acctInfo',JSON.stringify({person:j.person,role:j.role,twoFactor:true}));
+  }catch(e){}
   CFG={deadline:j.deadline,locked:j.locked,lateContact:j.lateContact};
   setIdentity(j.person,j.role);
   document.body.classList.remove('locked');
