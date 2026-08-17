@@ -352,6 +352,16 @@ body.locked header,body.locked main,body.locked .tabs{display:none}
   font:inherit;font-size:12px;font-weight:600;letter-spacing:.02em;padding:6px 9px;border-radius:7px}
 .pweye:hover{background:rgba(127,145,165,.14)}
 .signin .pweye{color:var(--signal)}
+
+.gatetop{display:flex;gap:8px;margin-bottom:14px}
+.gback{background:var(--panel2);border:1px solid var(--line2);color:var(--ink);font:inherit;
+  font-size:13px;border-radius:9px;padding:8px 14px;cursor:pointer}
+.gback:hover{border-color:#3B506A}
+
+.admwrap{padding:0}
+#admFrame{width:100%;height:calc(100vh - 118px);border:0;background:#f1f5f9;display:block}
+.admload{padding:22px 16px;color:var(--dim);font-size:14px}
+body.adminmode main{padding-bottom:0}
 </style>
 
 <header class="top">
@@ -385,6 +395,7 @@ body.locked header,body.locked main,body.locked .tabs{display:none}
 <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetHd"><div class="grab" aria-hidden="true"></div><div class="hd" id="sheetHd"></div><div class="bd" id="sheetBd"></div></div>
 
 <div id="gate"><div class="in">
+  <div class="gatetop" id="gateTop"></div>
   <div class="eyebrow">CCPSA Critical Care · Q4 2026</div>
   <h1 id="gateH">Physicians</h1>
   <div class="note" style="margin-top:2px" id="gateNote">Choose whose schedule to open.</div>
@@ -445,12 +456,41 @@ function renderGate(filter){
     // no business on a screen whose only job is "open this person's schedule".
     const b=el('button','pitem',`<span class="av">${esc(initials(n))}</span>
       <span><span class="nm">${esc(p.first?p.first+' '+n:n)}</span></span>`);
-    b.onclick=()=>{ME=n;try{localStorage.setItem('ccpsa_me',n);}catch(e){}closeGate();boot();};
+    b.onclick=()=>{
+      ME=n;try{localStorage.setItem('ccpsa_me',n);}catch(e){}
+      closeGate();
+      hideAdminView();                 // viewing a physician is not the admin view
+      boot();
+      markBar(ACCT&&ACCT.person===n?'mine':'pick');
+      go('now');
+    };
     list.appendChild(b);
   });
 }
-function openGate(){$('#gate').style.display='block';$('#gateSearch').value='';renderGate('');}
+// The picker is a full-screen overlay (z-index above the header), so the admin toggle is
+// painted over while it is open — you could get in but not back out. It carries its own way
+// back, mirroring whatever the toggle offers.
+let GATE_FROM=null;
+function openGate(){
+  GATE_FROM=document.querySelector('#admWrap.on')?'admin':'mine';
+  const top=$('#gateTop');
+  if(top){
+    top.innerHTML='<button class="gback" id="gateBack">← Back</button>'+
+      (ROLE==='admin'?'<button class="gback" id="gateAdmin">Admin view</button>':'');
+    $('#gateBack').onclick=()=>{closeGate();restoreFromGate();};
+    const ga=$('#gateAdmin');
+    if(ga)ga.onclick=()=>{closeGate();showAdminView();markBar('admin');};
+  }
+  $('#gate').style.display='block';$('#gateSearch').value='';renderGate('');
+}
 function closeGate(){$('#gate').style.display='none';}
+function restoreFromGate(){
+  if(GATE_FROM==='admin'){showAdminView();markBar('admin');}
+  else{hideAdminView();markBar(ME?'mine':'admin');if(!ME)showAdminView();}
+}
+function markBar(v){
+  document.querySelectorAll('.ab').forEach(x=>x.classList.toggle('on',x.dataset.v===v));
+}
 $('#gateSearch').addEventListener('input',e=>renderGate(e.target.value));
 $('#whoami').onclick=()=>{
   const who=(ACCT&&ACCT.label)||fullOf(ME)||'—';
@@ -1347,21 +1387,35 @@ function showAdminView(){
   let w=document.querySelector('#admWrap');
   if(!w){
     w=el('section','pane admwrap');w.id='admWrap';
-    w.innerHTML='<h2 class="sec">Admin dashboard</h2>'+
-      '<div class="note" style="margin-top:0">Coverage grid, contract attainment, validation, '+
-      'schedule editing and the Excel backup. Best on a laptop.</div>'+
-      '<div class="btnrow"><a class="btn pri" href="/" target="_blank" rel="noopener">'+
-      'Open the admin dashboard</a></div>'+
-      '<div class="note">Opens in a new tab. It asks for the site password separately for now.</div>';
+    w.innerHTML='<div class="admload" id="admLoad">Loading the dashboard…</div>'+
+      '<iframe id="admFrame" title="Admin dashboard"></iframe>';
     document.querySelector('main').appendChild(w);
   }
   $$('.pane').forEach(p=>p.classList.remove('on'));
   w.classList.add('on');
   document.querySelector('.tabs').style.display='none';
+  document.body.classList.add('adminmode');
+  if(!w.dataset.loaded){
+    w.dataset.loaded='1';
+    fetch(API+'/dashboard',{headers:{Authorization:'Bearer '+(SESSION&&SESSION.token)}})
+      .then(r=>{if(!r.ok)throw new Error('HTTP '+r.status);return r.text();})
+      .then(html=>{
+        const f=document.querySelector('#admFrame');
+        const d=f.contentDocument||f.contentWindow.document;
+        d.open();d.write(html);d.close();
+        const l=document.querySelector('#admLoad'); if(l)l.remove();
+      })
+      .catch(e=>{
+        w.dataset.loaded='';
+        const l=document.querySelector('#admLoad');
+        if(l)l.textContent='Could not load the dashboard ('+e.message+'). Try again.';
+      });
+  }
 }
 function hideAdminView(){
   const w=document.querySelector('#admWrap'); if(w)w.classList.remove('on');
   document.querySelector('.tabs').style.display='';
+  document.body.classList.remove('adminmode');
 }
 function boot(){
   const p=DATA.providers[ME]||{};
