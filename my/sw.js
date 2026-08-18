@@ -28,3 +28,30 @@ self.addEventListener('fetch', e => {
     })));
   }
 });
+
+
+/* ---------- push ----------
+   Coverage requests reach a phone here. The payload carries a URL so tapping the notification
+   opens the app on the right screen rather than wherever it was left. */
+self.addEventListener('push', e => {
+  let d = {};
+  try { d = e.data ? e.data.json() : {}; } catch (err) { d = { title: 'CCPSA', body: e.data ? e.data.text() : '' }; }
+  e.waitUntil(self.registration.showNotification(d.title || 'CCPSA schedule', {
+    body: d.body || '',
+    icon: 'icon-192.png',
+    badge: 'icon-192.png',
+    tag: d.tag || 'ccpsa',
+    data: { url: d.url || '/my/' },
+    renotify: !!d.tag,
+  }));
+});
+
+self.addEventListener('notificationclick', e => {
+  e.notification.close();
+  const url = (e.notification.data && e.notification.data.url) || '/my/';
+  e.waitUntil(clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
+    // Focus the app if it is already open rather than piling up tabs.
+    for (const c of list) { if (c.url.includes('/my/') && 'focus' in c) return c.focus(); }
+    return clients.openWindow(url);
+  }));
+});

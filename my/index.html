@@ -1352,8 +1352,123 @@ function renderReqRead(box){
     +`<div class="rdrow"><span>Priority holiday</span><span>${rq.holiday?esc(rq.holiday):'—'}</span></div>`;
 }
 
+
+/* ---------- coverage requests ----------
+   Client 8/17 #2: asking everyone who *can* take the shift is the good path, so it leads.
+   Picking one person stays available but is the secondary choice. First accept wins; only then
+   is an admin asked. */
+let COVER=[];
+async function loadCoverage(){
+  if(!SESSION)return;
+  try{ COVER=(await api('/coverage')).offers||[]; }catch(e){ COVER=[]; }
+}
+async function enablePush(){
+  if(!('serviceWorker' in navigator)||!('PushManager' in window))return {ok:false,why:'This browser cannot do notifications.'};
+  try{
+    const perm=await Notification.requestPermission();
+    if(perm!=='granted')return {ok:false,why:'Notifications are blocked for this site.'};
+    const reg=await navigator.serviceWorker.ready;
+    const {key}=await (await fetch(API+'/push')).json();
+    if(!key)return {ok:false,why:'Notifications are not configured yet.'};
+    const b64=(s)=>{const p='='.repeat((4-s.length%4)%4);const r=(s+p).replace(/-/g,'+').replace(/_/g,'/');
+      const raw=atob(r);return Uint8Array.from([...raw].map(c=>c.charCodeAt(0)));};
+    let sub=await reg.pushManager.getSubscription();
+    if(!sub)sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64(key)});
+    await api('/push',{method:'POST',body:JSON.stringify({sub:sub.toJSON()})});
+    return {ok:true};
+  }catch(e){ return {ok:false,why:e.message||'Could not turn on notifications.'}; }
+}
+function coverageCard(){
+  const open=COVER.filter(o=>o.status==='open'&&(o.eligible||[]).includes(ME)&&o.fromPerson!==ME);
+  const mine=COVER.filter(o=>o.fromPerson===ME&&o.status!=='approved'&&o.status!=='declined');
+  const toApprove=(ROLE==='admin')?COVER.filter(o=>o.status==='claimed'):[];
+  let h='';
+  if(open.length)h+=`<h2 class="sec">Can you cover?</h2>`+open.map(o=>`
+    <div class="swcard"><div class="lgh">${esc(META(o.shift).label||o.shift)} · ${esc(fmtD(o.date))}</div>
+      <div class="sub">${esc(fullOf(o.fromPerson))} needs this covered${o.note?' — '+esc(o.note):''}</div>
+      <div class="btnrow"><button class="btn pri" data-claim="${esc(o.id)}">I'll take it</button></div>
+    </div>`).join('');
+  if(toApprove.length)h+=`<h2 class="sec">Waiting on you</h2>`+toApprove.map(o=>`
+    <div class="swcard"><div class="lgh">${esc(META(o.shift).label||o.shift)} · ${esc(fmtD(o.date))}</div>
+      <div class="sub"><b>${esc(fullOf(o.claimedBy))}</b> will cover for ${esc(fullOf(o.fromPerson))}</div>
+      <div class="btnrow"><button class="btn pri" data-ok="${esc(o.id)}">Approve</button>
+        <button class="btn" data-no="${esc(o.id)}">Decline</button></div>
+    </div>`).join('');
+  if(mine.length)h+=`<h2 class="sec">Your coverage requests</h2>`+mine.map(o=>`
+    <div class="swcard"><div class="lgh">${esc(META(o.shift).label||o.shift)} · ${esc(fmtD(o.date))}</div>
+      <div class="sub">${o.status==='open'
+        ? 'Asked '+(o.eligible||[]).length+' colleague'+((o.eligible||[]).length===1?'':'s')+' — nobody has accepted yet'
+        : o.status==='claimed' ? esc(fullOf(o.claimedBy))+' accepted — waiting on an admin'
+        : esc(o.status)}</div></div>`).join('');
+  return h;
+}
+function wireCoverage(){
+  document.querySelectorAll('[data-claim]').forEach(b=>b.onclick=async()=>{
+    b.disabled=true;b.textContent='…';
+    try{ await api('/coverage',{method:'POST',body:JSON.stringify({id:b.dataset.claim,action:'claim'})});
+         toast('Accepted — an admin will confirm'); await loadCoverage(); renderSwap(); }
+    catch(e){ toast(e.message); b.disabled=false; b.textContent="I'll take it"; }
+  });
+  document.querySelectorAll('[data-ok],[data-no]').forEach(b=>b.onclick=async()=>{
+    const id=b.dataset.ok||b.dataset.no, act=b.dataset.ok?'approve':'decline';
+    b.disabled=true;
+    try{ await api('/coverage',{method:'PATCH',body:JSON.stringify({id,action:act})});
+         toast(act==='approve'?'Approved — the schedule is updated':'Declined');
+         await loadCoverage(); await refreshLive(true); renderSwap(); }
+    catch(e){ toast(e.message); b.disabled=false; }
+  });
+  const rc=document.querySelector('#reqCover'); if(rc)rc.onclick=openCoverAsk;
+  const pn=document.querySelector('#pushOn'); if(pn)pn.onclick=async()=>{
+    pn.disabled=true;pn.textContent='…';
+    const r=await enablePush();
+    toast(r.ok?'Notifications on':(r.why||'Could not turn on notifications'));
+    pn.textContent=r.ok?'Notifications on':'Turn on notifications';
+    pn.disabled=r.ok;
+  };
+}
+function openCoverAsk(){
+  const shifts=myShifts(ME).filter(s=>s.iso>=todayISO());
+  if(!shifts.length){ toast('No upcoming shifts'); return; }
+  sheet('Request coverage',
+    `<label class="lbl" for="cvShift">Which shift</label>
+     <select class="inp" id="cvShift">${shifts.map(s=>
+       `<option value="${s.iso}|${esc(s.shift)}">${esc(fmtD(s.iso))} — ${esc(META(s.shift).label)}</option>`).join('')}</select>
+     <label class="lbl" for="cvNote">Why (optional)</label>
+     <input class="inp" id="cvNote" placeholder="family thing">
+     <div class="lbl">Who to ask</div>
+     <div class="btnrow" style="flex-direction:column;gap:8px">
+       <button class="btn pri" id="cvAll">Ask everyone who can take it</button>
+       <button class="btn" id="cvOne">Pick one person instead</button>
+     </div>
+     <div class="msg" id="cvMsg"></div>
+     <div class="note">Asking everyone gets it covered fastest — only people who are free and
+       credentialed for that shift are asked, and the first to accept takes it.</div>`);
+  const send=async(mode,toPerson)=>{
+    const [date,shift]=$('#cvShift').value.split('|');
+    const m=$('#cvMsg'); m.textContent='Sending…'; m.className='msg on';
+    try{
+      const j=await api('/coverage',{method:'POST',body:JSON.stringify(
+        {date,shift,mode,toPerson,note:$('#cvNote').value})});
+      closeSheet();
+      toast(mode==='direct'?'Asked '+toPerson:'Asked '+j.eligibleCount+' colleagues');
+      await loadCoverage(); renderSwap();
+    }catch(e){ m.textContent=e.message; m.className='msg on bad'; }
+  };
+  $('#cvAll').onclick=()=>send('broadcast');
+  $('#cvOne').onclick=()=>{
+    const [date,shift]=$('#cvShift').value.split('|');
+    sheet('Pick a person',
+      `<div class="note" style="margin-top:0">Only people who can legally take this shift are listed.</div>
+       <div class="chips" id="cvWho">${DATA.people.filter(p=>p!==ME).map(p=>
+         `<button class="pill" data-who="${esc(p)}">${esc(p)}</button>`).join('')}</div>
+       <div class="msg" id="cvMsg"></div>`);
+    document.querySelectorAll('[data-who]').forEach(b=>b.onclick=()=>send('direct',b.dataset.who));
+  };
+}
+
 function renderSwap(){
   const pane=$('#pane-swap');
+  // coverage requests lead: asking everyone who can take it is the good path
   if(!ME){pane.innerHTML='<div class="empty" style="margin-top:22px">Choose a physician first.</div>';return;}
   if(!SESSION){pane.innerHTML='<div class="empty" style="margin-top:22px">Sign in again to use swaps.</div>';return;}
 
@@ -1368,7 +1483,7 @@ function renderSwap(){
     return `<span class="pill ${m[0]}">${m[1]}</span>`;
   };
 
-  pane.innerHTML=`
+  pane.innerHTML=`<div class="btnrow"><button class="btn pri" id="reqCover">Request coverage</button><button class="btn" id="pushOn">Turn on notifications</button></div>${coverageCard()}
     <h2 class="sec">Ask someone to cover a shift</h2>
     ${mine.length?`
     <div class="swapform">
@@ -1710,7 +1825,7 @@ function go(t){
   if(t==='now')renderNow();
   if(t==='sched')renderSched();
   if(t==='req')renderReq();
-  if(t==='swap')renderSwap();
+  if(t==='swap'){renderSwap();wireCoverage();}
   if(t==='edit')renderEdit();
   if(t==='admin')renderAdmin();
 }
@@ -1737,6 +1852,7 @@ async function bootApi(){
         CFG={...(CFG||{}),deadline:r.deadline,locked:r.locked,allowance:r.allowance};}catch(e){MYREQ={};}
     try{const s=await api('/schedule');applyEdits(s.overrides||[]);}catch(e){applyEdits([]);}
     await loadSwaps();
+    await loadCoverage();
     if(ROLE==='admin'&&ME&&ACCT&&ME!==ACCT.person){
       MYSWAPS=(MYSWAPS||[]).filter(w=>w.fromPerson===ME||w.toPerson===ME);
     }
