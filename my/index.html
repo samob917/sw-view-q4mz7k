@@ -394,6 +394,7 @@ body.adminmode main{padding:0}
 
 .acctbar{display:flex;align-items:center;gap:10px;padding:7px 14px;border-top:1px solid var(--line)}
 .acctwho{font-family:var(--mono);font-size:12px;color:var(--dim);flex:1;overflow:hidden;
+  background:transparent;border:0;text-align:left;cursor:pointer;padding:0;
   text-overflow:ellipsis;white-space:nowrap}
 .acctout{background:transparent;border:1px solid var(--line2);color:var(--ink);font:inherit;
   font-size:12px;border-radius:8px;padding:6px 12px;min-height:34px;cursor:pointer}
@@ -411,6 +412,33 @@ body.adminmode main{padding:0}
 .msg.on{display:block}
 .msg.ok{border-color:var(--signal);color:#86EFAC}
 .msg.bad{border-color:#F87171;color:#FCA5A5}
+
+.wk7{display:flex;flex-direction:column;gap:6px;margin-top:10px}
+.w7d{display:grid;grid-template-columns:76px 1fr;gap:10px;align-items:center;background:var(--panel);
+  border:1px solid var(--line);border-radius:11px;padding:9px 11px}
+.w7d.today{border-color:var(--signal)}
+.w7h{display:flex;flex-direction:column;line-height:1.25}
+.w7h b{font-size:13px}
+.w7h span{font-size:11px;color:var(--faint);font-family:var(--mono)}
+.w7b{display:flex;flex-wrap:wrap;gap:5px}
+.w7s{font-size:12.5px;background:var(--panel2);border:1px solid var(--line);border-left:3px solid;
+  border-radius:7px;padding:4px 9px}
+.w7r{font-size:11.5px;background:transparent;border:1px dashed var(--line2);border-radius:7px;
+  padding:3px 8px;color:var(--dim)}
+.w7off{font-size:12.5px;color:var(--faint)}
+.daynav{display:inline-flex;align-items:center;gap:8px;margin-left:auto;font-weight:400;
+  font-size:12.5px;color:var(--dim);font-family:var(--mono)}
+.navb{background:var(--panel2);border:1px solid var(--line2);color:var(--ink);font:inherit;
+  font-size:15px;line-height:1;border-radius:8px;min-width:34px;min-height:34px;cursor:pointer}
+.navb:hover{border-color:#3B506A}
+.sec{display:flex;align-items:center}
+.onrow{display:grid;grid-template-columns:9px 128px 1fr;gap:9px;align-items:baseline;
+  padding:7px 0;border-bottom:1px solid var(--line)}
+.onrow:last-child{border-bottom:0}
+.onrow.isrole .onshift{color:var(--dim);font-style:italic}
+.ondot{width:9px;height:9px;border-radius:3px;align-self:center}
+.onshift{font-size:12.5px;font-weight:600}
+.onwho{font-size:13px;color:var(--dim)}
 </style>
 
 <header class="top">
@@ -685,6 +713,81 @@ function wireInstallCard(){
 }
 
 /* ---------- NOW ---------- */
+
+/* ---------- who is on, for one day ----------
+   Every shift and layered role for a date, in the order they are worked. This is the landing
+   view: people open the app to see who they are working with. */
+let DAYVIEW=null;
+// Today is usually outside the block you are looking at (we build a quarter ahead), so clamp
+// into it rather than showing an empty day.
+function inBlockDay(iso){
+  if(!DATA||!DATA.dates.length)return iso;
+  if(DATA.dates.includes(iso))return iso;
+  return iso<DATA.dates[0]?DATA.dates[0]:DATA.dates[DATA.dates.length-1];
+}
+
+/* ---------- block statistics ----------
+   The contract tiles and day-equivalent balance used to sit on the home page. They are
+   reference numbers you check occasionally, not something you open the app for, so they moved
+   here behind your profile (client 8/17 #4). */
+function blockStatsHTML(){
+  if(!ME)return '<div class="empty">No physician selected.</div>';
+  const c=counts(ME), tg=targets(ME), de=deBalance(ME);
+  const pct=(a,b)=>b?Math.min(100,Math.round(a/b*100)):0;
+  const dayN=c.icu+c.swing;
+  return `<div class="tiles">
+    <div class="tile"><div class="k">Day shifts</div><div class="v">${dayN}${tg.day!=null?` <small>/ ${tg.day}</small>`:''}</div>
+      <div class="f">ICU ${c.icu}${c.swing?` + swing ${c.swing}`:''}</div>
+      ${tg.day!=null?`<div class="bar"><i style="width:${pct(dayN,tg.day)}%"></i></div>`:''}</div>
+    <div class="tile"><div class="k">Nights</div><div class="v">${c.noc}${tg.noc!=null?` <small>/ ${tg.noc}</small>`:''}</div>
+      <div class="f">${c.combo?c.combo+' as 24-hour':'&nbsp;'}</div>
+      ${tg.noc!=null?`<div class="bar"><i style="width:${pct(c.noc,tg.noc)}%"></i></div>`:''}</div>
+    <div class="tile"><div class="k">Clinic</div><div class="v">${c.clinic+c.proc}${tg.clinic?` <small>/ ${tg.clinic}</small>`:''}</div>
+      <div class="f">${c.proc?c.proc+' EBUS':'&nbsp;'}</div></div>
+    <div class="tile"><div class="k">Weekend days</div><div class="v">${c.wknd}</div>
+      <div class="f">${c.worked} days on service</div></div>
+  </div>
+  <div class="row" style="margin-top:11px"><span class="sp" style="background:${de.bal>0?'#FBBF24':'#35D6A4'}"></span>
+    <span><span class="t">Day-equivalent balance</span><span class="s">Worked ${de.worked} vs contract ${de.contract}</span></span>
+    <span class="rt" style="font-size:17px;font-weight:800;color:${de.bal>0?'#FBBF24':'#35D6A4'}">${de.bal>0?'+':''}${de.bal}</span></div>
+  <div class="note">Every off and CME day you asked for was granted this block.</div>`;
+}
+function openBlockStats(){ sheet('Block statistics', blockStatsHTML()); }
+
+function whosOnHTML(iso){
+  if(!DATA.dates.includes(iso))
+    return '<div class="empty">Outside this block.</div>';
+  const rows=[];
+  DATA.people.forEach(p=>{
+    const a=(DATA.day[p]||{})[iso];
+    if(!a)return;
+    (a.s||[]).forEach(sh=>rows.push({sh,p,role:false}));
+    (a.r||[]).forEach(r=>rows.push({sh:r,p,role:true}));
+  });
+  if(!rows.length)return '<div class="empty">Nobody scheduled.</div>';
+  const order=sh=>{const k=(META(sh)||{}).kind;return k==='icu'?0:k==='clinic'?1:k==='swing'?2:k==='noc'?3:4;};
+  const byShift={};
+  rows.forEach(r=>{(byShift[r.sh]=byShift[r.sh]||{role:r.role,who:[]}).who.push(r.p);});
+  return Object.keys(byShift)
+    .sort((a,b)=>order(a)-order(b)||String(a).localeCompare(String(b)))
+    .map(sh=>{
+      const m=META(sh), g=byShift[sh];
+      return `<div class="onrow${g.role?' isrole':''}">
+        <span class="ondot" style="background:${g.role?'var(--line2)':m.color}"></span>
+        <span class="onshift">${esc(g.role?((DATA.roles[sh]||{}).label||sh):m.label)}</span>
+        <span class="onwho">${g.who.map(x=>esc(fullOf(x))).join(', ')}</span></div>`;
+    }).join('');
+}
+function wireDayNav(){
+  const lab=$('#dayLabel'), box=$('#onToday');
+  if(!lab||!box)return;
+  const set=iso=>{DAYVIEW=iso;lab.textContent=fmtD(iso);box.innerHTML=whosOnHTML(iso);};
+  const cur=()=>DAYVIEW||inBlockDay(todayISO());
+  const p=$('#dayPrev'), n=$('#dayNext');
+  if(p)p.onclick=()=>set(isoAdd(cur(),-1));
+  if(n)n.onclick=()=>set(isoAdd(cur(),1));
+}
+
 function renderNow(){
   const pane=$('#pane-now');
   if(!ME){pane.innerHTML=`<div class="empty" style="margin-top:22px">Choose a physician to see a personal schedule.
@@ -717,39 +820,35 @@ function renderNow(){
   // week strip
   const start=(all.length&&t>DATA.dates[DATA.dates.length-1])?DATA.dates[0]
              :(t<DATA.dates[0]?DATA.dates[0]:t);
-  html+=`<h2 class="sec">Next 7 days</h2><div class="strip">`;
+  html+=`<h2 class="sec">Next 7 days</h2><div class="wk7">`;
   for(let i=0;i<7;i++){
     const iso=isoAdd(start,i);
     const a=dayOf(ME,iso);
     const inBlock=DATA.dates.includes(iso);
-    let chip='<span class="chip off"></span>';
-    if(a&&a.s.length){const m=META(a.s[0]);chip=`<span class="chip" style="background:${m.color}"></span>`;}
-    html+=`<div class="sday${iso===t?' today':''}" data-iso="${iso}">
-      <span class="dw">${DOW[dowOf(iso)]}</span>
-      <span class="dn"${inBlock?'':' style="opacity:.35"'}>${d2(iso).getDate()}</span>${chip}</div>`;
+    // A coloured pill told you *that* you worked, never *what* — which is the one thing you
+    // want at a glance (client 8/17 #4).
+    const names=(a&&a.s.length)
+      ? a.s.map(sh=>`<span class="w7s" style="border-left-color:${META(sh).color}">${esc(META(sh).label)}</span>`).join('')
+      : `<span class="w7off">${inBlock?'Off':'—'}</span>`;
+    const roles=(a&&a.r&&a.r.length)
+      ? a.r.map(r=>`<span class="w7r">${esc((DATA.roles[r]||{label:r}).label||r)}</span>`).join('') : '';
+    html+=`<div class="w7d${iso===t?' today':''}" data-iso="${iso}">
+      <div class="w7h"><b>${DOW[dowOf(iso)]}</b><span>${MON[d2(iso).getMonth()]} ${d2(iso).getDate()}</span></div>
+      <div class="w7b">${names}${roles}</div></div>`;
   }
   html+='</div>';
-  // tiles
-  const pct=(a,b)=>b?Math.min(100,Math.round(a/b*100)):0;
-  const dayN=c.icu+c.swing;
-  html+=`<h2 class="sec">This block</h2><div class="tiles">
-    <div class="tile"><div class="k">Day shifts</div><div class="v">${dayN}${tg.day!=null?` <small>/ ${tg.day}</small>`:''}</div>
-      <div class="f">ICU ${c.icu}${c.swing?` + swing ${c.swing}`:''}</div>
-      ${tg.day!=null?`<div class="bar"><i style="width:${pct(dayN,tg.day)}%"></i></div>`:''}</div>
-    <div class="tile"><div class="k">Nights</div><div class="v">${c.noc}${tg.noc!=null?` <small>/ ${tg.noc}</small>`:''}</div>
-      <div class="f">${c.combo?c.combo+' as 24-hour':'&nbsp;'}</div>
-      ${tg.noc!=null?`<div class="bar"><i style="width:${pct(c.noc,tg.noc)}%"></i></div>`:''}</div>
-    <div class="tile"><div class="k">Clinic</div><div class="v">${c.clinic+c.proc}${tg.clinic?` <small>/ ${tg.clinic}</small>`:''}</div>
-      <div class="f">${c.proc?c.proc+' EBUS':'&nbsp;'}</div></div>
-    <div class="tile"><div class="k">Weekend days</div><div class="v">${c.wknd}</div>
-      <div class="f">${c.worked} days on service</div></div>
-  </div>`;
-  html+=`<div class="row" style="margin-top:11px"><span class="sp" style="background:${de.bal>0?'#FBBF24':'#35D6A4'}"></span>
-    <span><span class="t">Day-equivalent balance</span><span class="s">Worked ${de.worked} vs contract ${de.contract}</span></span>
-    <span class="rt" style="font-size:17px;font-weight:800;color:${de.bal>0?'#FBBF24':'#35D6A4'}">${de.bal>0?'+':''}${de.bal}</span></div>`;
+  // Who is on, for the day you are looking at — with arrows to walk the block. The contract
+  // tiles moved to Block Statistics (under your profile), because this is what people open the
+  // app to find (client 8/17 #4).
+  html+=`<h2 class="sec">Who's on <span class="daynav">
+      <button class="navb" id="dayPrev" aria-label="Previous day">‹</button>
+      <span id="dayLabel">${esc(fmtD(DAYVIEW||inBlockDay(t)))}</span>
+      <button class="navb" id="dayNext" aria-label="Next day">›</button></span></h2>
+    <div id="onToday">${whosOnHTML(DAYVIEW||inBlockDay(t))}</div>`;
   html+=`<div class="note">Every off and CME day you asked for was granted this block.</div>`;
   pane.innerHTML=html;
   wireInstallCard();
+  wireDayNav();
   $$('.sday',pane).forEach(d=>{d.onclick=()=>openDay(d.dataset.iso);
     d.setAttribute('role','button');d.setAttribute('tabindex','0');
     d.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openDay(d.dataset.iso);}};});
@@ -1530,9 +1629,11 @@ function accountBar(){
   // nothing. Make it explicit and always present.
   let a=document.querySelector('#acctBar');
   if(!a){a=el('div','acctbar');a.id='acctBar';document.querySelector('header').appendChild(a);}
-  a.innerHTML='<span class="acctwho">'+esc((ACCT&&ACCT.person)||'Signed in')+
-    (ROLE==='admin'?' · admin':'')+'</span>'+
+  a.innerHTML='<button class="acctwho" id="profileBtn">'+esc((ACCT&&ACCT.person)||'Signed in')+
+    (ROLE==='admin'?' · admin':'')+'</button>'+
     '<button class="acctout" id="signOutBtn">Sign out</button>';
+  const pb=document.querySelector('#profileBtn');
+  if(pb)pb.onclick=()=>ME?openBlockStats():null;
   document.querySelector('#signOutBtn').onclick=()=>{
     try{sessionStorage.clear();localStorage.removeItem('ccpsa_me');}catch(e){}
     location.reload();
