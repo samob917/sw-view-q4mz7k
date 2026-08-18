@@ -13,7 +13,7 @@
 <style>
 :root{
   --ground:#0E1621; --panel:#16212E; --panel2:#1C2A3A; --line:#24374A; --line2:#31485F;
-  --ink:#E8EEF4; --dim:#8AA0B4; --faint:#5C7285;
+  --ink:#E8EEF4; --dim:#8AA0B4; --faint:#5C7A94;
   --signal:#35D6A4; --amber:#FBBF24; --alert:#FF6B6B;
   --mono:ui-monospace,SFMono-Regular,"SF Mono","JetBrains Mono",Menlo,Consolas,monospace;
   --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
@@ -213,17 +213,24 @@ textarea.ta{width:100%;background:var(--panel);border:1px solid var(--line2);bor
 .balance>div{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;text-align:center}
 .balance .n{display:block;font-size:22px;font-weight:700}
 .balance .l{display:block;font-size:11.5px;color:var(--muted);margin-top:2px}
-.addrow{display:flex;gap:8px;margin:6px 0 8px}
-.addrow input{flex:1;padding:10px;border:1px solid var(--line);border-radius:10px;font-size:14px;min-width:0}
+.addrow{display:flex;gap:8px;margin:6px 0 8px;align-items:stretch}
+.addrow input{flex:1 1 auto;min-width:150px;padding:12px;border:1px solid var(--line2);
+  border-radius:10px;font-size:15px;background:var(--panel2);color:var(--ink);
+  color-scheme:dark;font-family:inherit}
+.addrow input:focus{outline:2px solid var(--signal);outline-offset:-1px;border-color:var(--signal)}
+.addrow input::-webkit-calendar-picker-indicator{filter:invert(1);opacity:.75;cursor:pointer}
+.addrow .btn{width:auto;flex:0 0 auto;padding:12px 20px}
+.addhint{font-size:12.5px;color:var(--amber);margin:-2px 0 8px;min-height:1px}
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px;min-height:26px}
-.pillx{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;
-  font-size:12.5px;border:1px solid var(--line);cursor:pointer;user-select:none}
-.pillx b{opacity:.5;font-weight:700}
-.pillx:hover b{opacity:1;color:#b91c1c}
-.pillx.off{background:#fef2f2;border-color:#fecaca}
-.pillx.cme{background:#eff6ff;border-color:#bfdbfe}
-.pillx.nn{background:#f5f3ff;border-color:#ddd6fe}
-.pillx.on{background:#ecfdf5;border-color:#a7f3d0}
+.pillx{display:inline-flex;align-items:center;gap:7px;padding:7px 12px;border-radius:999px;
+  font-size:13px;border:1px solid var(--line2);background:var(--panel2);color:var(--ink);
+  cursor:pointer;user-select:none}
+.pillx b{opacity:.65;font-weight:700}
+.pillx:hover b,.pillx:active b{opacity:1;color:#fff}
+.pillx.off{background:rgba(255,107,107,.15);border-color:rgba(255,107,107,.45);color:#FFC2C2}
+.pillx.cme{background:rgba(96,165,250,.15);border-color:rgba(96,165,250,.45);color:#C3DBFF}
+.pillx.nn{background:rgba(167,139,250,.15);border-color:rgba(167,139,250,.45);color:#DCD1FF}
+.pillx.on{background:rgba(53,214,164,.15);border-color:rgba(53,214,164,.5);color:#9BF0D5}
 .segx{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
 .segx button{padding:8px 14px;border:1px solid var(--line);background:var(--card);border-radius:999px;font-size:13px}
 .segx button.on{background:#0f172a;color:#fff;border-color:#0f172a}
@@ -1224,7 +1231,8 @@ function renderMoonReq(pane,rq,dl){
         <span class="mnote">${per(k)} night${per(k)===1?'':'s'} offered</span></label>`).join('')}
     </div>
     <h2 class="sec">Nights available to work</h2>
-    <div class="addrow"><input type="date" id="mnDate"><button class="btn" id="mnAdd">Add</button></div>
+    <div class="addrow"><input type="date" id="mnDate" aria-label="date"><button class="btn" id="mnAdd">Add</button></div>
+    <div class="addhint" id="mnHint"></div>
     <div class="chips" id="mnChips">${chipList(avail,'mn',1)}</div>
     <div class="btnrow"><button class="btn pri" id="mSave">Save my availability</button></div>
     <div class="msg" id="mMsg"></div>`;
@@ -1234,7 +1242,10 @@ function renderMoonReq(pane,rq,dl){
     return w;
   };
   $('#mnAdd').onclick=()=>{
-    const v=$('#mnDate').value; if(!v)return;
+    const el=$('#mnDate'), hint=$('#mnHint');
+    if(!el.value){ if(hint)hint.textContent='Pick a date first, then press Add.';
+                   el.focus(); if(el.showPicker)try{el.showPicker();}catch(e){} return; }
+    const v=el.value;
     if(!avail.includes(v))avail.push(v);
     avail.sort(); MYREQ={...rq,nights_available:avail,shifts_wanted:collect()}; renderReq();
   };
@@ -1308,19 +1319,23 @@ function renderReq(){
     approval.</b></p>
 
     <h2 class="sec">Request Off</h2>
-    <div class="addrow"><input type="date" id="offDate"><button class="btn" id="offAdd">Add</button></div>
+    <div class="addrow"><input type="date" id="offDate" aria-label="date"><button class="btn" id="offAdd">Add</button></div>
+    <div class="addhint" id="offHint"></div>
     <div class="chips" id="offChips">${chipList(off,'off',1)}</div>
 
     <h2 class="sec">Request CME</h2>
-    <div class="addrow"><input type="date" id="cmeDate"><button class="btn" id="cmeAdd">Add</button></div>
+    <div class="addrow"><input type="date" id="cmeDate" aria-label="date"><button class="btn" id="cmeAdd">Add</button></div>
+    <div class="addhint" id="cmeHint"></div>
     <div class="chips" id="cmeChips">${chipList(cme,'cme',1)}</div>
 
     <h2 class="sec">Request No Nights</h2>
-    <div class="addrow"><input type="date" id="nnDate"><button class="btn" id="nnAdd">Add</button></div>
+    <div class="addrow"><input type="date" id="nnDate" aria-label="date"><button class="btn" id="nnAdd">Add</button></div>
+    <div class="addhint" id="nnHint"></div>
     <div class="chips" id="nnChips">${chipList(nonoc,'nn',1)}</div>
 
     <h2 class="sec">Days I want to work</h2>
-    <div class="addrow"><input type="date" id="onDate"><button class="btn" id="onAdd">Add</button></div>
+    <div class="addrow"><input type="date" id="onDate" aria-label="date"><button class="btn" id="onAdd">Add</button></div>
+    <div class="addhint" id="onHint"></div>
     <div class="chips" id="onChips">${chipList(on,'on',1)}</div>
 
     <h2 class="sec">Priority holiday</h2>
@@ -1336,16 +1351,22 @@ function renderReq(){
     </div>
     <div id="reqErr"></div>`;
 
-  const add=(inputId,arr)=>{
-    const v=$('#'+inputId).value;
-    if(!v){ $('#reqMsg').textContent='Pick a date first'; return; }   // silence read as "broken"
-    if(!arr.includes(v))arr.push(v);
-    $('#'+inputId).value=''; MYREQ={...rq,off,cme,no_noc:nonoc,on}; renderReq();
+  const add=(inputId,arr,tag)=>{
+    const el=$('#'+inputId), hint=$('#'+tag+'Hint');
+    if(!el.value){                       // silence next to a big button reads as "broken"
+      if(hint)hint.textContent='Pick a date first, then press Add.';
+      el.focus(); if(el.showPicker)try{el.showPicker();}catch(e){}
+      return;
+    }
+    const v=el.value;
+    if(arr.includes(v)){ if(hint)hint.textContent=fmtD(v)+' is already on the list.'; return; }
+    arr.push(v);
+    el.value=''; MYREQ={...rq,off,cme,no_noc:nonoc,on}; renderReq();
   };
-  $('#offAdd').onclick=()=>add('offDate',off);
-  $('#cmeAdd').onclick=()=>add('cmeDate',cme);
-  $('#nnAdd').onclick=()=>add('nnDate',nonoc);
-  $('#onAdd').onclick=()=>add('onDate',on);
+  $('#offAdd').onclick=()=>add('offDate',off,'off');
+  $('#cmeAdd').onclick=()=>add('cmeDate',cme,'cme');
+  $('#nnAdd').onclick=()=>add('nnDate',nonoc,'nn');
+  $('#onAdd').onclick=()=>add('onDate',on,'on');
   const wire=(sel,arr)=>$$(sel+' .pillx',pane).forEach(c=>c.onclick=()=>{
     const i=arr.indexOf(c.dataset.d); if(i>=0)arr.splice(i,1);
     MYREQ={...rq,off,cme,no_noc:nonoc,on}; renderReq();});
