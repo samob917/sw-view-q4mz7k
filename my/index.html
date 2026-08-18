@@ -2071,9 +2071,20 @@ async function refreshLive(force){
     CFG={...(CFG||{}),deadline:j.deadline,locked:j.locked,lateContact:j.lateContact};
     applyEdits(j.edits||[]);
     if(!first){
-      // keep whoever is being viewed, re-render whatever tab is open
-      boot();
-      if(CUR)go(CUR);
+      // Re-render in place. boot() lands on the schedule tab, which for an admin with no
+      // schedule of their own means "Choose a physician" — so a background refresh was
+      // yanking people out of the admin view every 90 seconds while they were reading it.
+      const inAdmin=!!document.querySelector('#admWrap.on');
+      const inGroup=!!document.querySelector('#pane-group.on');
+      const inClinic=!!document.querySelector('#pane-clinic.on');
+      if(inAdmin||inGroup||inClinic){
+        if(inGroup)renderGroup();
+        if(inClinic)renderClinicView();
+        // the admin view is an iframe with its own data; leave it alone
+      }else{
+        boot();
+        if(CUR)go(CUR);
+      }
       if(MYCHANGES.length)toastLive('Your schedule was updated');
     }
   }catch(e){ /* offline: keep showing what we have */ }
