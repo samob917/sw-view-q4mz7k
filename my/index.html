@@ -1081,7 +1081,10 @@ function renderSched(){
           if(ds.length&&ns.length){       // 24h combo — diagonal split
             inner=`<span class="blk split" style="background:linear-gradient(112deg,${META(ds[0]).color} 0 50%,${META(ns[0]).color} 50% 100%)" title="24-hour shift">24h</span>`;
           }else if(ns.length){
-            inner=`<span class="blk noc" style="background:${META(ns[0]).color}">☾ NOC</span>`;
+            // every night used to read "NOC" whatever the site, so a month of nights gave no
+            // clue whether they were SAH, Porter or Littleton
+            const nm=META(ns[0]);
+            inner=`<span class="blk noc" style="background:${nm.color}">☾ ${esc(nm.short||'NOC')}</span>`;
           }else{
             const m=META(ds[0]);
             inner=`<span class="blk" style="background:${m.color}">${esc(m.short||m.label)}</span>`;
@@ -1195,7 +1198,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260818.1725';           // shown in the account bar so a stale app is obvious
+const BUILD='260818.1727';           // shown in the account bar so a stale app is obvious
 let SESSION=null, CFG=null, MYREQ=null, MYSWAPS=[];
 const api=async(path,opts={})=>{
   const h={'Content-Type':'application/json',...(opts.headers||{})};
