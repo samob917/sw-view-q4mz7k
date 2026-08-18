@@ -1289,6 +1289,9 @@ function renderReq(){
   // Client 8/17 #3: "for Moonlighters, this is completely separate".
   if(((DATA.providers[ME]||{}).cat||'')==='Moonlighter'){ renderMoonReq(pane,rq,dl); return; }
   pane.innerHTML=`
+    ${onBehalf()?`<div class="behalf">You are editing <b>${esc(fullOf(ME))}</b>'s requests.
+      Anything you save here is filed under their name.</div>`:''}
+    ${reqSavedHTML()}
     ${CFG&&CFG.deadline?`<div class="deadline ${dl!==null&&dl<=7?'soon':''}">
       <b>Requests close ${fmtD(CFG.deadline)}</b>
       <span>${dl===null?'':dl<0?'closed':dl===0?'today — midnight Mountain':dl+' day'+(dl===1?'':'s')+' left'}</span>
