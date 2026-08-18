@@ -569,9 +569,11 @@ function setIdentity(person,role){
   // OWN schedule with a toggle to the admin view; an admin who is not (Sam) has no schedule of
   // their own, so they go straight to the admin view.
   ME=(person&&DATA.people.includes(person))?person:null;
-  IS_ADMIN_ONLY=(ROLE==='admin'&&!ME);
+  // (IS_ADMIN_ONLY used to live here. It was computed once at sign-in and never again, so it
+  // still said "admin only" after a physician had been chosen — boot() then bounced back to the
+  // admin view. boot() asks !ME directly now.)
 }
-let IS_ADMIN_ONLY=false, BOOTED=false;
+let BOOTED=false;
 
 function initials(n){const p=DATA.providers[n]||{};return ((p.first||n)[0]+n[0]).toUpperCase();}
 const firstOf=n=>((DATA.providers[n]||{}).first||n);
@@ -590,11 +592,12 @@ function renderGate(filter){
     b.onclick=()=>{
       ME=n;try{localStorage.setItem('ccpsa_me',n);}catch(e){}   // survives a reload too
       MYREQ=null;
+      const tab=(CUR&&CUR!=='admin')?CUR:'now';
       closeGate();
       hideAdminView();                 // viewing a physician is not the admin view
       boot();
       markBar('pick');
-      go('now');
+      go(tab);
     };
     list.appendChild(b);
   });
@@ -616,7 +619,7 @@ function openGate(){
       if(v==='pick')return;
       closeGate();
       if(v==='admin'){showAdminView();markBar('admin');}
-      else{hideAdminView();if(ME){boot();go('now');}markBar('pick');}
+      else{hideAdminView();if(ME){boot();}markBar('pick');}
     });
   }
   $('#gate').style.display='block';$('#gateSearch').value='';renderGate('');
@@ -1182,7 +1185,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260818.1649';           // shown in the account bar so a stale app is obvious
+const BUILD='260818.1656';           // shown in the account bar so a stale app is obvious
 let SESSION=null, CFG=null, MYREQ=null, MYSWAPS=[];
 const api=async(path,opts={})=>{
   const h={'Content-Type':'application/json',...(opts.headers||{})};
@@ -1960,7 +1963,7 @@ function adminBar(){
     bar.querySelectorAll('.ab').forEach(x=>x.classList.toggle('on',x===b));
     if(v==='admin'){showAdminView();return;}
     hideAdminView();
-    if(ME){boot();go('now');}     // straight back to whoever was selected
+    if(ME){boot();}               // straight back to whoever was selected, on the same tab
     else openGate();              // nobody chosen yet — only then ask
   });
 }
@@ -2055,9 +2058,9 @@ function boot(){
     document.querySelector('#viewingBanner').innerHTML=
       'Viewing <b>'+esc(fullOf(ME))+'</b> — their schedule, requests and swaps';
   }else if(vb){vb.remove();}
-  if(IS_ADMIN_ONLY&&!BOOTED){BOOTED=true;showAdminView();return;}
+  if(!ME&&!BOOTED){BOOTED=true;showAdminView();return;}   // nobody chosen yet — admins only
   BOOTED=true;
-  go('now');
+  go(CUR&&CUR!=='admin'?CUR:'now');                       // stay on the tab you were reading
 }
 /* ---------- sign in, then load ----------
    Nothing renders until the API says who you are and hands back your schedule. */
