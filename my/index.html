@@ -593,7 +593,7 @@ function renderGate(filter){
       closeGate();
       hideAdminView();                 // viewing a physician is not the admin view
       boot();
-      markBar(ACCT&&ACCT.person===n?'mine':'pick');
+      markBar('mine');    // the schedule button now carries their name, so it is the active one
       go('now');
     };
     list.appendChild(b);
@@ -609,9 +609,7 @@ function openGate(){
   if(top){
     // The same three controls, not a lone back arrow: the overlay covers the header, so the
     // toggle has to exist here or it looks like it vanished.
-    const lab=scheduleLabel();
-    top.innerHTML=(lab?'<button class="gback" data-g="mine">'+esc(lab)+'</button>':'')+
-      (ROLE==='admin'?'<button class="gback" data-g="admin">Admin view</button>':'')+
+    top.innerHTML=(ROLE==='admin'?'<button class="gback" data-g="admin">Admin view</button>':'')+
       '<button class="gback on" data-g="pick">Physicians</button>';
     top.querySelectorAll('.gback').forEach(bt=>bt.onclick=()=>{
       const v=bt.dataset.g;
@@ -633,6 +631,9 @@ function markBar(v){
 }
 $('#gateSearch').addEventListener('input',e=>renderGate(e.target.value));
 $('#whoami').onclick=()=>{
+  // For an admin this chip is the physician selector — it already shows who is on screen, and
+  // sign-out has its own button in the bar below, so the sheet in between was a detour.
+  if(CAN_SWITCH){ openGate(); return; }
   const who=(ACCT&&ACCT.label)||fullOf(ME)||'—';
   sheet('Your account',`
     <div class="row" style="margin-top:0"><span class="sp" style="background:#35D6A4"></span>
@@ -1181,7 +1182,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260818.1637';           // shown in the account bar so a stale app is obvious
+const BUILD='260818.1647';           // shown in the account bar so a stale app is obvious
 let SESSION=null, CFG=null, MYREQ=null, MYSWAPS=[];
 const api=async(path,opts={})=>{
   const h={'Content-Type':'application/json',...(opts.headers||{})};
@@ -1944,30 +1945,23 @@ function accountBar(){
     location.reload();
   };
 }
-// The schedule button names whoever is loaded, and going to the admin view and back returns to
-// them. It used to say "My schedule" whatever was on screen, and pressing it jumped to the
-// admin's own person — so opening the admin view while looking at a physician lost them, and
-// getting back meant going through the picker again.
-function scheduleLabel(){
-  if(!ME)return null;
-  return (ACCT&&ACCT.person===ME)?'My schedule':fullOf(ME);
-}
+// Two buttons: Admin view, Physicians. Which physician you are looking at is a SELECTION, not a
+// third mode — it persists until you change it from the ▾ chip at the top. Naming the person on
+// a toggle button made the header a three-way switch for something that is not a switch.
 function adminBar(){
   if(ROLE!=='admin')return;
   let bar=document.querySelector('#admBar');
   if(!bar){ bar=el('div','admbar');bar.id='admBar';document.querySelector('header').appendChild(bar); }
-  const lab=scheduleLabel();
   const onAdmin=!!document.querySelector('#admWrap.on');
-  bar.innerHTML=(lab?'<button class="ab'+(onAdmin?'':' on')+'" data-v="mine">'+esc(lab)+'</button>':'')+
-    '<button class="ab'+(onAdmin||!lab?' on':'')+'" data-v="admin">Admin view</button>'+
-    '<button class="ab" data-v="pick">Physicians</button>';
+  bar.innerHTML='<button class="ab'+(onAdmin?' on':'')+'" data-v="admin">Admin view</button>'+
+    '<button class="ab'+(onAdmin?'':' on')+'" data-v="pick">Physicians</button>';
   bar.querySelectorAll('.ab').forEach(b=>b.onclick=()=>{
     const v=b.dataset.v;
-    if(v==='pick'){openGate();return;}
     bar.querySelectorAll('.ab').forEach(x=>x.classList.toggle('on',x===b));
     if(v==='admin'){showAdminView();return;}
     hideAdminView();
-    if(ME){boot();go('now');}          // back to whoever was open, not to the admin
+    if(ME){boot();go('now');}     // straight back to whoever was selected
+    else openGate();              // nobody chosen yet — only then ask
   });
 }
 function showAdminView(){
