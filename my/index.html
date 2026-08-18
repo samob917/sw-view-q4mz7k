@@ -1924,6 +1924,12 @@ function showAdminView(){
       })
       .catch(e=>{
         w.dataset.loaded='';
+        if(String(e.message).includes('401')){
+          ADMIN_GRANT=null;
+          try{sessionStorage.removeItem('__grant');}catch(_){}
+          askStepUp(showAdminView);
+          return;
+        }
         const l=document.querySelector('#admLoad');
         if(l)l.textContent='Could not load the dashboard ('+e.message+'). Try again.';
       });
@@ -1975,7 +1981,10 @@ function boot(){
    is signed and expires in 90 days, so it proves that and nothing more (client 8/17). */
 function rememberedDevice(){ try{return localStorage.getItem('__dev')||'';}catch(e){return '';} }
 function keepDevice(tok){ if(tok){try{localStorage.setItem('__dev',tok);}catch(e){}} }
+// Once per session, not once per reload: the grant lives in sessionStorage, so it survives a
+// refresh but dies with the tab (client 8/17).
 let ADMIN_GRANT=null;
+try{ADMIN_GRANT=sessionStorage.getItem('__grant')||null;}catch(e){}
 /* Entering the admin view asks for a fresh code: that is where the schedule can be changed. */
 function askStepUp(then){
   sheet('Admin view',
@@ -1991,7 +2000,9 @@ function askStepUp(then){
     m.textContent='Checking…'; m.className='msg on';
     try{
       const j=await api('/stepup',{method:'POST',body:JSON.stringify({totp:$('#suCode').value.trim()})});
-      ADMIN_GRANT=j.grant; closeSheet(); then();
+      ADMIN_GRANT=j.grant;
+      try{sessionStorage.setItem('__grant',ADMIN_GRANT);}catch(e){}
+      closeSheet(); then();
     }catch(e){
       if(e.payload&&e.payload.need==='enrol2fa'){
         m.textContent='Set up an authenticator first — open Account settings.'; m.className='msg on bad';
