@@ -108,6 +108,8 @@ h2.sec{font-size:19px;font-weight:800;letter-spacing:-.02em;margin:22px 0 12px}
 .cell .blk{width:100%;height:15px;border-radius:4px;display:flex;align-items:center;justify-content:center;
   font-family:var(--mono);font-size:8px;font-weight:700;color:#0E1621;overflow:hidden;white-space:nowrap}
 .cell .blk.noc{color:#0E1621;font-size:8px;letter-spacing:0}
+.cell .blk.cme{background:rgba(96,165,250,.22);border:1px solid rgba(96,165,250,.55);color:#C3DBFF;
+  letter-spacing:.04em}
 .cell .blk.split{background-image:none}
 .cell .req{position:absolute;top:2px;right:3px;font-size:8px;color:var(--signal)}
 .cell .rl{width:5px;height:5px;border-radius:50%;background:#F0ABFC}
@@ -1071,7 +1073,8 @@ function renderSched(){
         const iso=`${y}-${String(mo+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
         const a=dayOf(ME,iso),rq=DATA.requests[ME]||{};
         const onReq=(rq.on||[]).includes(iso);
-        const offReq=(rq.off||[]).includes(iso)||(rq.cme||[]).includes(iso);
+        const cmeReq=(rq.cme||[]).includes(iso);
+        const offReq=(rq.off||[]).includes(iso)||cmeReq;
         let inner='';
         if(a&&a.s.length){
           const ds=a.s.filter(s=>META(s).kind!=='noc'),ns=a.s.filter(s=>META(s).kind==='noc');
@@ -1084,19 +1087,23 @@ function renderSched(){
             inner=`<span class="blk" style="background:${m.color}">${esc(m.label.slice(0,7))}</span>`;
           }
         }
+        if(!inner&&cmeReq)inner='<span class="blk cme">CME</span>';
         if(a&&a.r&&a.r.length)inner+='<span class="rl"></span>';
         const spoken=[`${MONL[mo]} ${d}`];
         if(a&&a.s.length)spoken.push(a.s.map(x=>META(x).label).join(' and '));
         else spoken.push('no shift');
-        if(onReq)spoken.push('requested on');else if(offReq)spoken.push('requested off');
+        if(onReq)spoken.push('requested on');
+        else if(cmeReq)spoken.push('C M E day');
+        else if(offReq)spoken.push('requested off');
         html+=`<div class="cell${a&&a.s.length?' on':''}" data-iso="${iso}" role="button" tabindex="0" aria-label="${esc(spoken.join(', '))}">
           <span class="n" aria-hidden="true">${d}</span>${inner}
-          ${onReq?'<span class="req" aria-hidden="true">●</span>':offReq&&!(a&&a.s.length)?'<span class="req" aria-hidden="true" style="color:#8AA0B4">○</span>':''}</div>`;
+          ${onReq?'<span class="req" aria-hidden="true">●</span>':(offReq&&!cmeReq&&!(a&&a.s.length))?'<span class="req" aria-hidden="true" style="color:#8AA0B4">○</span>':''}</div>`;
       }
       html+='</div></div>';
     });
     html+=`<div class="note"><b style="color:#E8EEF4">Reading the calendar.</b> Colour = the unit. A moon marks an overnight;
-      a split cell is a 24-hour shift. ● is a day you asked to work, ○ a day off you requested. Tap any day for the details.</div>`;
+      a split cell is a 24-hour shift. <b style="color:#C3DBFF">CME</b> marks a CME day.
+      ● is a day you asked to work, ○ a day off you requested. Tap any day for the details.</div>`;
   }else{
     const all=myShifts(ME).sort((a,b)=>a.iso<b.iso?-1:1);
     if(!all.length)html+='<div class="empty">Nothing scheduled this block.</div>';
@@ -1188,7 +1195,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260818.1705';           // shown in the account bar so a stale app is obvious
+const BUILD='260818.1713';           // shown in the account bar so a stale app is obvious
 let SESSION=null, CFG=null, MYREQ=null, MYSWAPS=[];
 const api=async(path,opts={})=>{
   const h={'Content-Type':'application/json',...(opts.headers||{})};
