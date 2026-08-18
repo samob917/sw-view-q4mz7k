@@ -202,6 +202,10 @@ textarea.ta{width:100%;background:var(--panel);border:1px solid var(--line2);bor
 }
 
 /* ---- live request + swap UI ---- */
+.savedbar{background:#ecfdf5;border:1px solid #a7f3d0;color:#065f46;border-radius:10px;
+  padding:9px 12px;font-size:13.5px;font-weight:600;margin:0 0 12px}
+.behalf{background:#eff6ff;border:1px solid #bfdbfe;color:#1e40af;border-radius:10px;
+  padding:9px 12px;font-size:13px;margin:0 0 12px;line-height:1.45}
 .deadline{display:flex;justify-content:space-between;align-items:center;gap:10px;background:#eef6ff;
   border:1px solid #cfe4ff;border-radius:12px;padding:10px 14px;margin:4px 0 12px;font-size:13.5px}
 .deadline.soon{background:#fff5e8;border-color:#ffd9a8}
@@ -1165,6 +1169,11 @@ async function signInApi(){
   }catch(e){SESSION=null;return null;}
 }
 const isAdmin=()=>!!(SESSION&&SESSION.role==='admin');
+// Who this page is acting FOR. An admin looking at Dr Smith is editing Smith's requests, not
+// their own. The read path already knew this; the write path did not, so a request an admin
+// entered for someone else was silently filed under the ADMIN — the page looked unchanged and
+// the physician never got it.
+const onBehalf=()=>(ROLE==='admin'&&ME&&ACCT&&ME!==ACCT.person)?ME:null;
 const dOnly=d=>String(d||'').slice(0,10);
 function daysLeft(){
   if(!CFG||!CFG.deadline)return null;
@@ -1193,6 +1202,9 @@ function renderMoonReq(pane,rq,dl){
   const per=k=>avail.filter(d=>d.slice(0,7)===k).length;
   const totalWant=months.reduce((n,k)=>n+(+want[k]||0),0);
   pane.innerHTML=`
+    ${onBehalf()?`<div class="behalf">You are editing <b>${esc(fullOf(ME))}</b>'s requests.
+      Anything you save here is filed under their name.</div>`:''}
+    ${reqSavedHTML()}
     ${CFG&&CFG.deadline?`<div class="deadline ${dl!==null&&dl<=7?'soon':''}">
       <b>Requests close ${fmtD(CFG.deadline)}</b>
       <span>${dl===null?'':dl<0?'closed':dl===0?'today — midnight Mountain':dl+' day'+(dl===1?'':'s')+' left'}</span>
@@ -1233,13 +1245,21 @@ function renderMoonReq(pane,rq,dl){
   $('#mSave').onclick=async()=>{
     const m=$('#mMsg'); m.textContent='Saving…'; m.className='msg on';
     try{
-      await api('/requests',{method:'POST',body:JSON.stringify(
-        {nights_available:avail,shifts_wanted:collect(),moonlighter:true})});
-      m.textContent='Saved'; m.className='msg on ok';
+      const who=onBehalf();
+      const body={nights_available:avail,shifts_wanted:collect(),moonlighter:true};
+      if(who)body.person=who;
+      await api('/requests',{method:'POST',body:JSON.stringify(body)});
+      m.textContent=who?('Saved for '+fullOf(who)):'Saved'; m.className='msg on ok';
     }catch(e){ m.textContent=e.message||'Could not save'; m.className='msg on bad'; }
   };
 }
 
+let REQSAVED=null;
+function reqSavedHTML(){
+  if(!REQSAVED||Date.now()-REQSAVED.at>90000)return '';
+  const t=new Date(REQSAVED.at).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
+  return `<div class="savedbar">✓ Saved${REQSAVED.who&&onBehalf()?' for '+esc(fullOf(REQSAVED.who)):''} at ${t}</div>`;
+}
 function renderReq(){
   const pane=$('#pane-req');
   if(!ME){pane.innerHTML='<div class="empty" style="margin-top:22px">Choose a physician first.</div>';return;}
@@ -1314,7 +1334,8 @@ function renderReq(){
     <div id="reqErr"></div>`;
 
   const add=(inputId,arr)=>{
-    const v=$('#'+inputId).value; if(!v)return;
+    const v=$('#'+inputId).value;
+    if(!v){ $('#reqMsg').textContent='Pick a date first'; return; }   // silence read as "broken"
     if(!arr.includes(v))arr.push(v);
     $('#'+inputId).value=''; MYREQ={...rq,off,cme,no_noc:nonoc,on}; renderReq();
   };
@@ -1333,9 +1354,14 @@ function renderReq(){
     const msg=$('#reqMsg'), errBox=$('#reqErr');
     msg.textContent='saving…'; errBox.innerHTML='';
     try{
+      const who=onBehalf();
       const body={off,cme,no_noc:nonoc,on,holiday:(MYREQ&&MYREQ.holiday)||null};
+      if(who)body.person=who;
       const r=await api('/requests',{method:'POST',body:JSON.stringify(body)});
-      MYREQ=r.requests; msg.textContent='saved '+new Date().toLocaleTimeString();
+      MYREQ=r.requests;
+      // renderReq() rebuilds the pane, which destroyed this very element and every trace that
+      // the save had happened — the button looked dead even though the server had taken it.
+      REQSAVED={at:Date.now(),who:r.person};
       renderReq();
     }catch(e){
       msg.textContent='';
