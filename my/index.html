@@ -588,7 +588,8 @@ function renderGate(filter){
     const b=el('button','pitem',`<span class="av">${esc(initials(n))}</span>
       <span><span class="nm">${esc(p.first?p.first+' '+n:n)}</span></span>`);
     b.onclick=()=>{
-      ME=n;try{localStorage.setItem('ccpsa_me',n);}catch(e){}
+      ME=n;try{localStorage.setItem('ccpsa_me',n);}catch(e){}   // survives a reload too
+      MYREQ=null;
       closeGate();
       hideAdminView();                 // viewing a physician is not the admin view
       boot();
@@ -608,7 +609,8 @@ function openGate(){
   if(top){
     // The same three controls, not a lone back arrow: the overlay covers the header, so the
     // toggle has to exist here or it looks like it vanished.
-    top.innerHTML=(ACCT&&ACCT.person?'<button class="gback" data-g="mine">My schedule</button>':'')+
+    const lab=scheduleLabel();
+    top.innerHTML=(lab?'<button class="gback" data-g="mine">'+esc(lab)+'</button>':'')+
       (ROLE==='admin'?'<button class="gback" data-g="admin">Admin view</button>':'')+
       '<button class="gback on" data-g="pick">Physicians</button>';
     top.querySelectorAll('.gback').forEach(bt=>bt.onclick=()=>{
@@ -616,7 +618,7 @@ function openGate(){
       if(v==='pick')return;
       closeGate();
       if(v==='admin'){showAdminView();markBar('admin');}
-      else{hideAdminView();ME=ACCT.person;MYREQ=null;boot();go('now');markBar('mine');}
+      else{hideAdminView();if(ME){boot();go('now');}markBar('mine');}
     });
   }
   $('#gate').style.display='block';$('#gateSearch').value='';renderGate('');
@@ -1179,7 +1181,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260818.1626';           // shown in the account bar so a stale app is obvious
+const BUILD='260818.1637';           // shown in the account bar so a stale app is obvious
 let SESSION=null, CFG=null, MYREQ=null, MYSWAPS=[];
 const api=async(path,opts={})=>{
   const h={'Content-Type':'application/json',...(opts.headers||{})};
@@ -1942,25 +1944,35 @@ function accountBar(){
     location.reload();
   };
 }
+// The schedule button names whoever is loaded, and going to the admin view and back returns to
+// them. It used to say "My schedule" whatever was on screen, and pressing it jumped to the
+// admin's own person — so opening the admin view while looking at a physician lost them, and
+// getting back meant going through the picker again.
+function scheduleLabel(){
+  if(!ME)return null;
+  return (ACCT&&ACCT.person===ME)?'My schedule':fullOf(ME);
+}
 function adminBar(){
   if(ROLE!=='admin')return;
-  if(document.querySelector('#admBar'))return;
-  const bar=el('div','admbar');bar.id='admBar';
-  bar.innerHTML=(ME?'<button class="ab on" data-v="mine">My schedule</button>':'')+
-    '<button class="ab'+(ME?'':' on')+'" data-v="admin">Admin view</button>'+
+  let bar=document.querySelector('#admBar');
+  if(!bar){ bar=el('div','admbar');bar.id='admBar';document.querySelector('header').appendChild(bar); }
+  const lab=scheduleLabel();
+  const onAdmin=!!document.querySelector('#admWrap.on');
+  bar.innerHTML=(lab?'<button class="ab'+(onAdmin?'':' on')+'" data-v="mine">'+esc(lab)+'</button>':'')+
+    '<button class="ab'+(onAdmin||!lab?' on':'')+'" data-v="admin">Admin view</button>'+
     '<button class="ab" data-v="pick">Physicians</button>';
-  document.querySelector('header').appendChild(bar);
   bar.querySelectorAll('.ab').forEach(b=>b.onclick=()=>{
     const v=b.dataset.v;
     if(v==='pick'){openGate();return;}
-    hideAdminView();
     bar.querySelectorAll('.ab').forEach(x=>x.classList.toggle('on',x===b));
-    if(v==='admin'){showAdminView();}
-    else{hideAdminView();if(ACCT&&ACCT.person){ME=ACCT.person;boot();go('now');}}
+    if(v==='admin'){showAdminView();return;}
+    hideAdminView();
+    if(ME){boot();go('now');}          // back to whoever was open, not to the admin
   });
 }
 function showAdminView(){
   if(!ADMIN_GRANT){ askStepUp(showAdminView); return; }
+  setTimeout(adminBar,0);              // repaint the toggle: the admin pane is now the one on
   let w=document.querySelector('#admWrap');
   if(!w){
     w=el('section','pane admwrap');w.id='admWrap';
@@ -2332,6 +2344,7 @@ function stepScan(email,pw,token,setup){
                              totp:document.querySelector('#siNew').value.trim()})});
       const j=await r.json();
       if(!r.ok){siSay(j.error||'That code is not right.',true);return;}
+      keepDevice(j.device);       // else the next sign-in asks for a code it does not need
       await loadPortal(j.token||token);
     }catch(e){ siSay('Could not reach the server.',true); }
   };
