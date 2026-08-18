@@ -398,6 +398,19 @@ body.adminmode main{padding:0}
 .acctout{background:transparent;border:1px solid var(--line2);color:var(--ink);font:inherit;
   font-size:12px;border-radius:8px;padding:6px 12px;min-height:34px;cursor:pointer}
 .acctout:hover{border-color:#3B506A}
+
+.mgrid{display:flex;flex-direction:column;gap:8px;margin-top:8px}
+.mrow{display:flex;align-items:center;gap:10px;background:var(--panel2);border:1px solid var(--line);
+  border-radius:11px;padding:10px 12px}
+.mrow>span:first-child{flex:1;font-size:14px}
+.minp{width:74px;background:var(--ground);border:1px solid var(--line2);color:var(--ink);
+  border-radius:9px;padding:9px;font:inherit;font-size:16px;text-align:center}
+.mnote{font-size:11.5px;color:var(--faint);min-width:96px;text-align:right}
+.msg{display:none;margin-top:10px;font-size:13px;border-radius:9px;padding:9px 11px;
+  background:var(--panel2);border:1px solid var(--line2);color:var(--dim)}
+.msg.on{display:block}
+.msg.ok{border-color:var(--signal);color:#86EFAC}
+.msg.bad{border-color:#F87171;color:#FCA5A5}
 </style>
 
 <header class="top">
@@ -911,6 +924,70 @@ function chipList(arr,cls,onX){
   return arr.slice().sort().map(d=>`<span class="pillx ${cls}" data-d="${d}">${fmtD(d)}${onX?'<b>×</b>':''}</span>`).join('');
 }
 
+
+/* ---------- moonlighter requests ----------
+   Nights they are available to work, and how many shifts they want, per month of the quarter.
+   Nothing about days off: they have no contract to protect. The admin needs both numbers —
+   shifts wanted vs nights offered — to see whether the month can actually be covered. */
+function monthsOfBlock(){
+  const out=[];
+  DATA.dates.forEach(iso=>{const k=iso.slice(0,7); if(!out.includes(k))out.push(k);});
+  return out;
+}
+function renderMoonReq(pane,rq,dl){
+  const avail=rq.nights_available||[], want=rq.shifts_wanted||{};
+  const months=monthsOfBlock();
+  const monthName=k=>MONL[+k.slice(5)-1]+' '+k.slice(0,4);
+  const per=k=>avail.filter(d=>d.slice(0,7)===k).length;
+  const totalWant=months.reduce((n,k)=>n+(+want[k]||0),0);
+  pane.innerHTML=`
+    ${CFG&&CFG.deadline?`<div class="deadline ${dl!==null&&dl<=7?'soon':''}">
+      <b>Requests close ${fmtD(CFG.deadline)}</b>
+      <span>${dl===null?'':dl<0?'closed':dl===0?'today — midnight Mountain':dl+' day'+(dl===1?'':'s')+' left'}</span>
+    </div>`:''}
+    <div class="balance">
+      <div><span class="n">${avail.length}</span><span class="l">nights offered</span></div>
+      <div><span class="n">${totalWant}</span><span class="l">shifts wanted</span></div>
+    </div>
+    <p class="muted" style="margin:2px 0 14px">Tell us which nights you are available and how many
+    shifts you would like each month. Offering more nights than shifts wanted gives the schedule
+    room to place you.</p>
+    <h2 class="sec">Number of shifts desired</h2>
+    <div class="mgrid">${months.map(k=>`
+      <label class="mrow"><span>${monthName(k)}</span>
+        <input class="minp" type="number" min="0" max="31" inputmode="numeric"
+               data-m="${k}" value="${want[k]!=null?want[k]:''}" placeholder="0">
+        <span class="mnote">${per(k)} night${per(k)===1?'':'s'} offered</span></label>`).join('')}
+    </div>
+    <h2 class="sec">Nights available to work</h2>
+    <div class="addrow"><input type="date" id="mnDate"><button class="btn" id="mnAdd">Add</button></div>
+    <div class="chips" id="mnChips">${chipList(avail,'mn',1)}</div>
+    <div class="btnrow"><button class="btn pri" id="mSave">Save my availability</button></div>
+    <div class="msg" id="mMsg"></div>`;
+  const collect=()=>{
+    const w={};
+    pane.querySelectorAll('.minp').forEach(i=>{const v=parseInt(i.value,10); if(!isNaN(v)&&v>=0)w[i.dataset.m]=v;});
+    return w;
+  };
+  $('#mnAdd').onclick=()=>{
+    const v=$('#mnDate').value; if(!v)return;
+    if(!avail.includes(v))avail.push(v);
+    avail.sort(); MYREQ={...rq,nights_available:avail,shifts_wanted:collect()}; renderReq();
+  };
+  pane.querySelectorAll('#mnChips [data-x]').forEach(x=>x.onclick=()=>{
+    const i=avail.indexOf(x.dataset.x); if(i>=0)avail.splice(i,1);
+    MYREQ={...rq,nights_available:avail,shifts_wanted:collect()}; renderReq();
+  });
+  $('#mSave').onclick=async()=>{
+    const m=$('#mMsg'); m.textContent='Saving…'; m.className='msg on';
+    try{
+      await api('/requests',{method:'POST',body:JSON.stringify(
+        {nights_available:avail,shifts_wanted:collect(),moonlighter:true})});
+      m.textContent='Saved'; m.className='msg on ok';
+    }catch(e){ m.textContent=e.message||'Could not save'; m.className='msg on bad'; }
+  };
+}
+
 function renderReq(){
   const pane=$('#pane-req');
   if(!ME){pane.innerHTML='<div class="empty" style="margin-top:22px">Choose a physician first.</div>';return;}
@@ -936,6 +1013,9 @@ function renderReq(){
   const left=Math.max(0,allow-usedThisYear);
   const dl=daysLeft();
 
+  // Moonlighters do not request time off — they offer availability and a shift target.
+  // Client 8/17 #3: "for Moonlighters, this is completely separate".
+  if(((DATA.providers[ME]||{}).cat||'')==='Moonlighter'){ renderMoonReq(pane,rq,dl); return; }
   pane.innerHTML=`
     ${CFG&&CFG.deadline?`<div class="deadline ${dl!==null&&dl<=7?'soon':''}">
       <b>Requests close ${fmtD(CFG.deadline)}</b>
@@ -948,18 +1028,19 @@ function renderReq(){
       <div><span class="n">${cme.length}</span><span class="l">CME days (no cap)</span></div>
     </div>
     <p class="muted" style="margin:2px 0 14px">Your allowance resets 1 January and unused days don’t carry over.
-    CME is tracked separately and never counts against it. Time off doesn’t reduce your contract —
-    you still owe the same ICU, night and clinic totals.</p>
+    CME is tracked separately and never counts against it.
+    <b>Please do not request more than 14 consecutive days off without notifying Dr. Nadon for
+    approval.</b></p>
 
-    <h2 class="sec">Days off</h2>
+    <h2 class="sec">Request Off</h2>
     <div class="addrow"><input type="date" id="offDate"><button class="btn" id="offAdd">Add</button></div>
     <div class="chips" id="offChips">${chipList(off,'off',1)}</div>
 
-    <h2 class="sec">CME days</h2>
+    <h2 class="sec">Request CME</h2>
     <div class="addrow"><input type="date" id="cmeDate"><button class="btn" id="cmeAdd">Add</button></div>
     <div class="chips" id="cmeChips">${chipList(cme,'cme',1)}</div>
 
-    <h2 class="sec">No nights on…</h2>
+    <h2 class="sec">Request No Nights</h2>
     <div class="addrow"><input type="date" id="nnDate"><button class="btn" id="nnAdd">Add</button></div>
     <div class="chips" id="nnChips">${chipList(nonoc,'nn',1)}</div>
 
