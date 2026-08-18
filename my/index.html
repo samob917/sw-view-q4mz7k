@@ -439,6 +439,27 @@ body.adminmode main{padding:0}
 .ondot{width:9px;height:9px;border-radius:3px;align-self:center}
 .onshift{font-size:12.5px;font-weight:600}
 .onwho{font-size:13px;color:var(--dim)}
+
+.gpick{display:flex;flex-wrap:wrap;gap:5px;margin:10px 0}
+.gp{cursor:pointer;font-size:12px;padding:5px 10px}
+.gp.on{background:var(--signal);border-color:var(--signal);color:#04121e;font-weight:650}
+.gwrap{overflow-x:auto;margin-top:12px;border:1px solid var(--line);border-radius:12px}
+.gtab{border-collapse:collapse;font-size:11px;min-width:100%}
+.gtab th.gn{position:sticky;left:0;background:var(--panel);text-align:left;padding:6px 10px;
+  font-size:12px;font-weight:600;white-space:nowrap;border-right:1px solid var(--line2);z-index:2}
+.gh{padding:4px 3px;font-weight:500;color:var(--faint);font-family:var(--mono);font-size:10px;
+  border-bottom:1px solid var(--line)}
+.gh span{display:block;font-size:8px;opacity:.7}
+.gh.we,.gc.we{background:rgba(255,255,255,.03)}
+.gc{padding:5px 4px;text-align:center;white-space:nowrap;border-bottom:1px solid var(--line);
+  color:var(--ink);font-size:10.5px}
+.stackblk{margin-top:14px}
+.sgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(74px,1fr));gap:4px;margin-top:6px}
+.scell{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:5px 7px;
+  min-height:42px;display:flex;flex-direction:column;gap:2px}
+.scell.we{background:rgba(255,255,255,.02)}
+.sd{font-family:var(--mono);font-size:10px;color:var(--faint)}
+.ss{font-size:10.5px;line-height:1.25}
 </style>
 
 <header class="top">
@@ -753,6 +774,110 @@ function blockStatsHTML(){
   <div class="note">Every off and CME day you asked for was granted this block.</div>`;
 }
 function openBlockStats(){ sheet('Block statistics', blockStatsHTML()); }
+
+
+/* ---------- clinic staff ----------
+   Client 8/17: clinic staff need to see every day and who is on each clinic that day, and
+   nothing else. No personal schedule, no requests, no swaps — so this is its own view rather
+   than the physician app with pieces hidden. */
+const CLINIC_UNITS=['West Clinic','North Clinic','South Clinic','Central Clinic',
+                    'Goodland Clinic','RHC-SAN','SAH EBUS','Porter EBUS'];
+let CLINICDAY=null;
+function clinicDayHTML(iso){
+  if(!DATA.dates.includes(iso))return '<div class="empty">Outside this block.</div>';
+  const rows=CLINIC_UNITS.map(u=>{
+    const who=DATA.people.filter(p=>((DATA.day[p]||{})[iso]||{s:[]}).s.includes(u));
+    return `<div class="onrow${who.length?'':' isrole'}">
+      <span class="ondot" style="background:${who.length?META(u).color:'var(--line2)'}"></span>
+      <span class="onshift">${esc(META(u).label||u)}</span>
+      <span class="onwho">${who.length?who.map(x=>esc(fullOf(x))).join(', '):'<i>not running</i>'}</span></div>`;
+  }).join('');
+  return rows;
+}
+
+/* ---------- stacked group view (admins) ----------
+   Client 8/17: "sometimes the admin just wants to select a group of docs and see what their
+   schedules look like stacked". Two shapes, because they answer different questions:
+     grid    names down the left, dates across the top — who is on, at a glance, for a month
+     stacked each person's calendar in turn — how one person's month actually reads
+*/
+let GSEL=new Set(), GMODE='grid', GMONTH=null;
+function groupMonths(){const o=[];DATA.dates.forEach(i=>{const k=i.slice(0,7);if(!o.includes(k))o.push(k);});return o;}
+function renderGroup(){
+  const main=document.querySelector('main');
+  let pane=document.querySelector('#pane-group');
+  if(!pane){pane=el('section','pane');pane.id='pane-group';main.appendChild(pane);}
+  $$('.pane').forEach(p=>p.classList.toggle('on',p.id==='pane-group'));
+  document.querySelector('.tabs').style.display='none';
+  const months=groupMonths(); GMONTH=GMONTH||months[0];
+  const chosen=[...GSEL];
+  pane.innerHTML=`
+    <h2 class="sec">Compare physicians</h2>
+    <div class="note" style="margin-top:0">Pick people, then choose how to look at them.</div>
+    <div class="gpick" id="gPick">${DATA.people.map(p=>
+      `<button class="pill gp${GSEL.has(p)?' on':''}" data-p="${esc(p)}">${esc(p)}</button>`).join('')}</div>
+    <div class="btnrow">
+      <button class="btn${GMODE==='grid'?' pri':''}" data-gm="grid">Grid</button>
+      <button class="btn${GMODE==='stack'?' pri':''}" data-gm="stack">Stacked calendars</button>
+      <select class="inp" id="gMonth" style="max-width:150px">${months.map(m=>
+        `<option value="${m}"${m===GMONTH?' selected':''}>${MONL[+m.slice(5)-1]} ${m.slice(0,4)}</option>`).join('')}</select>
+      <button class="btn" id="gClear">Clear</button>
+    </div>
+    <div id="gBody">${chosen.length?(GMODE==='grid'?groupGrid(chosen):groupStack(chosen))
+      :'<div class="empty">Choose one or more physicians above.</div>'}</div>`;
+  pane.querySelectorAll('.gp').forEach(b=>b.onclick=()=>{
+    const p=b.dataset.p; GSEL.has(p)?GSEL.delete(p):GSEL.add(p); renderGroup();});
+  pane.querySelectorAll('[data-gm]').forEach(b=>b.onclick=()=>{GMODE=b.dataset.gm;renderGroup();});
+  $('#gMonth').onchange=e=>{GMONTH=e.target.value;renderGroup();};
+  $('#gClear').onclick=()=>{GSEL.clear();renderGroup();};
+}
+function groupGrid(people){
+  const days=DATA.dates.filter(d=>d.slice(0,7)===GMONTH);
+  const head=days.map(d=>`<th class="gh${dowOf(d)>=5?' we':''}">${d2(d).getDate()}<span>${DOW[dowOf(d)][0]}</span></th>`).join('');
+  const rows=people.map(p=>`<tr><th class="gn">${esc(fullOf(p))}</th>${
+    days.map(d=>{
+      const a=(DATA.day[p]||{})[d];
+      const sh=a&&a.s&&a.s.length?a.s[0]:null;
+      const m=sh?META(sh):null;
+      return `<td class="gc${dowOf(d)>=5?' we':''}"${sh?` style="background:${m.color}22;border-left:2px solid ${m.color}"`:''}
+        title="${sh?esc(a.s.map(x=>META(x).label).join(' + ')):''}">${sh?esc(m.label.slice(0,9)):''}</td>`;
+    }).join('')}</tr>`).join('');
+  return `<div class="gwrap"><table class="gtab"><thead><tr><th class="gn"></th>${head}</tr></thead>
+    <tbody>${rows}</tbody></table></div>`;
+}
+function groupStack(people){
+  return people.map(p=>{
+    const days=DATA.dates.filter(d=>d.slice(0,7)===GMONTH);
+    const cells=days.map(d=>{
+      const a=(DATA.day[p]||{})[d];
+      const sh=a&&a.s&&a.s.length?a.s[0]:null;
+      const m=sh?META(sh):null;
+      return `<div class="scell${dowOf(d)>=5?' we':''}"${sh?` style="border-left:3px solid ${m.color}"`:''}>
+        <span class="sd">${d2(d).getDate()}</span>
+        <span class="ss">${sh?esc(m.label):''}</span></div>`;
+    }).join('');
+    return `<div class="stackblk"><div class="lgh">${esc(fullOf(p))}</div>
+      <div class="sgrid">${cells}</div></div>`;
+  }).join('');
+}
+
+function renderClinicView(){
+  const main=document.querySelector('main');
+  let pane=document.querySelector('#pane-clinic');
+  if(!pane){pane=el('section','pane on');pane.id='pane-clinic';main.appendChild(pane);}
+  $$('.pane').forEach(p=>p.classList.toggle('on',p.id==='pane-clinic'));
+  const tabs=document.querySelector('.tabs'); if(tabs)tabs.style.display='none';
+  const iso=CLINICDAY||inBlockDay(todayISO());
+  pane.innerHTML=`<h2 class="sec">Clinics <span class="daynav">
+      <button class="navb" id="cPrev" aria-label="Previous day">‹</button>
+      <span id="cLabel">${esc(fmtLong(iso))}</span>
+      <button class="navb" id="cNext" aria-label="Next day">›</button></span></h2>
+    <div id="cBody">${clinicDayHTML(iso)}</div>
+    <div class="note">Every clinic for the day. Use the arrows to look ahead or back.</div>`;
+  const set=d=>{CLINICDAY=d;$('#cLabel').textContent=fmtLong(d);$('#cBody').innerHTML=clinicDayHTML(d);};
+  $('#cPrev').onclick=()=>set(isoAdd(CLINICDAY||iso,-1));
+  $('#cNext').onclick=()=>set(isoAdd(CLINICDAY||iso,1));
+}
 
 function whosOnHTML(iso){
   if(!DATA.dates.includes(iso))
@@ -1645,11 +1770,14 @@ function adminBar(){
   const bar=el('div','admbar');bar.id='admBar';
   bar.innerHTML=(ME?'<button class="ab on" data-v="mine">My schedule</button>':'')+
     '<button class="ab'+(ME?'':' on')+'" data-v="admin">Admin view</button>'+
-    '<button class="ab" data-v="pick">Physicians</button>';
+    '<button class="ab" data-v="pick">Physicians</button>'+
+    '<button class="ab" data-v="group">Compare</button>';
   document.querySelector('header').appendChild(bar);
   bar.querySelectorAll('.ab').forEach(b=>b.onclick=()=>{
     const v=b.dataset.v;
     if(v==='pick'){openGate();return;}
+    if(v==='group'){hideAdminView();bar.querySelectorAll('.ab').forEach(x=>x.classList.toggle('on',x===b));
+      renderGroup();return;}
     hideAdminView();
     bar.querySelectorAll('.ab').forEach(x=>x.classList.toggle('on',x===b));
     if(v==='admin'){showAdminView();}
@@ -1712,6 +1840,7 @@ function boot(){
   $('#whoNm').textContent=ME?((p.first?p.first.charAt(0)+'. ':'')+ME)
                             :((ACCT&&ACCT.label)||'Admin');
   accountBar();
+  if(ROLE==='clinic'){ renderClinicView(); return; }
   adminBar();
   const vb=document.querySelector('#viewingBanner');
   if(ROLE==='admin'&&ME&&ACCT&&ME!==ACCT.person){
