@@ -1886,14 +1886,11 @@ function adminBar(){
   const bar=el('div','admbar');bar.id='admBar';
   bar.innerHTML=(ME?'<button class="ab on" data-v="mine">My schedule</button>':'')+
     '<button class="ab'+(ME?'':' on')+'" data-v="admin">Admin view</button>'+
-    '<button class="ab" data-v="pick">Physicians</button>'+
-    '<button class="ab" data-v="group">Compare</button>';
+    '<button class="ab" data-v="pick">Physicians</button>';
   document.querySelector('header').appendChild(bar);
   bar.querySelectorAll('.ab').forEach(b=>b.onclick=()=>{
     const v=b.dataset.v;
     if(v==='pick'){openGate();return;}
-    if(v==='group'){hideAdminView();bar.querySelectorAll('.ab').forEach(x=>x.classList.toggle('on',x===b));
-      renderGroup();return;}
     hideAdminView();
     bar.querySelectorAll('.ab').forEach(x=>x.classList.toggle('on',x===b));
     if(v==='admin'){showAdminView();}
