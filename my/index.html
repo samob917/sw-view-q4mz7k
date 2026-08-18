@@ -928,7 +928,11 @@ function whosOnHTML(iso){
     (a.r||[]).forEach(r=>rows.push({sh:r,p,role:true}));
   });
   if(!rows.length)return '<div class="empty">Nobody scheduled.</div>';
-  const order=sh=>{const k=(META(sh)||{}).kind;return k==='icu'?0:k==='clinic'?1:k==='swing'?2:k==='noc'?3:4;};
+  // Everything worked in daylight first, then the swing, then the nights. Day Jeopardy and
+  // Admin used to fall into a catch-all that sorted BELOW the night shifts, which read as though
+  // they ran overnight.
+  const ORDER={icu:0,clinic:1,proc:1,jeop:2,admin:3,swing:4,noc:5};
+  const order=sh=>{const k=(META(sh)||{}).kind;return ORDER[k]!==undefined?ORDER[k]:6;};
   const byShift={};
   rows.forEach(r=>{(byShift[r.sh]=byShift[r.sh]||{role:r.role,who:[]}).who.push(r.p);});
   return Object.keys(byShift)
@@ -1184,7 +1188,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260818.1701';           // shown in the account bar so a stale app is obvious
+const BUILD='260818.1705';           // shown in the account bar so a stale app is obvious
 let SESSION=null, CFG=null, MYREQ=null, MYSWAPS=[];
 const api=async(path,opts={})=>{
   const h={'Content-Type':'application/json',...(opts.headers||{})};
