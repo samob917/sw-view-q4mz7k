@@ -880,7 +880,7 @@ function groupGrid(people){
       const sh=a&&a.s&&a.s.length?a.s[0]:null;
       const m=sh?META(sh):null;
       return `<td class="gc${dowOf(d)>=5?' we':''}"${sh?` style="background:${m.color}22;border-left:2px solid ${m.color}"`:''}
-        title="${sh?esc(a.s.map(x=>META(x).label).join(' + ')):''}">${sh?esc(m.label.slice(0,9)):''}</td>`;
+        title="${sh?esc(a.s.map(x=>META(x).label).join(' + ')):''}">${sh?esc(m.short||m.label):''}</td>`;
     }).join('')}</tr>`).join('');
   return `<div class="gwrap"><table class="gtab"><thead><tr><th class="gn"></th>${head}</tr></thead>
     <tbody>${rows}</tbody></table></div>`;
@@ -1084,7 +1084,7 @@ function renderSched(){
             inner=`<span class="blk noc" style="background:${META(ns[0]).color}">☾ NOC</span>`;
           }else{
             const m=META(ds[0]);
-            inner=`<span class="blk" style="background:${m.color}">${esc(m.label.slice(0,7))}</span>`;
+            inner=`<span class="blk" style="background:${m.color}">${esc(m.short||m.label)}</span>`;
           }
         }
         if(!inner&&cmeReq)inner='<span class="blk cme">CME</span>';
@@ -1195,7 +1195,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260818.1713';           // shown in the account bar so a stale app is obvious
+const BUILD='260818.1725';           // shown in the account bar so a stale app is obvious
 let SESSION=null, CFG=null, MYREQ=null, MYSWAPS=[];
 const api=async(path,opts={})=>{
   const h={'Content-Type':'application/json',...(opts.headers||{})};
