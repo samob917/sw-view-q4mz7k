@@ -206,9 +206,14 @@ textarea.ta{width:100%;background:var(--panel);border:1px solid var(--line2);bor
   padding:9px 12px;font-size:13.5px;font-weight:600;margin:0 0 12px}
 .behalf{background:#eff6ff;border:1px solid #bfdbfe;color:#1e40af;border-radius:10px;
   padding:9px 12px;font-size:13px;margin:0 0 12px;line-height:1.45}
-.deadline{display:flex;justify-content:space-between;align-items:center;gap:10px;background:#eef6ff;
-  border:1px solid #cfe4ff;border-radius:12px;padding:10px 14px;margin:4px 0 12px;font-size:13.5px}
-.deadline.soon{background:#fff5e8;border-color:#ffd9a8}
+.deadline{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;
+  background:rgba(96,165,250,.14);border:1px solid rgba(96,165,250,.42);color:#D8E8FF;
+  border-radius:12px;padding:11px 14px;margin:4px 0 12px;font-size:13.5px}
+.deadline b{color:#EAF2FF}
+.deadline span{color:#A9C8F0}
+.deadline.soon{background:rgba(251,191,36,.15);border-color:rgba(251,191,36,.5);color:#FFE6B0}
+.deadline.soon b{color:#FFF1D0}
+.deadline.soon span{color:#F0C97A}
 .balance{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:6px 0}
 .balance>div{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;text-align:center}
 .balance .n{display:block;font-size:22px;font-weight:700}
@@ -237,7 +242,9 @@ textarea.ta{width:100%;background:var(--panel);border:1px solid var(--line2);bor
 .savebar{display:flex;align-items:center;gap:12px;margin:16px 0 8px}
 .btn.primary{background:#0f172a;color:#fff;border-color:#0f172a}
 .btn.warnbtn{background:#fff7ed;border-color:#fdba74;color:#9a3412}
-.errbox{background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:12px 14px;margin-top:8px;font-size:13px}
+.errbox{background:rgba(255,107,107,.14);border:1px solid rgba(255,107,107,.45);color:#FFC9C9;
+  border-radius:12px;padding:12px 14px;margin-top:8px;font-size:13px}
+.errbox b{color:#FFE1E1}
 .errbox ul{margin:6px 0 0 18px}
 .lockcard{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:26px 20px;text-align:center;margin-top:14px}
 .lockicon{font-size:34px}
@@ -253,8 +260,8 @@ textarea.ta{width:100%;background:var(--panel);border:1px solid var(--line2);bor
 .swtop{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:14px}
 .swwho{font-size:12.5px;color:var(--muted);margin-top:3px}
 .swprob,.swrule{margin-top:8px;font-size:12.5px;border-radius:10px;padding:8px 10px}
-.swprob,.swrule.bad{background:#fef2f2;border:1px solid #fecaca}
-.swrule.ok{background:#ecfdf5;border:1px solid #a7f3d0}
+.swprob,.swrule.bad{background:rgba(255,107,107,.14);border:1px solid rgba(255,107,107,.45);color:#FFC9C9}
+.swrule.ok{background:rgba(53,214,164,.14);border:1px solid rgba(53,214,164,.5);color:#9BF0D5}
 .swact{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
 
 .chg{border-left:3px solid var(--warn,#FBBF24);background:rgba(251,191,36,.07)}
@@ -1333,11 +1340,6 @@ function renderReq(){
     <div class="addhint" id="nnHint"></div>
     <div class="chips" id="nnChips">${chipList(nonoc,'nn',1)}</div>
 
-    <h2 class="sec">Days I want to work</h2>
-    <div class="addrow"><input type="date" id="onDate" aria-label="date"><button class="btn" id="onAdd">Add</button></div>
-    <div class="addhint" id="onHint"></div>
-    <div class="chips" id="onChips">${chipList(on,'on',1)}</div>
-
     <h2 class="sec">Priority holiday</h2>
     <p class="muted" style="margin-top:0">You may claim <b>one</b> holiday a year as your guaranteed 4-day block.</p>
     <div class="segx" id="holSeg">
@@ -1366,11 +1368,10 @@ function renderReq(){
   $('#offAdd').onclick=()=>add('offDate',off,'off');
   $('#cmeAdd').onclick=()=>add('cmeDate',cme,'cme');
   $('#nnAdd').onclick=()=>add('nnDate',nonoc,'nn');
-  $('#onAdd').onclick=()=>add('onDate',on,'on');
   const wire=(sel,arr)=>$$(sel+' .pillx',pane).forEach(c=>c.onclick=()=>{
     const i=arr.indexOf(c.dataset.d); if(i>=0)arr.splice(i,1);
     MYREQ={...rq,off,cme,no_noc:nonoc,on}; renderReq();});
-  wire('#offChips',off); wire('#cmeChips',cme); wire('#nnChips',nonoc); wire('#onChips',on);
+  wire('#offChips',off); wire('#cmeChips',cme); wire('#nnChips',nonoc);
   $$('#holSeg button',pane).forEach(b=>b.onclick=()=>{
     MYREQ={...rq,off,cme,no_noc:nonoc,on,holiday:b.dataset.h||null}; renderReq();});
 
@@ -1398,7 +1399,8 @@ function renderReq(){
 function renderReqRead(box){
   const rq=MYREQ||{};
   const sec=(t,a)=>`<div class="rdrow"><span>${t}</span><span>${(a&&a.length)?a.slice().sort().map(fmtD).join(', '):'—'}</span></div>`;
-  box.innerHTML=sec('Days off',rq.off)+sec('CME',rq.cme)+sec('No nights',rq.no_noc)+sec('Want to work',rq.on)
+  box.innerHTML=sec('Days off',rq.off)+sec('CME',rq.cme)+sec('No nights',rq.no_noc)
+    +((rq.on&&rq.on.length)?sec('Want to work',rq.on):'')
     +`<div class="rdrow"><span>Priority holiday</span><span>${rq.holiday?esc(rq.holiday):'—'}</span></div>`;
 }
 
