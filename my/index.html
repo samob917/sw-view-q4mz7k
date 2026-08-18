@@ -44,7 +44,7 @@ a{color:var(--signal)}
 body.wide .wrap{max-width:1500px}
 header.top{position:sticky;top:0;z-index:30;background:rgba(14,22,33,.92);
   backdrop-filter:saturate(1.4) blur(10px);border-bottom:1px solid var(--line)}
-.topin{max-width:600px;margin:0 auto;padding:11px 14px;display:flex;align-items:center;gap:10px}
+.topin{padding:11px 14px;display:flex;align-items:center;gap:10px}
 .brand{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);font-weight:700}
 .brand b{color:var(--ink)}
 .whoami{margin-left:auto;display:flex;align-items:center;gap:7px;background:var(--panel);
@@ -398,7 +398,6 @@ body.adminmode main{padding-bottom:0}
 
 /* full-bleed dashboard: escape the 600px reading column */
 body.adminmode .wrap{max-width:none;padding:0}
-body.adminmode .topin{max-width:1500px}
 body.adminmode main{padding:0}
 #admWrap{width:100vw;margin-left:calc(50% - 50vw);padding:0}
 #admFrame{width:100%;border:0;background:#f1f5f9;display:block}
@@ -1185,7 +1184,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260818.1656';           // shown in the account bar so a stale app is obvious
+const BUILD='260818.1701';           // shown in the account bar so a stale app is obvious
 let SESSION=null, CFG=null, MYREQ=null, MYSWAPS=[];
 const api=async(path,opts={})=>{
   const h={'Content-Type':'application/json',...(opts.headers||{})};
