@@ -1657,6 +1657,7 @@ function adminBar(){
   });
 }
 function showAdminView(){
+  if(!ADMIN_GRANT){ askStepUp(showAdminView); return; }
   let w=document.querySelector('#admWrap');
   if(!w){
     w=el('section','pane admwrap');w.id='admWrap';
@@ -1671,7 +1672,8 @@ function showAdminView(){
   sizeAdminFrame();
   if(!w.dataset.loaded){
     w.dataset.loaded='1';
-    fetch(API+'/dashboard',{headers:{Authorization:'Bearer '+(SESSION&&SESSION.token)}})
+    fetch(API+'/dashboard?grant='+encodeURIComponent(ADMIN_GRANT||''),
+          {headers:{Authorization:'Bearer '+(SESSION&&SESSION.token)}})
       .then(r=>{if(!r.ok)throw new Error('HTTP '+r.status);return r.text();})
       .then(html=>{
         const f=document.querySelector('#admFrame');
@@ -1726,6 +1728,42 @@ function boot(){
 }
 /* ---------- sign in, then load ----------
    Nothing renders until the API says who you are and hands back your schedule. */
+
+/* A device that has already passed 2FA as this person does not need the code again — the token
+   is signed and expires in 90 days, so it proves that and nothing more (client 8/17). */
+function rememberedDevice(){ try{return localStorage.getItem('__dev')||'';}catch(e){return '';} }
+function keepDevice(tok){ if(tok){try{localStorage.setItem('__dev',tok);}catch(e){}} }
+let ADMIN_GRANT=null;
+/* Entering the admin view asks for a fresh code: that is where the schedule can be changed. */
+function askStepUp(then){
+  sheet('Admin view',
+    `<div class="sub">Enter the 6-digit code from your authenticator app to open the admin view.</div>
+     <label class="lbl" for="suCode">Code</label>
+     <input class="inp siCode" id="suCode" inputmode="numeric" autocomplete="one-time-code"
+            maxlength="6" placeholder="000000">
+     <div class="msg" id="suMsg"></div>
+     <div class="btnrow"><button class="btn pri" id="suGo">Unlock</button>
+       <button class="btn" id="suCancel">Cancel</button></div>`);
+  const m=$('#suMsg');
+  const go=async()=>{
+    m.textContent='Checking…'; m.className='msg on';
+    try{
+      const j=await api('/stepup',{method:'POST',body:JSON.stringify({totp:$('#suCode').value.trim()})});
+      ADMIN_GRANT=j.grant; closeSheet(); then();
+    }catch(e){
+      if(e.payload&&e.payload.need==='enrol2fa'){
+        m.textContent='Set up an authenticator first — open Account settings.'; m.className='msg on bad';
+      }else{ m.textContent=e.message||'That code is not right.'; m.className='msg on bad'; }
+    }
+  };
+  $('#suGo').onclick=go;
+  $('#suCancel').onclick=()=>{closeSheet();markBar(ME?'mine':'pick');hideAdminView();};
+  const c=$('#suCode');
+  c.addEventListener('keydown',ev=>{if(ev.key==='Enter'){ev.preventDefault();go();}});
+  c.addEventListener('input',()=>{if(c.value.replace(/\D/g,'').length===6)go();});
+  setTimeout(()=>c.focus(),60);
+}
+
 function siShell(body){
   return `<div class="signin"><div class="siCard">
     <div class="siLogo">⚡</div>
@@ -1854,10 +1892,14 @@ function stepPassword(email){
     siSay('Signing in…');
     try{
       const r=await fetch(API+'/session',{method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({email:em,password:pw})});
+        body:JSON.stringify({email:em,password:pw,device:rememberedDevice()})});
       const j=await r.json();
-      if(r.ok){                                   // no two-factor yet — offer it, do not force it
+      if(r.ok){
         try{sessionStorage.setItem('__tok',j.token);}catch(e){}
+        keepDevice(j.device);
+        // Only offer to set up 2FA to someone who has none. A returning user on a trusted
+        // device already has it and was being asked to set it up again.
+        if(j.twoFactor){ await loadPortal(j.token); return; }
         stepOffer2fa(em,pw,j.token);
         return;
       }
@@ -1888,10 +1930,11 @@ function step2fa(email,pw){
     siSay('Checking…');
     try{
       const r=await fetch(API+'/session',{method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({email,password:pw,totp:code})});
+        body:JSON.stringify({email,password:pw,totp:code,device:rememberedDevice()})});
       const j=await r.json();
       if(!r.ok){siSay(j.error||'That code is not right.',true);return;}
       try{sessionStorage.setItem('__tok',j.token);}catch(e){}
+      keepDevice(j.device);
       await loadPortal(j.token);
     }catch(e){ siSay('Could not reach the server.',true); }
   };
