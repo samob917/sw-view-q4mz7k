@@ -9,7 +9,20 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="My Schedule">
 <title>My schedule · CCPSA Critical Care</title>
-<script>if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').catch(function(){});}</script>
+<script>
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('sw.js').then(function(reg){
+    reg.update();                                   // ask on every load, not just on install
+    setInterval(function(){reg.update();},1800000); // and hourly for an app left open
+  }).catch(function(){});
+  // A new worker taking over means the HTML it serves has changed. Reload once so the running
+  // page is the one that was just deployed rather than whatever was cached at install.
+  var reloaded=false;
+  navigator.serviceWorker.addEventListener('controllerchange',function(){
+    if(reloaded)return; reloaded=true; location.reload();
+  });
+}
+</script>
 <style>
 :root{
   --ground:#0E1621; --panel:#16212E; --panel2:#1C2A3A; --line:#24374A; --line2:#31485F;
@@ -226,6 +239,8 @@ textarea.ta{width:100%;background:var(--panel);border:1px solid var(--line2);bor
 .addrow input::-webkit-calendar-picker-indicator{filter:invert(1);opacity:.75;cursor:pointer}
 .addrow .btn{width:auto;flex:0 0 auto;padding:12px 20px}
 .addhint{font-size:12.5px;color:var(--amber);margin:-2px 0 8px;min-height:1px}
+.acctbuild{font-family:var(--mono);font-size:9.5px;color:var(--faint);letter-spacing:.06em;
+  margin-left:auto;margin-right:10px;white-space:nowrap}
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px;min-height:26px}
 .pillx{display:inline-flex;align-items:center;gap:7px;padding:7px 12px;border-radius:999px;
   font-size:13px;border:1px solid var(--line2);background:var(--panel2);color:var(--ink);
@@ -1164,6 +1179,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
+const BUILD='260818.1626';           // shown in the account bar so a stale app is obvious
 let SESSION=null, CFG=null, MYREQ=null, MYSWAPS=[];
 const api=async(path,opts={})=>{
   const h={'Content-Type':'application/json',...(opts.headers||{})};
@@ -1916,6 +1932,8 @@ function accountBar(){
   if(!a){a=el('div','acctbar');a.id='acctBar';document.querySelector('header').appendChild(a);}
   a.innerHTML='<button class="acctwho" id="profileBtn">'+esc((ACCT&&ACCT.person)||'Signed in')+
     (ROLE==='admin'?' · admin':'')+'</button>'+
+    '<span class="acctbuild" title="Which version of the app you are running. '+
+      'If this is older than the one you were told about, pull down to refresh.">'+esc(BUILD)+'</span>'+
     '<button class="acctout" id="signOutBtn">Sign out</button>';
   const pb=document.querySelector('#profileBtn');
   if(pb)pb.onclick=()=>ME?openBlockStats():null;
