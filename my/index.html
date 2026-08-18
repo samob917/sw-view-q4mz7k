@@ -587,7 +587,7 @@ function openGate(){
       if(v==='pick')return;
       closeGate();
       if(v==='admin'){showAdminView();markBar('admin');}
-      else{hideAdminView();ME=ACCT.person;boot();go('now');markBar('mine');}
+      else{hideAdminView();ME=ACCT.person;MYREQ=null;boot();go('now');markBar('mine');}
     });
   }
   $('#gate').style.display='block';$('#gateSearch').value='';renderGate('');
@@ -1875,16 +1875,8 @@ wireTabs();
 async function bootApi(){
   await signInApi();
   if(SESSION){
-    // Viewing another physician means their requests, not the admin's own empty set.
-    const viewing=(ROLE==='admin'&&ME&&ACCT&&ME!==ACCT.person)?('?person='+encodeURIComponent(ME)):'';
-    try{const r=await api('/requests'+viewing);MYREQ=r.requests||{};
-        CFG={...(CFG||{}),deadline:r.deadline,locked:r.locked,allowance:r.allowance};}catch(e){MYREQ={};}
     try{const s=await api('/schedule');applyEdits(s.overrides||[]);}catch(e){applyEdits([]);}
-    await loadSwaps();
-    await loadCoverage();
-    if(ROLE==='admin'&&ME&&ACCT&&ME!==ACCT.person){
-      MYSWAPS=(MYSWAPS||[]).filter(w=>w.fromPerson===ME||w.toPerson===ME);
-    }
+    await loadPersonData();
     renderNow();                       // the hero may now be a different shift
     if(CUR==='sched')renderSched();
   }else{
@@ -1982,8 +1974,25 @@ function hideAdminView(){
   if(t){t.style.display='';t.hidden=false;}   // Schedule / Requests / Swaps come back
   document.body.classList.remove('adminmode');
 }
+// Everything that belongs to ONE person. Called at boot and again whenever the admin switches
+// who they are looking at, so what is on screen is always that person's own data.
+let LOADED_FOR=null;
+async function loadPersonData(){
+  if(!SESSION)return;
+  const viewing=onBehalf()?('?person='+encodeURIComponent(ME)):'';
+  try{const r=await api('/requests'+viewing);MYREQ=r.requests||{};
+      CFG={...(CFG||{}),deadline:r.deadline,locked:r.locked,allowance:r.allowance};}catch(e){MYREQ={};}
+  await loadSwaps();
+  await loadCoverage();
+  if(onBehalf())MYSWAPS=(MYSWAPS||[]).filter(w=>w.fromPerson===ME||w.toPerson===ME);
+  REQSAVED=null;                  // a confirmation from the previous person would be a lie
+  LOADED_FOR=ME;
+  if(CUR==='req')renderReq();
+  if(CUR==='swap')renderSwap();
+}
 function boot(){
   const p=DATA.providers[ME]||{};
+  if(SESSION&&ME!==LOADED_FOR)loadPersonData();
   $('#whoami').hidden=false;
   $('#whoNm').textContent=ME?((p.first?p.first.charAt(0)+'. ':'')+ME)
                             :((ACCT&&ACCT.label)||'Admin');
