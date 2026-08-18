@@ -593,7 +593,7 @@ function renderGate(filter){
       closeGate();
       hideAdminView();                 // viewing a physician is not the admin view
       boot();
-      markBar('mine');    // the schedule button now carries their name, so it is the active one
+      markBar('pick');
       go('now');
     };
     list.appendChild(b);
@@ -616,7 +616,7 @@ function openGate(){
       if(v==='pick')return;
       closeGate();
       if(v==='admin'){showAdminView();markBar('admin');}
-      else{hideAdminView();if(ME){boot();go('now');}markBar('mine');}
+      else{hideAdminView();if(ME){boot();go('now');}markBar('pick');}
     });
   }
   $('#gate').style.display='block';$('#gateSearch').value='';renderGate('');
@@ -624,7 +624,7 @@ function openGate(){
 function closeGate(){$('#gate').style.display='none';}
 function restoreFromGate(){
   if(GATE_FROM==='admin'){showAdminView();markBar('admin');}
-  else{hideAdminView();markBar(ME?'mine':'admin');if(!ME)showAdminView();}
+  else{hideAdminView();markBar(ME?'pick':'admin');if(!ME)showAdminView();}
 }
 function markBar(v){
   document.querySelectorAll('.ab').forEach(x=>x.classList.toggle('on',x.dataset.v===v));
@@ -1182,7 +1182,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260818.1647';           // shown in the account bar so a stale app is obvious
+const BUILD='260818.1649';           // shown in the account bar so a stale app is obvious
 let SESSION=null, CFG=null, MYREQ=null, MYSWAPS=[];
 const api=async(path,opts={})=>{
   const h={'Content-Type':'application/json',...(opts.headers||{})};
