@@ -1,6 +1,7 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta http-equiv="refresh" content="0;url=/my/">
+<!-- the script below keeps ?reset=… — the meta refresh alone drops it -->
 <meta name="robots" content="noindex,nofollow">
 <title>CCPSA — schedule</title>
 <style>body{margin:0;background:#0E1621;color:#E6EDF3;font:15px/1.6 -apple-system,BlinkMacSystemFont,
@@ -9,5 +10,5 @@ a{color:#4ADE80}</style></head><body>
 <div><div style="font-size:26px">⚡</div>
 <p>Taking you to your schedule…</p>
 <p><a href="/my/">ccpsa.schedulingwiz.com/my/</a></p></div>
-<script>location.replace('/my/');</script>
+<script>location.replace('/my/'+location.search+location.hash);</script>
 </body></html>

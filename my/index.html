@@ -1201,7 +1201,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260818.2156';           // shown in the account bar so a stale app is obvious
+const BUILD='260818.2210';           // shown in the account bar so a stale app is obvious
 let SESSION=null, CFG=null, MYREQ=null, MYSWAPS=[];
 const api=async(path,opts={})=>{
   const h={'Content-Type':'application/json',...(opts.headers||{})};
@@ -2252,7 +2252,18 @@ function stepPassword(email){
     <label class="siL" for="siPw">Password</label>
     <input class="siI" id="siPw" type="password" autocomplete="current-password">
     <button class="siB" id="siGo">Sign in</button>
-    <div class="siNote">No account yet? <a href="/account/">Set one up</a> · Trouble? Contact Dr. Nadon.</div>`);
+    <div class="siNote" id="siNote">No account yet? <a href="/account/">Set one up</a></div>`);
+  // Only offer the emailed reset if this deployment can actually send one. Asked and answered
+  // by /api/config, which is public and says nothing about who has an account.
+  fetch(API+'/config').then(r=>r.json()).then(c=>{
+    const note=document.querySelector('#siNote'); if(!note)return;
+    note.innerHTML=(c&&c.mail
+      ? '<a href="#" id="siForgot">Forgot your password?</a> · '
+      : 'Forgotten your password? Your access code still signs you in — ask Dr. Nadon. · ')+
+      'No account yet? <a href="/account/">Set one up</a>';
+    const f=document.querySelector('#siForgot');
+    if(f)f.onclick=e=>{e.preventDefault();stepForgot(document.querySelector('#siEmail').value.trim());};
+  }).catch(()=>{});
   const go=async()=>{
     const em=document.querySelector('#siEmail').value.trim();
     const pw=document.querySelector('#siPw').value;
@@ -2366,10 +2377,96 @@ function stepScan(email,pw,token,setup){
   n.addEventListener('keydown',ev=>{if(ev.key==='Enter'){ev.preventDefault();go();}});
   setTimeout(()=>n.focus(),60);
 }
+/* ---------- forgotten password ----------
+   Ask for the address, and say the same thing whichever answer the server has. Telling someone
+   "no account with that email" turns this box into a way to find out who works here. */
+function stepForgot(email){
+  siPaint(`
+    <div class="siLead">Enter the email address on your account. If we have it, a link to set a
+      new password is on its way.</div>
+    <label class="siL" for="siFe">Email</label>
+    <input class="siI" id="siFe" type="email" autocomplete="email" autocapitalize="none"
+           spellcheck="false" value="${email?String(email).replace(/"/g,'&quot;'):''}">
+    <button class="siB" id="siFgo">Email me a link</button>
+    <button class="siGhost" id="siFback">Back to sign in</button>`);
+  document.querySelector('#siFback').onclick=()=>stepPassword(document.querySelector('#siFe').value.trim());
+  const go=async()=>{
+    const em=document.querySelector('#siFe').value.trim();
+    if(!em){siSay('Enter your email address.',true);return;}
+    siSay('Sending…');
+    try{
+      await fetch(API+'/reset',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({action:'request',email:em,
+          appUrl:location.origin+location.pathname})});   // so the link comes back to THIS page
+    }catch(e){}
+    siPaint(`
+      <div class="siLead"><b>Check your email.</b> If <b>${esc(em)}</b> is on an account, a link
+        to set a new password is on the way. It works once and expires in 45 minutes.</div>
+      <div class="siLead" style="color:var(--dim)">Nothing after a few minutes? Check spam, or
+        ask Dr. Nadon — your access code still signs you in.</div>
+      <button class="siGhost" id="siFback2">Back to sign in</button>`);
+    document.querySelector('#siFback2').onclick=()=>stepPassword(em);
+  };
+  document.querySelector('#siFgo').onclick=go;
+  const f=document.querySelector('#siFe');
+  f.addEventListener('keydown',ev=>{if(ev.key==='Enter'){ev.preventDefault();go();}});
+  setTimeout(()=>f.focus(),60);
+}
+
+/* Landing from the emailed link. The token is checked before anything is typed, so an expired
+   link says so instead of taking a new password and then refusing it. */
+async function stepReset(token){
+  siPaint('<div class="siLead">Checking your link…</div>');
+  let who=null;
+  try{
+    const r=await fetch(API+'/reset',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({action:'check',token})});
+    const j=await r.json();
+    if(!r.ok){
+      siPaint(`<div class="siLead">${esc(j.error||'That link is no longer valid.')}</div>
+        <button class="siB" id="siRagain">Ask for a new link</button>`);
+      document.querySelector('#siRagain').onclick=()=>stepForgot('');
+      return;
+    }
+    who=j;
+  }catch(e){ siPaint('<div class="siLead">Could not reach the server. Try the link again.</div>'); return; }
+  siPaint(`
+    <div class="siLead">Choose a new password for <b>${esc(who.email||who.person||'')}</b>.</div>
+    <label class="siL" for="siRp">New password</label>
+    <input class="siI" id="siRp" type="password" autocomplete="new-password">
+    <label class="siL" for="siRp2">Confirm it</label>
+    <input class="siI" id="siRp2" type="password" autocomplete="new-password">
+    <div class="siLead" style="color:var(--dim)">At least 12 characters. A short phrase is
+      easiest to remember.</div>
+    <button class="siB" id="siRgo">Set password and sign in</button>`);
+  const go=async()=>{
+    const a=document.querySelector('#siRp').value, b2=document.querySelector('#siRp2').value;
+    if(a!==b2){siSay('Those two do not match.',true);return;}
+    siSay('Saving…');
+    try{
+      const r=await fetch(API+'/reset',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({action:'confirm',token,password:a})});
+      const j=await r.json();
+      if(!r.ok){siSay(j.error||'Could not set that password.',true);return;}
+      try{sessionStorage.setItem('__tok',j.token);}catch(e){}
+      history.replaceState(null,'',location.pathname);   // the token leaves the address bar
+      await loadPortal(j.token);
+    }catch(e){ siSay('Could not reach the server.',true); }
+  };
+  document.querySelector('#siRgo').onclick=go;
+  document.querySelector('#siRp2').addEventListener('keydown',ev=>{
+    if(ev.key==='Enter'){ev.preventDefault();go();}});
+  setTimeout(()=>document.querySelector('#siRp').focus(),60);
+}
+
 function showGate(){ stepPassword(''); }
 
 (async function start(){
   document.body.classList.add('locked');
+  // A reset link beats an existing session: whoever holds the link is the one at the keyboard,
+  // and they are here precisely because they could not get in.
+  const rtok=new URLSearchParams(location.search).get('reset');
+  if(rtok){ document.body.classList.add('locked'); await stepReset(rtok); return; }
   let tok=null; try{tok=sessionStorage.getItem('__tok');}catch(e){}
   if(tok){ try{ await loadPortal(tok); return; }catch(e){ try{sessionStorage.removeItem('__tok');}catch(_){} } }
   showGate();
