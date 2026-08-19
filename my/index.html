@@ -555,6 +555,22 @@ const fmtLong=iso=>{const d=d2(iso);return DOW[dowOf(iso)]+', '+MONL[d.getMonth(
 const isoAdd=(iso,n)=>{const d=d2(iso);d.setDate(d.getDate()+n);return d.toISOString().slice(0,10);};
 const todayISO=()=>new Date().toISOString().slice(0,10);
 const META=s=>DATA.meta[s]||{label:s,sub:'',kind:'other',color:'#7C8FA6'};
+// An Admin block on a meeting day is the meeting. Everywhere the portal names a shift it asks
+// this first, so the answer cannot differ between the calendar, the day sheet and the list.
+const mtgTag=(person,iso)=>((DATA.adminMtg||{})[iso]||{})[person]||null;
+function shiftLabel(person,iso,shift,short){
+  if(shift==='Admin'){
+    // "Admin" is a category in the solver, not a thing anyone is asked to attend. On the day of
+    // a managing-team or triad meeting it IS that meeting and should say so; the rest is
+    // protected time the solver placed to fill a contract. Either way the physician should not
+    // be reading the word Admin off their own calendar and wondering what it means.
+    const t=mtgTag(person,iso);
+    if(t)return (short?(DATA.mtgShort||{}):(DATA.mtgLong||{}))[t]||t;
+    return short?'Protected':'Protected time';
+  }
+  const m=META(shift);
+  return short?(m.short||m.label):m.label;
+}
 const isICU=s=>DATA.icu.includes(s), isNOC=s=>DATA.noc.includes(s);
 const f1=x=>Number.isInteger(x)?x:Math.round(x*100)/100;
 
@@ -705,7 +721,7 @@ function shiftRow(iso,shift,extra){
   return `<div class="row" data-iso="${iso}">
     <span class="sp" style="background:${m.color}"></span>
     <span class="d">${fmtD(iso).replace(', ','<br>')}</span>
-    <span><span class="t">${esc(m.label)}</span><span class="s">${esc(m.sub)}</span></span>
+    <span><span class="t">${esc(shiftLabel(ME,iso,shift,false))}</span><span class="s">${esc(m.sub)}</span></span>
     ${extra?`<span class="rt">${extra}</span>`:''}</div>`;
 }
 
@@ -894,7 +910,7 @@ function groupStack(people){
       const m=sh?META(sh):null;
       return `<div class="scell${dowOf(d)>=5?' we':''}"${sh?` style="border-left:3px solid ${m.color}"`:''}>
         <span class="sd">${d2(d).getDate()}</span>
-        <span class="ss">${sh?esc(m.label):''}</span></div>`;
+        <span class="ss">${sh?esc(shiftLabel(p,d,sh,true)):''}</span></div>`;
     }).join('');
     return `<div class="stackblk"><div class="lgh">${esc(fullOf(p))}</div>
       <div class="sgrid">${cells}</div></div>`;
@@ -977,7 +993,8 @@ function renderNow(){
     const a=dayOf(ME,next.iso), also=a.s.filter(s=>s!==next.shift), roles=a.r||[];
     html+=`<div class="hero"><div class="spine" style="background:${m.color}"></div><div class="in">
       <div class="when">${esc(when)}</div>
-      <div class="unit"><span class="dotU" style="background:${m.color};width:15px;height:15px"></span>${esc(m.label)}</div>
+      <div class="unit"><span class="dotU" style="background:${m.color};width:15px;height:15px"></span>${
+        esc(shiftLabel(ME,next.iso,next.shift,false))}</div>
       <div class="sub">${esc(m.sub)}</div>
       ${also.length?`<div class="sub" style="margin-top:7px">Also that day: ${also.map(s=>esc(META(s).label)).join(' · ')}</div>`:''}
       ${roles.length?`<div class="sub" style="margin-top:5px;color:#F0ABFC">◆ ${roles.map(r=>esc((DATA.roles[r]||{label:r}).label)).join(' · ')}</div>`:''}
@@ -1090,7 +1107,8 @@ function renderSched(){
             inner=`<span class="blk noc" style="background:${nm.color}">☾ ${esc(site)}</span>`;
           }else{
             const m=META(ds[0]);
-            inner=`<span class="blk" style="background:${m.color}">${esc(m.short||m.label)}</span>`;
+            inner=`<span class="blk" style="background:${m.color}">${
+              esc(shiftLabel(ME,iso,ds[0],true))}</span>`;
           }
         }
         if(!inner&&cmeReq)inner='<span class="blk cme">CME</span>';
@@ -1201,7 +1219,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260818.2344';           // shown in the account bar so a stale app is obvious
+const BUILD='260819.1040';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 let SESSION=null, CFG=null, MYREQ=null, MYSWAPS=[];
 const api=async(path,opts={})=>{
@@ -1685,7 +1703,7 @@ function openDay(iso){
       const hrs=DATA.kindHours[m.kind];
       const time=!hrs?'All day':`${hrs[0]%12||12}${hrs[0]<12?'am':'pm'} – ${(hrs[0]+hrs[2])%24%12||12}${((hrs[0]+hrs[2])%24)<12?'am':'pm'}`;
       b+=`<div class="row" style="margin-top:8px"><span class="sp" style="background:${m.color}"></span>
-        <span><span class="t">${esc(m.label)}</span><span class="s">${esc(m.sub)}</span></span>
+        <span><span class="t">${esc(shiftLabel(ME,iso,s,false))}</span><span class="s">${esc(m.sub)}</span></span>
         <span class="rt">${time}</span></div>`;});
     if(a.s.filter(s=>META(s).kind!=='noc').length&&a.s.some(s=>META(s).kind==='noc'))
       b+=`<div class="note"><span class="pill warn">24-hour shift</span> Two full days off follow.</div>`;
