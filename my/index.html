@@ -717,6 +717,7 @@ function togglePicker(){
 function restoreFromGate(){
   if(GATE_FROM==='admin'){showAdminView();markBar('admin');}
   else{hideAdminView();markBar(ME?'pick':'admin');if(!ME)showAdminView();}
+  // (openGate is kept only as the sign-in-time chooser; switching always uses the menu.)
 }
 function markBar(v){
   document.querySelectorAll('.ab').forEach(x=>x.classList.toggle('on',x.dataset.v===v));
@@ -1291,7 +1292,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260819.1233';           // shown in the account bar so a stale app is obvious
+const BUILD='260819.1435';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 let SESSION=null, CFG=null, MYREQ=null, MYSWAPS=[];
 const api=async(path,opts={})=>{
@@ -2071,7 +2072,7 @@ function adminBar(){
     if(v==='admin'){showAdminView();return;}
     hideAdminView();
     if(ME){boot();}               // straight back to whoever was selected, on the same tab
-    else openGate();              // nobody chosen yet — only then ask
+    else togglePicker();          // nobody chosen yet: the same menu, not a different screen
   });
 }
 function showAdminView(){
