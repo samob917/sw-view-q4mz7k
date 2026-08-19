@@ -1201,7 +1201,8 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260818.2308';           // shown in the account bar so a stale app is obvious
+const BUILD='260818.2332';           // shown in the account bar so a stale app is obvious
+const TEST_BUILD=false;   // true only on the copy at /test/
 let SESSION=null, CFG=null, MYREQ=null, MYSWAPS=[];
 const api=async(path,opts={})=>{
   const h={'Content-Type':'application/json',...(opts.headers||{})};
@@ -2232,6 +2233,19 @@ async function loadPortal(token){
     sessionStorage.setItem('__acctInfo',JSON.stringify({person:j.person,role:j.role,twoFactor:true}));
   }catch(e){}
   CFG={deadline:j.deadline,locked:j.locked,lateContact:j.lateContact,icsUrl:j.icsUrl};
+  // A physician who lands on the test copy would file real requests into a schedule that gets
+  // thrown away, and a banner does not stop someone who is not looking for one. The team needs
+  // this site; nobody else does, so it simply refuses anyone who is not an admin.
+  if(TEST_BUILD && j.role!=='admin'){
+    document.body.classList.add('locked');
+    siPaint(`
+      <div class="siLead"><b>This is the test copy of the schedule.</b> Anything you do here is
+        discarded and never reaches the real schedule — including requests and swaps.</div>
+      <div class="siLead">Your real schedule is at <b>ccpsa.schedulingwiz.com/my/</b>.</div>
+      <a class="siB" href="https://ccpsa.schedulingwiz.com/my/" style="display:block;
+        text-align:center;text-decoration:none">Take me to my real schedule</a>`);
+    return;
+  }
   setIdentity(j.person,j.role);
   document.body.classList.remove('locked');
   const g=document.querySelector('.signin'); if(g)g.remove();
