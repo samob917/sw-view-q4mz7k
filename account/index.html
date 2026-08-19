@@ -1,4 +1,4 @@
-<title>Your account · CCPSA Critical Care</title>
+<title>Your account · CCPSA</title>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#0E1621">
 <style>
@@ -80,7 +80,7 @@ button:not(.ghost):hover{filter:brightness(1.06)}
 </style>
 
 <div class="wrap">
-  <div class="eyebrow">CCPSA Critical Care</div>
+  <div class="eyebrow">CCPSA</div>
   <h1 id="h1">Set up your account</h1>
   <div class="prog" id="prog"><i></i><i></i><i></i><i></i></div>
 
@@ -188,7 +188,7 @@ button:not(.ghost):hover{filter:brightness(1.06)}
 </div>
 
 <script>
-const API='https://elig-api.vercel.app/api';
+const API='https://elig-api.vercel.app/api';   // set at deploy time — production URL or a relative /api
 const $=s=>document.querySelector(s);
 const PAGES=['p1','p2','p3','p4','pDone','pPw','pSignin','pSignin2'];
 let STATE={person:null,email:null,password:null,token:null};
