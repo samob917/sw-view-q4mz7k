@@ -188,7 +188,10 @@ button:not(.ghost):hover{filter:brightness(1.06)}
 </div>
 
 <script>
-const API='https://elig-api.vercel.app/api';   // set at deploy time — production URL or a relative /api
+const API='https://elig-api.vercel.app/api';      // set at deploy time — production URL or a relative /api
+// Where the schedule lives. Production serves it at /my/; the test site serves it at the root
+// of its own host. Hard-coding /my/ sent everyone finishing setup on test to a 404.
+const PORTAL='/my/';
 const $=s=>document.querySelector(s);
 const PAGES=['p1','p2','p3','p4','pDone','pPw','pSignin','pSignin2'];
 let STATE={person:null,email:null,password:null,token:null};
@@ -340,7 +343,7 @@ $('#liTotp').addEventListener('input',()=>{
 });
 
 /* ---- done page ---- */
-$('#goSched').onclick=()=>{ location.href='/my/'; };
+$('#goSched').onclick=()=>{ location.href=PORTAL; };
 $('#goOut').onclick=()=>{ STATE={person:null,email:null,password:null,token:null};
                           location.reload(); };
 $('#goPwChange').onclick=()=>go('pPw',null,'Change your password');
