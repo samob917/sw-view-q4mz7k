@@ -8,7 +8,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="My Schedule">
-<title>My schedule · CCPSA Critical Care</title>
+<title>My schedule · CCPSA</title>
 <script>
 if('serviceWorker' in navigator){
   navigator.serviceWorker.register('sw.js').then(function(reg){
@@ -528,7 +528,7 @@ body.adminmode main{padding:0}
 
 <div id="gate"><div class="in">
   <div class="gatetop" id="gateTop"></div>
-  <div class="eyebrow">CCPSA Critical Care · Q4 2026</div>
+  <div class="eyebrow">CCPSA · Q4 2026</div>
   <h1 id="gateH">Physicians</h1>
   <div class="note" style="margin-top:2px" id="gateNote">Choose whose schedule to open.</div>
   <label class="sr" for="gateSearch">Search by name</label>
@@ -1201,7 +1201,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260818.2140';           // shown in the account bar so a stale app is obvious
+const BUILD='260818.2156';           // shown in the account bar so a stale app is obvious
 let SESSION=null, CFG=null, MYREQ=null, MYSWAPS=[];
 const api=async(path,opts={})=>{
   const h={'Content-Type':'application/json',...(opts.headers||{})};
@@ -2125,7 +2125,7 @@ function siShell(body){
   return `<div class="signin"><div class="siCard">
     <div class="siLogo">⚡</div>
     <h1 class="siH">My schedule</h1>
-    <div class="siSub">CCPSA Critical Care</div>
+    <div class="siSub">CCPSA</div>
     ${body}
     <div class="siMsg" id="siMsg"></div>
   </div></div>`;

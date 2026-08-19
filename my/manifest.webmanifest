@@ -1,7 +1,7 @@
 {
-  "name": "My Schedule — CCPSA Critical Care",
+  "name": "My Schedule — CCPSA",
   "short_name": "My Schedule",
-  "description": "Your CCPSA Critical Care shifts, requests and swaps.",
+  "description": "Your CCPSA shifts, requests and swaps.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
