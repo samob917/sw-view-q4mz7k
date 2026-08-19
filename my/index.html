@@ -42,7 +42,7 @@ a{color:var(--signal)}
 /* ---------- shell ---------- */
 .wrap{max-width:600px;margin:0 auto;padding:0 14px}
 body.wide .wrap{max-width:1500px}
-.pdrop{position:absolute;top:calc(100% - 4px);right:14px;z-index:60;width:min(330px,calc(100vw - 24px));
+.pdrop{position:fixed;z-index:60;width:min(330px,calc(100vw - 24px));
   background:var(--panel);border:1px solid var(--line2);border-radius:13px;overflow:hidden;
   box-shadow:0 18px 40px rgba(0,0,0,.45)}
 .pdrop .pds{position:sticky;top:0;background:var(--panel);padding:9px;border-bottom:1px solid var(--line)}
@@ -661,15 +661,27 @@ function openGate(){
 function closeGate(){$('#gate').style.display='none';}
 
 /* ---------- switch physician, from the chip ---------- */
-function closePicker(){ const d=document.querySelector('.pdrop'); if(d)d.remove(); }
+function closePicker(){
+  const d=document.querySelector('.pdrop');
+  if(d){ if(d._place)window.removeEventListener('resize',d._place); d.remove(); }
+}
 function togglePicker(){
   if(document.querySelector('.pdrop')){ closePicker(); return; }
-  const host=document.querySelector('header.top');
-  host.style.position='relative';
+  const chip=document.querySelector('#whoami');
   const d=el('div','pdrop');
   d.innerHTML='<div class="pds"><input id="pdq" type="search" placeholder="Search physicians" '+
               'autocapitalize="none" spellcheck="false"></div><div class="pdlist" id="pdl"></div>';
-  host.appendChild(d);
+  document.body.appendChild(d);
+  // Anchored to the chip itself. It used to hang off the header element, which put it below the
+  // whole header — under the toggle bar, nowhere near the thing that was clicked.
+  const place=()=>{
+    const r=chip.getBoundingClientRect();
+    d.style.top=Math.round(r.bottom+6)+'px';
+    d.style.right=Math.max(8,Math.round(window.innerWidth-r.right))+'px';
+  };
+  place();
+  window.addEventListener('resize',place);
+  d._place=place;
   const paint=q=>{
     const t=(q||'').trim().toLowerCase();
     const ppl=DATA.people.filter(nm=>!t||nm.toLowerCase().includes(t)||
@@ -1279,7 +1291,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260819.1142';           // shown in the account bar so a stale app is obvious
+const BUILD='260819.1204';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 let SESSION=null, CFG=null, MYREQ=null, MYSWAPS=[];
 const api=async(path,opts={})=>{
@@ -2164,6 +2176,10 @@ function boot(){
    is signed and expires in 90 days, so it proves that and nothing more (client 8/17). */
 function rememberedDevice(){ try{return localStorage.getItem('__dev')||'';}catch(e){return '';} }
 function keepDevice(tok){ if(tok){try{localStorage.setItem('__dev',tok);}catch(e){}} }
+// A code entered at sign-in covers the admin view for this session. Without this you typed a
+// code, opened the admin view, were asked for another — and the one you had just used was
+// REFUSED, because its time step is burned to stop replay. Right code, correct use, "not right".
+function keepGrant(g){ if(g){ ADMIN_GRANT=g; try{sessionStorage.setItem('__grant',g);}catch(e){} } }
 // Once per session, not once per reload: the grant lives in sessionStorage, so it survives a
 // refresh but dies with the tab (client 8/17).
 let ADMIN_GRANT=null;
@@ -2338,13 +2354,18 @@ async function loadPortal(token){
    look like it is missing a field. */
 function stepPassword(email){
   siPaint(`
+    <form id="siForm" method="post" action="#" novalidate>
     <label class="siL" for="siEmail">Email</label>
-    <input class="siI" id="siEmail" type="email" autocomplete="email" autocapitalize="none"
-           spellcheck="false" value="${email?String(email).replace(/"/g,'&quot;'):''}">
+    <input class="siI" id="siEmail" name="username" type="email" autocomplete="username"
+           autocapitalize="none" spellcheck="false"
+           value="${email?String(email).replace(/"/g,'&quot;'):''}">
     <label class="siL" for="siPw">Password</label>
-    <input class="siI" id="siPw" type="password" autocomplete="current-password">
-    <button class="siB" id="siGo">Sign in</button>
+    <input class="siI" id="siPw" name="password" type="password" autocomplete="current-password">
+    <button class="siB" id="siGo" type="submit">Sign in</button>
+    </form>
     <div class="siNote" id="siNote">No account yet? <a href="/account/">Set one up</a></div>`);
+  // Submitting the form is what a manager expects to happen; the click handler below still runs.
+  document.querySelector('#siForm').addEventListener('submit',ev=>{ev.preventDefault();go();});
   // Only offer the emailed reset if this deployment can actually send one. Asked and answered
   // by /api/config, which is public and says nothing about who has an account.
   fetch(API+'/config').then(r=>r.json()).then(c=>{
@@ -2367,7 +2388,7 @@ function stepPassword(email){
       const j=await r.json();
       if(r.ok){
         try{sessionStorage.setItem('__tok',j.token);}catch(e){}
-        keepDevice(j.device);
+        keepDevice(j.device); keepGrant(j.grant);
         // Only offer to set up 2FA to someone who has none. A returning user on a trusted
         // device already has it and was being asked to set it up again.
         if(j.twoFactor){ await loadPortal(j.token); return; }
@@ -2405,7 +2426,7 @@ function step2fa(email,pw){
       const j=await r.json();
       if(!r.ok){siSay(j.error||'That code is not right.',true);return;}
       try{sessionStorage.setItem('__tok',j.token);}catch(e){}
-      keepDevice(j.device);
+      keepDevice(j.device); keepGrant(j.grant);
       await loadPortal(j.token);
     }catch(e){ siSay('Could not reach the server.',true); }
   };
@@ -2460,7 +2481,7 @@ function stepScan(email,pw,token,setup){
                              totp:document.querySelector('#siNew').value.trim()})});
       const j=await r.json();
       if(!r.ok){siSay(j.error||'That code is not right.',true);return;}
-      keepDevice(j.device);       // else the next sign-in asks for a code it does not need
+      keepDevice(j.device); keepGrant(j.grant);       // else the next sign-in asks for a code it does not need
       await loadPortal(j.token||token);
     }catch(e){ siSay('Could not reach the server.',true); }
   };

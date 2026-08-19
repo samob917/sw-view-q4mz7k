@@ -164,9 +164,10 @@ button:not(.ghost):hover{filter:brightness(1.06)}
     <h2>Sign in</h2>
     <p class="sub">With the email and password you set up.</p>
     <label for="liEmail">Email</label>
-    <input id="liEmail" type="email" autocomplete="email" autocapitalize="none" spellcheck="false">
+    <input id="liEmail" name="username" type="email" autocomplete="username"
+           autocapitalize="none" spellcheck="false">
     <label for="liPw">Password</label>
-    <input id="liPw" type="password" autocomplete="current-password">
+    <input id="liPw" name="password" type="password" autocomplete="current-password">
     <button id="bSignin">Sign in</button>
     <div class="msg err" id="mSignin"></div>
     <p class="small">Not set up yet? <a href="#" id="toSetup">Start with your access code</a></p>
