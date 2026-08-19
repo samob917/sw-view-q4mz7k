@@ -42,6 +42,23 @@ a{color:var(--signal)}
 /* ---------- shell ---------- */
 .wrap{max-width:600px;margin:0 auto;padding:0 14px}
 body.wide .wrap{max-width:1500px}
+.pdrop{position:absolute;top:calc(100% - 4px);right:14px;z-index:60;width:min(330px,calc(100vw - 24px));
+  background:var(--panel);border:1px solid var(--line2);border-radius:13px;overflow:hidden;
+  box-shadow:0 18px 40px rgba(0,0,0,.45)}
+.pdrop .pds{position:sticky;top:0;background:var(--panel);padding:9px;border-bottom:1px solid var(--line)}
+.pdrop input{width:100%;padding:9px 11px;border:1px solid var(--line2);border-radius:9px;
+  background:var(--panel2);color:var(--ink);font:inherit;font-size:14px}
+.pdrop input:focus{outline:2px solid var(--signal);outline-offset:-1px}
+.pdlist{max-height:min(58vh,420px);overflow:auto;-webkit-overflow-scrolling:touch}
+.pdrow{display:flex;align-items:center;gap:10px;width:100%;padding:10px 12px;background:none;
+  border:0;border-bottom:1px solid rgba(255,255,255,.04);color:var(--ink);font:inherit;
+  font-size:14px;text-align:left;cursor:pointer}
+.pdrow:hover,.pdrow:focus{background:var(--panel2)}
+.pdrow.on{background:rgba(53,214,164,.13)}
+.pdrow .av{width:26px;height:26px;border-radius:50%;background:var(--panel2);display:grid;
+  place-items:center;font-size:10px;font-weight:700;color:var(--dim);flex:0 0 auto}
+.pdrow.on .av{background:var(--signal);color:#06231A}
+.pdnone{padding:14px 12px;font-size:13px;color:var(--dim)}
 header.top{position:sticky;top:0;z-index:30;background:rgba(14,22,33,.92);
   backdrop-filter:saturate(1.4) blur(10px);border-bottom:1px solid var(--line)}
 .topin{padding:11px 14px;display:flex;align-items:center;gap:10px}
@@ -642,6 +659,49 @@ function openGate(){
   $('#gate').style.display='block';$('#gateSearch').value='';renderGate('');
 }
 function closeGate(){$('#gate').style.display='none';}
+
+/* ---------- switch physician, from the chip ---------- */
+function closePicker(){ const d=document.querySelector('.pdrop'); if(d)d.remove(); }
+function togglePicker(){
+  if(document.querySelector('.pdrop')){ closePicker(); return; }
+  const host=document.querySelector('header.top');
+  host.style.position='relative';
+  const d=el('div','pdrop');
+  d.innerHTML='<div class="pds"><input id="pdq" type="search" placeholder="Search physicians" '+
+              'autocapitalize="none" spellcheck="false"></div><div class="pdlist" id="pdl"></div>';
+  host.appendChild(d);
+  const paint=q=>{
+    const t=(q||'').trim().toLowerCase();
+    const ppl=DATA.people.filter(nm=>!t||nm.toLowerCase().includes(t)||
+      ((DATA.providers[nm]||{}).first||'').toLowerCase().includes(t));
+    const box=document.querySelector('#pdl');
+    if(!ppl.length){ box.innerHTML='<div class="pdnone">Nobody by that name.</div>'; return; }
+    box.innerHTML=ppl.map(nm=>`<button class="pdrow${nm===ME?' on':''}" data-p="${esc(nm)}">
+        <span class="av">${esc(initials(nm))}</span><span>${esc(fullOf(nm))}</span></button>`).join('');
+    box.querySelectorAll('.pdrow').forEach(b=>b.onclick=()=>{
+      const nm=b.dataset.p;
+      closePicker();
+      if(nm===ME)return;                       // already on them; nothing to reload
+      ME=nm; try{localStorage.setItem('ccpsa_me',nm);}catch(e){}
+      MYREQ=null;
+      const tab=(CUR&&CUR!=='admin')?CUR:'now';
+      hideAdminView(); boot(); markBar('pick'); go(tab);
+    });
+  };
+  paint('');
+  const q=document.querySelector('#pdq');
+  q.addEventListener('input',ev=>paint(ev.target.value));
+  q.addEventListener('keydown',ev=>{
+    if(ev.key==='Escape'){ closePicker(); return; }
+    if(ev.key==='Enter'){ const first=document.querySelector('.pdrow'); if(first)first.click(); }
+  });
+  setTimeout(()=>q.focus(),40);
+  // Clicking anywhere else closes it, which is what a menu does.
+  setTimeout(()=>document.addEventListener('click',function once(ev){
+    if(!ev.target.closest('.pdrop')&&!ev.target.closest('#whoami')){ closePicker(); }
+    if(!document.querySelector('.pdrop'))document.removeEventListener('click',once);
+  }),0);
+}
 function restoreFromGate(){
   if(GATE_FROM==='admin'){showAdminView();markBar('admin');}
   else{hideAdminView();markBar(ME?'pick':'admin');if(!ME)showAdminView();}
@@ -650,10 +710,10 @@ function markBar(v){
   document.querySelectorAll('.ab').forEach(x=>x.classList.toggle('on',x.dataset.v===v));
 }
 $('#gateSearch').addEventListener('input',e=>renderGate(e.target.value));
-$('#whoami').onclick=()=>{
-  // For an admin this chip is the physician selector — it already shows who is on screen, and
-  // sign-out has its own button in the bar below, so the sheet in between was a detour.
-  if(CAN_SWITCH){ openGate(); return; }
+$('#whoami').onclick=e=>{
+  // Switching physician is picking from a list, not going somewhere. It used to open a
+  // full-screen page that replaced everything on screen and had to carry its own way back.
+  if(CAN_SWITCH){ e.stopPropagation(); togglePicker(); return; }
   const who=(ACCT&&ACCT.label)||fullOf(ME)||'—';
   sheet('Your account',`
     <div class="row" style="margin-top:0"><span class="sp" style="background:#35D6A4"></span>
@@ -1219,7 +1279,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260819.1040';           // shown in the account bar so a stale app is obvious
+const BUILD='260819.1049';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 let SESSION=null, CFG=null, MYREQ=null, MYSWAPS=[];
 const api=async(path,opts={})=>{
