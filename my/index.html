@@ -287,6 +287,12 @@ textarea.ta{width:100%;background:var(--panel);border:1px solid var(--line2);bor
 #printOnly{display:none}
 /* accessibility: visible focus for keyboard users; calm for reduced-motion users */
 :focus-visible{outline:2px solid var(--signal);outline-offset:2px;border-radius:6px}
+.derow{background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:13px 15px;
+  margin-bottom:12px}
+.dek{font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim);font-weight:700}
+.deval{font-size:32px;font-weight:800;line-height:1.1;margin:2px 0 3px}
+.desub{font-size:12.5px;color:var(--dim)}
+.chev{opacity:.65;font-size:10px}
 .icsalt{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;
   margin-top:9px;font-size:11.5px}
 .icsalt a{color:var(--dim);text-decoration:underline}
@@ -997,7 +1003,16 @@ function blockStatsHTML(){
   const c=counts(ME), tg=targets(ME), de=deBalance(ME);
   const pct=(a,b)=>b?Math.min(100,Math.round(a/b*100)):0;
   const dayN=c.icu+c.swing;
-  return `<div class="tiles">
+  /* DAY EQUIVALENTS GO FIRST. This was the last line of a sheet called "Block statistics",
+     behind an unlabelled name chip — Sam went looking for it and could not find it. It is the
+     number a physician actually wants from this screen, so it is the headline. */
+  return `<div class="derow">
+      <div class="dek">Day equivalents</div>
+      <div class="deval" style="color:${de.bal>0?'#FBBF24':'#35D6A4'}">${de.bal>0?'+':''}${de.bal}</div>
+      <div class="desub">worked <b>${de.worked}</b> against a contract of <b>${de.contract}</b>${
+        de.bal===0?' — exactly level':(de.bal>0?' — above contract':' — below contract')}</div>
+    </div>
+    <div class="tiles">
     <div class="tile"><div class="k">Day shifts</div><div class="v">${dayN}${tg.day!=null?` <small>/ ${tg.day}</small>`:''}</div>
       <div class="f">ICU ${c.icu}${c.swing?` + swing ${c.swing}`:''}</div>
       ${tg.day!=null?`<div class="bar"><i style="width:${pct(dayN,tg.day)}%"></i></div>`:''}</div>
@@ -1009,12 +1024,11 @@ function blockStatsHTML(){
     <div class="tile"><div class="k">Weekend days</div><div class="v">${c.wknd}</div>
       <div class="f">${c.worked} days on service</div></div>
   </div>
-  <div class="row" style="margin-top:11px"><span class="sp" style="background:${de.bal>0?'#FBBF24':'#35D6A4'}"></span>
-    <span><span class="t">Day-equivalent balance</span><span class="s">Worked ${de.worked} vs contract ${de.contract}</span></span>
-    <span class="rt" style="font-size:17px;font-weight:800;color:${de.bal>0?'#FBBF24':'#35D6A4'}">${de.bal>0?'+':''}${de.bal}</span></div>
   <div class="note">Every off and CME day you asked for was granted this block.</div>`;
 }
-function openBlockStats(){ sheet('Block statistics', blockStatsHTML()); }
+function openBlockStats(){
+  sheet((ME?(fullOf(ME)||ME)+' — ':'')+'day equivalents', blockStatsHTML());
+}
 
 
 /* ---------- clinic staff ----------
@@ -1252,7 +1266,7 @@ function subscribeCard(){
   const webcal=url.replace(/^https?:/,'webcal:');
   const whose=onBehalf()?fullOf(ME):null;
   return `<div class="swcard subcard">
-    <div class="lgh">${whose?esc(whose)+"'s shifts in your calendar":"Add to your phone's calendar"}</div>
+    <div class="lgh">${whose?'Subscribe to '+esc(whose)+"'s shifts":'Subscribe in your calendar'}</div>
     <div class="sub">${whose
       ? 'You are looking at <b>'+esc(whose)+'</b>, so this adds <b>their</b> shifts to your '+
         'calendar — not yours. It appears as <b>CCPSA — '+esc(ME)+'</b>.'
@@ -1497,7 +1511,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260820.1524';           // shown in the account bar so a stale app is obvious
+const BUILD='260820.1618';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 let SESSION=null, CFG=null, MYREQ=null, MYSWAPS=[];
 const api=async(path,opts={})=>{
@@ -2528,8 +2542,11 @@ function accountBar(){
   // nothing. Make it explicit and always present.
   let a=document.querySelector('#acctBar');
   if(!a){a=el('div','acctbar');a.id='acctBar';document.querySelector('header').appendChild(a);}
-  a.innerHTML='<button class="acctwho" id="profileBtn">'+esc((ACCT&&ACCT.person)||'Signed in')+
-    (ROLE==='admin'?' · admin':'')+'</button>'+
+  // The chip opens this person's totals. Unlabelled it read as a status line rather than a
+  // control, so the day equivalents behind it were effectively unreachable.
+  a.innerHTML='<button class="acctwho" id="profileBtn" title="Day equivalents and block totals">'+
+    esc((ACCT&&ACCT.person)||'Signed in')+(ROLE==='admin'?' · admin':'')+
+    (ME?' <span class="chev">▾</span>':'')+'</button>'+
     '<span class="acctbuild" title="Which version of the app you are running. '+
       'If this is older than the one you were told about, pull down to refresh.">'+esc(BUILD)+'</span>'+
     '<button class="acctout" id="signOutBtn">Sign out</button>';
