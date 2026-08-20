@@ -265,6 +265,8 @@ textarea.ta{width:100%;background:var(--panel);border:1px solid var(--line2);bor
 }
 /* accessibility: visible focus for keyboard users; calm for reduced-motion users */
 :focus-visible{outline:2px solid var(--signal);outline-offset:2px;border-radius:6px}
+.siOr{display:flex;align-items:center;gap:10px;margin:14px 0 10px;color:var(--dim);font-size:12px}
+.siOr::before,.siOr::after{content:'';flex:1;height:1px;background:var(--line)}
 .sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
 @media (prefers-reduced-motion: reduce){
   *,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important;scroll-behavior:auto!important}
@@ -1399,7 +1401,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260820.1441';           // shown in the account bar so a stale app is obvious
+const BUILD='260820.1458';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 let SESSION=null, CFG=null, MYREQ=null, MYSWAPS=[];
 const api=async(path,opts={})=>{
@@ -1413,6 +1415,112 @@ const api=async(path,opts={})=>{
   if(!r.ok)throw Object.assign(new Error(j.error||('HTTP '+r.status)),{payload:j,status:r.status});
   return j;
 };
+/* ---------- Face ID / Touch ID ----------
+   A passkey is a private key the phone keeps in its own secure hardware. It never leaves the
+   device and this code cannot read it; the server holds only the matching public key, so there
+   is nothing in the store worth stealing. The phone will not sign unless the face or fingerprint
+   matched, which is what lets this replace the password rather than sit alongside it.
+
+   Everything below is byte-shuffling: WebAuthn deals in ArrayBuffers, JSON does not. */
+const PK_SUPPORTED = !!(window.PublicKeyCredential && navigator.credentials &&
+                        navigator.credentials.create);
+async function pkAvailable(){
+  if(!PK_SUPPORTED)return false;
+  try{ return await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable(); }
+  catch(e){ return false; }
+}
+const pkEnrolled=()=>{ try{return localStorage.getItem('ccpsa_passkey')==='1';}catch(e){return false;} };
+function pkB64(buf){
+  const a=new Uint8Array(buf); let s='';
+  for(let i=0;i<a.length;i++)s+=String.fromCharCode(a[i]);
+  return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+}
+function pkBuf(s){
+  const t=String(s||'').replace(/-/g,'+').replace(/_/g,'/');
+  const bin=atob(t+'==='.slice((t.length+3)%4));
+  const a=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++)a[i]=bin.charCodeAt(i);
+  return a.buffer;
+}
+
+async function enrollPasskey(){
+  const o=await api('/passkey',{method:'POST',body:JSON.stringify({action:'register-options'})});
+  const pk=o.publicKey;
+  pk.challenge=pkBuf(pk.challenge);
+  pk.user.id=pkBuf(pk.user.id);
+  pk.excludeCredentials=(pk.excludeCredentials||[]).map(c=>({...c,id:pkBuf(c.id)}));
+  const cred=await navigator.credentials.create({publicKey:pk});
+  if(!cred)throw new Error('No passkey was created.');
+  const r=cred.response;
+  // getPublicKey() hands over the key in SPKI form, which is what the server can verify with
+  // directly — the alternative is decoding CBOR to reach the same bytes.
+  if(!r.getPublicKey)throw new Error('This browser is too old for Face ID sign-in.');
+  await api('/passkey',{method:'POST',body:JSON.stringify({
+    action:'register', challengeToken:o.challengeToken, id:cred.id,
+    clientDataJSON:pkB64(r.clientDataJSON),
+    publicKey:pkB64(r.getPublicKey()), alg:String(r.getPublicKeyAlgorithm()),
+    label:(/iPhone|iPad/.test(navigator.userAgent)?'iPhone':
+           /Mac/.test(navigator.userAgent)?'Mac':'This device')})});
+  try{localStorage.setItem('ccpsa_passkey','1');}catch(e){}
+}
+
+async function signInWithPasskey(){
+  const post=(body)=>fetch(API+'/passkey',{method:'POST',
+    headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+    .then(async r=>{const j=await r.json().catch(()=>({}));
+                    if(!r.ok)throw new Error(j.error||'Could not sign in');return j;});
+  const o=await post({action:'login-options'});
+  const pk=o.publicKey; pk.challenge=pkBuf(pk.challenge);
+  const cred=await navigator.credentials.get({publicKey:pk});
+  if(!cred)throw new Error('Cancelled');
+  const r=cred.response;
+  const j=await post({action:'login', challengeToken:o.challengeToken, id:cred.id,
+    clientDataJSON:pkB64(r.clientDataJSON), authenticatorData:pkB64(r.authenticatorData),
+    signature:pkB64(r.signature), userHandle:pkB64(r.userHandle||new ArrayBuffer(0))});
+  try{sessionStorage.setItem('__tok',j.token);
+      localStorage.setItem('ccpsa_passkey','1');}catch(e){}
+  keepDevice(j.device); keepGrant(j.grant);
+  await loadPortal(j.token);
+}
+
+/* Offered once, and only to somebody who has JUST TYPED A PASSWORD — that is the moment the
+   cost of not having this is being felt, and the moment the offer makes sense. A session
+   resumed from a trusted device gets no prompt, because nothing was asked of them to prompt
+   about. Never stacked on top of the notifications offer; one interruption per visit. */
+let PW_TYPED=false;
+async function maybeOfferFaceId(){
+  if(!PW_TYPED||pkEnrolled())return;
+  if(document.querySelector('.sheet.on'))return;
+  let asked=false; try{asked=localStorage.getItem('ccpsa_faceask')==='1';}catch(e){}
+  if(asked)return;
+  if(!(await pkAvailable()))return;
+  const done=()=>{ try{localStorage.setItem('ccpsa_faceask','1');}catch(e){} };
+  const face=/iPhone|iPad/.test(navigator.userAgent)?'Face ID':'your fingerprint or face';
+  sheet('Skip the password next time',
+    `<div class="sub">You can open this with ${face} instead of typing your password. The key
+       stays in this phone's secure hardware — it never leaves the device and we never see it.</div>
+     <div class="sub" style="margin-top:8px">Your password still works, and still gets you in on
+       any other device.</div>
+     <div class="btnrow" style="margin-top:12px">
+       <button class="btn pri" id="fidYes">Turn on ${face}</button>
+       <button class="btn" id="fidNo">Not now</button>
+     </div>
+     <div class="msg" id="fidMsg"></div>`);
+  document.querySelector('#fidNo').onclick=()=>{ done(); closeSheet(); };
+  document.querySelector('#fidYes').onclick=async()=>{
+    const btn=document.querySelector('#fidYes'); btn.disabled=true; btn.textContent='…';
+    try{ await enrollPasskey(); done(); closeSheet(); toast(face+' is on'); }
+    catch(e){
+      const m=String((e&&e.message)||e);
+      const msg=document.querySelector('#fidMsg');
+      msg.textContent=/NotAllowed|Cancel|abort/i.test(m)?'Cancelled — you can turn it on later '+
+        'from the Swaps tab.':m;
+      msg.className='msg on bad'; btn.disabled=false; btn.textContent='Turn on '+face;
+    }
+    paintFaceId();
+  };
+}
+
 async function signInApi(){
   let code=null; try{code=sessionStorage.getItem('__code');}catch(e){}
   if(!code)return null;
@@ -1688,6 +1796,52 @@ async function pushState(){
   }catch(e){}
   return 'off';
 }
+/* A permanent home for Face ID, beside notifications. The one-time offer below is easy to
+   decline by reflex, and an offer you can never find again is a feature that does not exist. */
+function faceIdCard(){
+  return `<div class="swcard" id="faceCard">
+    <div class="lgh">Face ID / Touch ID</div>
+    <div class="sub">Sign in with your face or fingerprint instead of typing your password. The
+      key stays in this phone's secure hardware — it is never sent anywhere and we never see it.</div>
+    <div id="faceBody" class="sub" style="margin-top:8px">Checking…</div>
+  </div>`;
+}
+async function paintFaceId(){
+  const box=document.querySelector('#faceBody'); if(!box)return;
+  if(!(await pkAvailable())){
+    box.innerHTML='This device cannot do this — it has no Face ID, Touch ID or device passcode '+
+      'set up, or the browser does not support it.';
+    return;
+  }
+  let list=[];
+  try{ list=(await api('/passkey',{method:'POST',body:JSON.stringify({action:'list'})})).passkeys||[]; }
+  catch(e){ box.textContent='Could not check.'; return; }
+  if(list.length){
+    box.innerHTML='<b style="color:var(--signal)">On.</b> '+
+      list.map(k=>esc(k.label||'A device')).join(', ')+
+      '. Turn it on separately on any other phone you use.'+
+      '<div class="btnrow" style="margin-top:9px"><button class="btn" id="faceAdd">Add this device</button>'+
+      '<button class="btn" id="faceOff">Turn off</button></div>';
+    document.querySelector('#faceOff').onclick=async()=>{
+      for(const k of list){
+        try{await api('/passkey',{method:'POST',body:JSON.stringify({action:'remove',id:k.id})});}catch(e){}
+      }
+      try{localStorage.removeItem('ccpsa_passkey');}catch(e){}
+      toast('Face ID turned off'); paintFaceId();
+    };
+  }else{
+    box.innerHTML='<div class="btnrow"><button class="btn pri" id="faceAdd">Turn on Face ID</button></div>';
+  }
+  const add=document.querySelector('#faceAdd');
+  if(add)add.onclick=async()=>{
+    add.disabled=true; const was=add.textContent; add.textContent='…';
+    try{ await enrollPasskey(); toast('Face ID is on'); }
+    catch(e){ const m=String((e&&e.message)||e);
+              toast(/NotAllowed|Cancel|abort/i.test(m)?'Cancelled':m); }
+    add.disabled=false; add.textContent=was; paintFaceId();
+  };
+}
+
 function notifyCard(){
   return `<div class="swcard" id="notifyCard">
     <div class="lgh">Notifications</div>
@@ -1812,6 +1966,7 @@ function wireCoverage(){
   });
   const rc=document.querySelector('#reqCover'); if(rc)rc.onclick=openCoverAsk;
   paintNotify();
+  paintFaceId();
 }
 function openCoverAsk(){
   const shifts=myShifts(ME).filter(s=>s.iso>=todayISO());
@@ -1873,7 +2028,7 @@ function renderSwap(){
   };
 
   pane.innerHTML=`<div class="btnrow"><button class="btn pri" id="reqCover">Request coverage</button></div>
-    ${notifyCard()}${coverageCard()}
+    ${notifyCard()}${faceIdCard()}${coverageCard()}
     <h2 class="sec">Ask someone to cover a shift</h2>
     ${mine.length?`
     <div class="swapform">
@@ -2420,6 +2575,7 @@ function boot(){
   BOOTED=true;
   go(CUR&&CUR!=='admin'?CUR:'now');                       // stay on the tab you were reading
   setTimeout(maybeOfferPush,1200);   // after the schedule is on screen, not over a blank page
+  setTimeout(maybeOfferFaceId,1600); // and only if the push offer did not just appear
 }
 /* ---------- sign in, then load ----------
    Nothing renders until the API says who you are and hands back your schedule. */
@@ -2655,7 +2811,28 @@ function stepPassword(email){
     <input class="siI" id="siPw" name="password" type="password" autocomplete="current-password">
     <button class="siB" id="siGo" type="submit">Sign in</button>
     </form>
+    <div id="siPk"></div>
     <div class="siNote" id="siNote">No account yet? <a href="/account/">Set one up</a></div>`);
+  // Face ID goes UNDER the form, not above it. Offered first it would be the obvious thing to
+  // press, and on a device that has never enrolled it opens a system sheet saying there are no
+  // passkeys — a dead end presented as the main route. Shown to anyone whose device can do it,
+  // because a passkey may have been enrolled on this account from a different browser here.
+  pkAvailable().then(ok=>{
+    const box=document.querySelector('#siPk'); if(!ok||!box)return;
+    box.innerHTML='<div class="siOr">or</div>'+
+      '<button class="siGhost" id="siFace" type="button">Sign in with Face ID</button>';
+    document.querySelector('#siFace').onclick=async()=>{
+      siSay('Waiting for Face ID…');
+      try{ await signInWithPasskey(); }
+      catch(e){
+        const m=String((e&&e.message)||e);
+        // A cancelled prompt is not an error worth shouting about; the person changed their mind.
+        siSay(/NotAllowed|Cancel|abort/i.test(m)
+          ? 'Face ID was cancelled. You can still use your password.'
+          : m, true);
+      }
+    };
+  });
   // Submitting the form is what a manager expects to happen; the click handler below still runs.
   document.querySelector('#siForm').addEventListener('submit',ev=>{ev.preventDefault();go();});
   // Only offer the emailed reset if this deployment can actually send one. Asked and answered
@@ -2679,6 +2856,7 @@ function stepPassword(email){
         body:JSON.stringify({email:em,password:pw,device:rememberedDevice()})});
       const j=await r.json();
       if(r.ok){
+        PW_TYPED=true;
         try{sessionStorage.setItem('__tok',j.token);localStorage.setItem('ccpsa_login_email',em);}catch(e){}
         keepDevice(j.device); keepGrant(j.grant);
         // Only offer to set up 2FA to someone who has none. A returning user on a trusted
@@ -2909,4 +3087,14 @@ function showGate(){ stepPassword(lastLoginEmail()); }
   }
   showGate();
 })();
+
+/* The version check has to run whether or not anyone is signed in.
+   It was wired into startLiveRefresh(), which only runs once a schedule has loaded — so an app
+   sitting on the sign-in screen, which is exactly what a stale install shows when its session
+   has expired, never checked at all. That is the case that most needs it: nobody can get past
+   that screen to trigger anything. /api/config is public, so this asks for nothing it is not
+   entitled to. */
+checkVersion();
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkVersion();});
+window.addEventListener('pageshow',e=>{if(e.persisted)checkVersion();});
 </script>
