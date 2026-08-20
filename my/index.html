@@ -775,10 +775,22 @@ $('#whoami').onclick=e=>{
 
 /* ---------- my data ---------- */
 const dayOf=(n,iso)=>(DATA.day[n]||{})[iso]||null;
-function myShifts(n){                       // [{iso, shift, meta}]
+// When a shift starts, so a day's shifts read in the order they are worked. The schedule stores
+// them in whatever order the solver produced, which put a 7pm night ahead of the 7am day shift
+// beside it.
+function startHour(sh){
+  const h=DATA.kindHours[(META(sh)||{}).kind];
+  return h ? h[0] : 7;                       // no clock time (Admin) sits with the day
+}
+function byTime(a,b){
+  if(a.iso!==b.iso) return a.iso<b.iso?-1:1;
+  return startHour(a.shift)-startHour(b.shift) ||
+         String(a.shift).localeCompare(String(b.shift));
+}
+function myShifts(n){                       // [{iso, shift, meta}], in the order they are worked
   const out=[];
   DATA.dates.forEach(iso=>{const a=dayOf(n,iso);if(a)a.s.forEach(s=>out.push({iso,shift:s,m:META(s)}));});
-  return out;
+  return out.sort(byTime);
 }
 function counts(n){
   const c={icu:0,swing:0,noc:0,clinic:0,proc:0,jeop:0,admin:0,combo:0,wknd:0,worked:0};
@@ -1081,7 +1093,7 @@ function renderNow(){
     <div class="btnrow"><button class="btn pri" id="pickWho">Choose physician</button></div></div>`;
     $('#pickWho').onclick=openGate;return;}
   const t=todayISO();
-  const all=myShifts(ME).sort((a,b)=>a.iso<b.iso?-1:1);
+  const all=myShifts(ME).sort(byTime);
   const next=all.find(s=>s.iso>=t)||all[0];
   const c=counts(ME),tg=targets(ME),de=deBalance(ME);
   let html=changeBanner();          // anything the scheduling lead changed goes first
@@ -1247,7 +1259,7 @@ function renderSched(){
       a split cell is a 24-hour shift. <b style="color:#C3DBFF">CME</b> marks a CME day.
       ● is a day you asked to work, ○ a day off you requested. Tap any day for the details.</div>`;
   }else{
-    const all=myShifts(ME).sort((a,b)=>a.iso<b.iso?-1:1);
+    const all=myShifts(ME).sort(byTime);
     if(!all.length)html+='<div class="empty">Nothing scheduled this block.</div>';
     let lastMo='';
     all.forEach(s=>{
@@ -1337,7 +1349,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260820.1220';           // shown in the account bar so a stale app is obvious
+const BUILD='260820.1227';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 let SESSION=null, CFG=null, MYREQ=null, MYSWAPS=[];
 const api=async(path,opts={})=>{
@@ -1763,7 +1775,7 @@ function renderSwap(){
   if(!ME){pane.innerHTML='<div class="empty" style="margin-top:22px">Choose a physician first.</div>';return;}
   if(!SESSION){pane.innerHTML='<div class="empty" style="margin-top:22px">Sign in again to use swaps.</div>';return;}
 
-  const mine=myShifts(ME).sort((a,b)=>a.iso<b.iso?-1:1).filter(x=>x.iso>=todayISO());
+  const mine=myShifts(ME).sort(byTime).filter(x=>x.iso>=todayISO());
   const others=DATA.people.filter(p=>p!==ME).sort();
   const mySw=MYSWAPS.filter(s=>s.fromPerson===ME||s.toPerson===ME);
 
@@ -1882,7 +1894,7 @@ function openDay(iso){
   const onReq=(rq.on||[]).includes(iso),offReq=(rq.off||[]).includes(iso),cmeReq=(rq.cme||[]).includes(iso);
   let b='';
   if(a&&a.s.length){
-    a.s.forEach(s=>{const m=META(s);
+    a.s.slice().sort((x,y)=>startHour(x)-startHour(y)).forEach(s=>{const m=META(s);
       const hrs=DATA.kindHours[m.kind];
       const time=!hrs?'All day':`${hrs[0]%12||12}${hrs[0]<12?'am':'pm'} – ${(hrs[0]+hrs[2])%24%12||12}${((hrs[0]+hrs[2])%24)<12?'am':'pm'}`;
       b+=`<div class="row" style="margin-top:8px"><span class="sp" style="background:${m.color}"></span>
