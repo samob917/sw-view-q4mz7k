@@ -1299,7 +1299,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260819.2253';           // shown in the account bar so a stale app is obvious
+const BUILD='260819.2314';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 let SESSION=null, CFG=null, MYREQ=null, MYSWAPS=[];
 const api=async(path,opts={})=>{
@@ -1567,6 +1567,70 @@ async function enablePush(){
     return {ok:true};
   }catch(e){ return {ok:false,why:e.message||'Could not turn on notifications.'}; }
 }
+/* ---------- notifications, explained ----------
+   Three things decide whether a phone can be reached, and a physician can only act on one of
+   them. So say which state they are in and what to do about it, rather than offering a button
+   that quietly fails. */
+const PUSH_SUPPORTED = ('serviceWorker' in navigator) && ('PushManager' in window);
+const IOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+async function pushState(){
+  if(!PUSH_SUPPORTED) return IOS && !STANDALONE ? 'needs-install' : 'unsupported';
+  if(IOS && !STANDALONE) return 'needs-install';        // iOS refuses push in a browser tab
+  if(Notification.permission==='denied') return 'blocked';
+  try{
+    const reg=await navigator.serviceWorker.getRegistration();
+    const sub=reg && await reg.pushManager.getSubscription();
+    if(sub && Notification.permission==='granted') return 'on';
+  }catch(e){}
+  return 'off';
+}
+function notifyCard(){
+  return `<div class="swcard" id="notifyCard">
+    <div class="lgh">Notifications</div>
+    <div class="sub" id="notifyWhat">A message on your phone when someone asks you to cover a
+      shift, when your own request is taken, and when an admin approves it.</div>
+    <div id="notifyBody" class="sub" style="margin-top:8px">Checking…</div>
+  </div>`;
+}
+async function paintNotify(){
+  const box=document.querySelector('#notifyBody'); if(!box)return;
+  const st=await pushState();
+  if(st==='on'){
+    box.innerHTML='<b style="color:var(--signal)">On for this device.</b> Turn them on separately '+
+      'on any other phone or computer you use.';
+    return;
+  }
+  if(st==='needs-install'){
+    box.innerHTML='<b>On an iPhone or iPad, notifications only work once this is on your home '+
+      'screen.</b> Tap the Share button, then <b>Add to Home Screen</b>, open it from there and '+
+      'come back here.<div class="btnrow" style="margin-top:9px">'+
+      '<button class="btn" id="notifyHow">Show me how</button></div>';
+    const h=document.querySelector('#notifyHow'); if(h)h.onclick=()=>openInstall();
+    return;
+  }
+  if(st==='blocked'){
+    box.innerHTML='<b>Blocked in your browser settings.</b> Notifications were refused for this '+
+      'site, so we cannot ask again — allow them for this site in your browser or phone '+
+      'settings, then reload.';
+    return;
+  }
+  if(st==='unsupported'){
+    box.innerHTML='This browser cannot show notifications. Everything still works; you just will '+
+      'not get a message on your phone.';
+    return;
+  }
+  box.innerHTML='<div class="btnrow"><button class="btn pri" id="pushOn">Turn on notifications'+
+    '</button></div><div style="margin-top:6px">Your phone will ask you to allow them.</div>';
+  const pn=document.querySelector('#pushOn');
+  pn.onclick=async()=>{
+    pn.disabled=true; pn.textContent='…';
+    const r=await enablePush();
+    if(r.ok){ toast('Notifications on'); }
+    else { toast(r.why||'Could not turn them on'); pn.disabled=false; pn.textContent='Turn on notifications'; }
+    paintNotify();
+  };
+}
+
 function coverageCard(){
   const open=COVER.filter(o=>o.status==='open'&&(o.eligible||[]).includes(ME)&&o.fromPerson!==ME);
   const mine=COVER.filter(o=>o.fromPerson===ME&&o.status!=='approved'&&o.status!=='declined');
@@ -1607,13 +1671,7 @@ function wireCoverage(){
     catch(e){ toast(e.message); b.disabled=false; }
   });
   const rc=document.querySelector('#reqCover'); if(rc)rc.onclick=openCoverAsk;
-  const pn=document.querySelector('#pushOn'); if(pn)pn.onclick=async()=>{
-    pn.disabled=true;pn.textContent='…';
-    const r=await enablePush();
-    toast(r.ok?'Notifications on':(r.why||'Could not turn on notifications'));
-    pn.textContent=r.ok?'Notifications on':'Turn on notifications';
-    pn.disabled=r.ok;
-  };
+  paintNotify();
 }
 function openCoverAsk(){
   const shifts=myShifts(ME).filter(s=>s.iso>=todayISO());
@@ -1672,7 +1730,8 @@ function renderSwap(){
     return `<span class="pill ${m[0]}">${m[1]}</span>`;
   };
 
-  pane.innerHTML=`<div class="btnrow"><button class="btn pri" id="reqCover">Request coverage</button><button class="btn" id="pushOn">Turn on notifications</button></div>${coverageCard()}
+  pane.innerHTML=`<div class="btnrow"><button class="btn pri" id="reqCover">Request coverage</button></div>
+    ${notifyCard()}${coverageCard()}
     <h2 class="sec">Ask someone to cover a shift</h2>
     ${mine.length?`
     <div class="swapform">
