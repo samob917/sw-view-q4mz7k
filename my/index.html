@@ -11,17 +11,52 @@
 <meta name="apple-mobile-web-app-title" content="Scheduling Wizard">
 <title>Scheduling Wizard · CCPSA</title>
 <script>
+/* HOW AN INSTALLED APP GETS A NEW VERSION.
+   An app on a home screen is almost never "loaded" — it is resumed. It can sit for weeks
+   without a single page load, which is why "check on load" left people on an old build until
+   they deleted and reinstalled it. The check that matters is the one when the app comes back to
+   the FOREGROUND; that is the only moment it reliably happens. */
 if('serviceWorker' in navigator){
-  navigator.serviceWorker.register('sw.js').then(function(reg){
-    reg.update();                                   // ask on every load, not just on install
-    setInterval(function(){reg.update();},1800000); // and hourly for an app left open
-  }).catch(function(){});
-  // A new worker taking over means the HTML it serves has changed. Reload once so the running
-  // page is the one that was just deployed rather than whatever was cached at install.
-  var reloaded=false;
+  // Was this page already under a worker's control? If not, the very first activation fires
+  // controllerchange too — reloading there means every fresh install reloads itself the instant
+  // it opens, which looks like the app crashing on launch.
+  var HADSW=!!navigator.serviceWorker.controller, swreloaded=false, swpending=false;
+
+  // Never yank the page out from under someone: a reload mid-sentence loses what they typed.
+  function swBusy(){
+    var a=document.activeElement||{};
+    if(/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName||''))return true;
+    return !!document.querySelector('.sheet.on,.modal.on,dialog[open]');
+  }
+  function swApply(){
+    if(swreloaded)return;
+    if(document.visibilityState!=='visible'||swBusy()){swpending=true;return;}
+    swreloaded=true; location.reload();
+  }
   navigator.serviceWorker.addEventListener('controllerchange',function(){
-    if(reloaded)return; reloaded=true; location.reload();
+    if(!HADSW){HADSW=true;return;}   // first install, nothing to replace
+    swApply();
   });
+
+  navigator.serviceWorker.register('sw.js').then(function(reg){
+    reg.update();
+    setInterval(function(){reg.update();},900000);        // and every 15 min if left open
+    document.addEventListener('visibilitychange',function(){
+      if(document.visibilityState!=='visible')return;
+      if(swpending){swreloaded=true;location.reload();return;}  // deferred from earlier
+      reg.update();                                      // the check that actually catches it
+    });
+    window.addEventListener('focus',function(){reg.update();});
+    // A worker that installed but is waiting for every tab to close would never take over on a
+    // phone, where the app is suspended rather than closed. Tell it to go ahead.
+    if(reg.waiting)reg.waiting.postMessage('skipWaiting');
+    reg.addEventListener('updatefound',function(){
+      var w=reg.installing; if(!w)return;
+      w.addEventListener('statechange',function(){
+        if(w.state==='installed'&&navigator.serviceWorker.controller)w.postMessage('skipWaiting');
+      });
+    });
+  }).catch(function(){});
 }
 </script>
 <style>
@@ -1170,10 +1205,21 @@ let schedView='cal';
 /* A subscription beats a download: a downloaded .ics is a snapshot that goes stale the moment
    anything changes, which is exactly the complaint. Calendar apps re-poll this URL. */
 function subscribeCard(){
+  if(!ME)return '';
+  /* THE LINK AND THE NAME ON IT MUST BE THE SAME PERSON.
+     The feed address is minted per person by the server, so for the moment between switching
+     physician and that answer arriving there is no correct link to show. This card used to
+     render the previous one under the new person's name: the button read "Add Emily Horn's
+     shifts" and subscribed you to Bailey's 76 shifts. A calendar subscription is not a page you
+     can back out of — it lands on the phone and stays — so a link that might be the wrong
+     person's must not be tappable at all. */
+  if(CFG&&CFG.icsFor!==ME)
+    return `<div class="swcard"><div class="lgh">Add to your calendar</div>
+      <div class="sub">Getting ${esc(fullOf(ME)||ME)}'s calendar link…</div></div>`;
   if(!CFG||!CFG.icsUrl)
-    return ME?`<div class="swcard"><div class="lgh">Add to your calendar</div>
+    return `<div class="swcard"><div class="lgh">Add to your calendar</div>
       <div class="sub">No calendar for this account — it has no schedule of its own. Open a
-        physician from the ▾ menu to subscribe to theirs.</div></div>`:'';
+        physician from the ▾ menu to subscribe to theirs.</div></div>`;
   const url=icsAbsolute();
   const webcal=url.replace(/^https?:/,'webcal:');
   const whose=onBehalf()?fullOf(ME):null;
@@ -1353,7 +1399,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260820.1315';           // shown in the account bar so a stale app is obvious
+const BUILD='260820.1333';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 let SESSION=null, CFG=null, MYREQ=null, MYSWAPS=[];
 const api=async(path,opts={})=>{
@@ -2330,10 +2376,16 @@ async function loadPersonData(){
   const viewing=onBehalf()?('?person='+encodeURIComponent(ME)):'';
   try{const r=await api('/requests'+viewing);MYREQ=r.requests||{};
       CFG={...(CFG||{}),deadline:r.deadline,locked:r.locked,allowance:r.allowance};}catch(e){MYREQ={};}
-  // The calendar link belongs to the person on screen, not to the account that signed in.
+  // The calendar link belongs to the person on screen, not to the account that signed in — and
+  // it is stamped with WHOSE it is, because the fetch is slower than the switch. Drop the old
+  // one first: for that moment the honest answer is "getting it", not the last person's link.
+  const forWho=ME;
+  CFG={...(CFG||{}),icsUrl:null,icsFor:null};
+  if(CUR==='sched')renderSched();
   try{ const q=onBehalf()?('?person='+encodeURIComponent(ME)):'';
        const pr=await api('/portal'+q);
-       CFG={...(CFG||{}),icsUrl:pr.icsUrl||null}; }catch(e){}
+       if(ME!==forWho)return;            // switched again while this was in flight
+       CFG={...(CFG||{}),icsUrl:pr.icsUrl||null,icsFor:forWho}; }catch(e){}
   await loadSwaps();
   await loadCoverage();
   if(onBehalf())MYSWAPS=(MYSWAPS||[]).filter(w=>w.fromPerson===ME||w.toPerson===ME);
@@ -2341,6 +2393,7 @@ async function loadPersonData(){
   LOADED_FOR=ME;
   if(CUR==='req')renderReq();
   if(CUR==='swap')renderSwap();
+  if(CUR==='sched')renderSched();   // the calendar link lives here and has only just arrived
 }
 function boot(){
   const p=DATA.providers[ME]||{};
@@ -2525,7 +2578,8 @@ async function loadPortal(token){
     sessionStorage.setItem('__editTok',token);
     sessionStorage.setItem('__acctInfo',JSON.stringify({person:j.person,role:j.role,twoFactor:true}));
   }catch(e){}
-  CFG={deadline:j.deadline,locked:j.locked,lateContact:j.lateContact,icsUrl:j.icsUrl};
+  CFG={deadline:j.deadline,locked:j.locked,lateContact:j.lateContact,
+       icsUrl:j.icsUrl,icsFor:j.person};   // whose link this is — see subscribeCard
   // A physician who wanders onto the test copy would file real requests into a schedule that
   // gets thrown away, so they are warned plainly. But this used to REFUSE them outright, which
   // also made it impossible to test anything a physician does — requests, swaps, coverage —
