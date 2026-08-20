@@ -260,6 +260,8 @@ textarea.ta{width:100%;background:var(--panel);border:1px solid var(--line2);bor
 .addrow input::-webkit-calendar-picker-indicator{filter:invert(1);opacity:.75;cursor:pointer}
 .addrow .btn{width:auto;flex:0 0 auto;padding:12px 20px}
 .addhint{font-size:12.5px;color:var(--amber);margin:-2px 0 8px;min-height:1px}
+.icsmore{margin-top:9px}
+.icsmore summary{font-size:12.5px;color:var(--dim);cursor:pointer}
 .acctbuild{font-family:var(--mono);font-size:9.5px;color:var(--faint);letter-spacing:.06em;
   margin-left:auto;margin-right:10px;white-space:nowrap}
 .testdate{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:7px 14px;
@@ -1186,11 +1188,11 @@ function subscribeCard(){
     <div class="btnrow">
       <a class="btn pri" href="${webcal}">${whose?'Add '+esc(whose)+"'s shifts":'Add to my calendar'}</a>
     </div>
-    <div class="sub" style="margin-top:9px">
-      Adding it on a computer instead? <a href="#" id="copyIcs">Copy the link</a> and paste it
-      into Google Calendar or Outlook.
-    </div>
-    <div class="muted sm" id="icsUrlText" hidden style="margin-top:6px;word-break:break-all">${esc(url)}</div>
+    <details class="icsmore"><summary>Adding it on a computer?</summary>
+      <div class="sub" style="margin-top:6px">Paste this into Google Calendar or Outlook —
+        "add by URL", not import.</div>
+      <div class="muted sm" style="margin-top:5px;word-break:break-all">${esc(url)}</div>
+    </details>
   </div>`;
 }
 // The feed's full address, whichever way this build talks to its API.
@@ -1198,18 +1200,7 @@ function icsAbsolute(){
   const base=/^https?:/i.test(API) ? API.replace(/\/api$/,'') : location.origin;
   return base+CFG.icsUrl;
 }
-function wireSubscribe(){
-  const b=$('#copyIcs'); if(!b)return;
-  b.onclick=async(e)=>{
-    e.preventDefault();
-    // Reveal the address either way. Clipboard access is refused often enough — an iframe, an
-    // older browser, a permission prompt — that "Copied" with nothing on the clipboard is a
-    // real outcome, and then there is nothing to fall back to.
-    const t=document.querySelector('#icsUrlText'); if(t)t.hidden=false;
-    try{ await navigator.clipboard.writeText(icsAbsolute()); b.textContent='Copied'; }
-    catch(err){ b.textContent='Select the link below'; }
-  };
-}
+function wireSubscribe(){ /* the address is plain text in a disclosure now — nothing to wire */ }
 
 function renderSched(){
   const pane=$('#pane-sched');
@@ -1362,7 +1353,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260820.1308';           // shown in the account bar so a stale app is obvious
+const BUILD='260820.1315';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 let SESSION=null, CFG=null, MYREQ=null, MYSWAPS=[];
 const api=async(path,opts={})=>{
@@ -1659,6 +1650,42 @@ function notifyCard(){
     <div id="notifyBody" class="sub" style="margin-top:8px">Checking…</div>
   </div>`;
 }
+/* ---------- ask once, when asking makes sense ----------
+   Being installed to the home screen is the moment notifications become possible on an iPhone
+   and the moment someone has shown they intend to keep using this. Buried on the Swaps tab, the
+   offer was never going to be found. Asked once, here, with a way to decline that sticks.
+
+   The permission itself is still requested from a button press. A prompt fired on load is the
+   fastest way to a permanent refusal — browsers hold that against the site, and there is no
+   second chance. */
+async function maybeOfferPush(){
+  if(!STANDALONE||!PUSH_SUPPORTED)return;
+  if(typeof Notification==='undefined'||Notification.permission!=='default')return;
+  let asked=false; try{asked=localStorage.getItem('ccpsa_pushask')==='1';}catch(e){}
+  if(asked)return;
+  const done=()=>{ try{localStorage.setItem('ccpsa_pushask','1');}catch(e){} };
+  sheet('Get told when something changes',
+    `<div class="sub">Now that this is on your home screen, it can tell you when someone asks
+       you to cover a shift, when your own request is taken, and when an admin approves it.</div>
+     <div class="sub" style="margin-top:8px">Nothing else — no marketing, no daily digest.</div>
+     <div class="btnrow" style="margin-top:12px">
+       <button class="btn pri" id="pshYes">Turn on notifications</button>
+       <button class="btn" id="pshNo">Not now</button>
+     </div>
+     <div class="msg" id="pshMsg"></div>`);
+  document.querySelector('#pshNo').onclick=()=>{ done(); closeSheet(); };
+  document.querySelector('#pshYes').onclick=async()=>{
+    const btn=document.querySelector('#pshYes'); btn.disabled=true; btn.textContent='…';
+    const r=await enablePush();
+    done();
+    if(r.ok){ closeSheet(); toast('Notifications on'); }
+    else { const m=document.querySelector('#pshMsg');
+           m.textContent=r.why||'Could not turn them on'; m.className='msg on bad';
+           btn.disabled=false; btn.textContent='Turn on notifications'; }
+    paintNotify();
+  };
+}
+
 async function paintNotify(){
   const box=document.querySelector('#notifyBody'); if(!box)return;
   const st=await pushState();
@@ -2339,6 +2366,7 @@ function boot(){
   if(!ME&&!BOOTED){ BOOTED=true; go('now'); setTimeout(togglePicker,150); return; }
   BOOTED=true;
   go(CUR&&CUR!=='admin'?CUR:'now');                       // stay on the tab you were reading
+  setTimeout(maybeOfferPush,1200);   // after the schedule is on screen, not over a blank page
 }
 /* ---------- sign in, then load ----------
    Nothing renders until the API says who you are and hands back your schedule. */
