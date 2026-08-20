@@ -220,7 +220,11 @@ nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:40;background:rgba(14,22
 .sheet .hd{padding:14px 18px 0;display:flex;align-items:flex-start;gap:10px}
 .sheet .bd{padding:12px 18px 18px}
 .sheet .x{margin-left:auto;background:var(--panel2);border:1px solid var(--line);color:var(--dim);
-  width:30px;height:30px;border-radius:50%;font-size:15px;cursor:pointer;flex:none}
+  width:30px;height:30px;border-radius:50%;font-size:15px;cursor:pointer;flex:none;
+  /* A round button needs its glyph centred by the box, not by the font: the default baseline
+     and the button's own padding put the ✕ high and to the left of the circle. */
+  display:flex;align-items:center;justify-content:center;line-height:1;padding:0;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
 .grab{width:38px;height:4px;border-radius:3px;background:var(--line2);margin:9px auto 0}
 
 /* ---------- gate (identity) ---------- */
@@ -898,8 +902,14 @@ function deBalance(n){
   const adm=typeof p.admin==='number'?p.admin*bm:0;
   const worked=c.icu+c.swing+2*c.noc+c.clinic+c.proc+adm;
   const nn=k=>typeof p[k]==='number'?p[k]:0;
+  /* MOONLIGHTERS HAVE NO CONTRACTED TOTAL. Their fields are all null — they pick up nights
+     rather than owing a quarter's worth of them. Treating a missing contract as a contract of
+     zero made every night they worked look like an overage: three nights, six day equivalents,
+     reported as "+6 above contract". There is nothing to be above. */
+  const hasContract=['icu','noc','clinic','admin'].some(k=>typeof p[k]==='number');
   const contract=(nn('icu')+2*nn('noc')+nn('clinic')+nn('admin'))*bm;
-  return {worked:f1(worked),contract:f1(contract),bal:f1(worked-contract)};
+  return {worked:f1(worked), contract:f1(contract), bal:f1(worked-contract),
+          hasContract, nights:c.noc};
 }
 
 /* ---------- shared bits ---------- */
@@ -1008,9 +1018,13 @@ function blockStatsHTML(){
      number a physician actually wants from this screen, so it is the headline. */
   return `<div class="derow">
       <div class="dek">Day equivalents</div>
-      <div class="deval" style="color:${de.bal>0?'#FBBF24':'#35D6A4'}">${de.bal>0?'+':''}${de.bal}</div>
-      <div class="desub">worked <b>${de.worked}</b> against a contract of <b>${de.contract}</b>${
-        de.bal===0?' — exactly level':(de.bal>0?' — above contract':' — below contract')}</div>
+      ${de.hasContract
+        ? `<div class="deval" style="color:${de.bal>0?'#FBBF24':'#35D6A4'}">${de.bal>0?'+':''}${de.bal}</div>
+           <div class="desub">worked <b>${de.worked}</b> against a contract of <b>${de.contract}</b>${
+             de.bal===0?' — exactly level':(de.bal>0?' — above contract':' — below contract')}</div>`
+        : `<div class="deval">${de.worked}</div>
+           <div class="desub">${de.nights?`<b>${de.nights}</b> night${de.nights===1?'':'s'} at 2 day
+             equivalents each. `:''}Moonlighters have no contracted total to measure against.</div>`}
     </div>
     <div class="tiles">
     <div class="tile"><div class="k">Day shifts</div><div class="v">${dayN}${tg.day!=null?` <small>/ ${tg.day}</small>`:''}</div>
@@ -1511,7 +1525,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260820.1618';           // shown in the account bar so a stale app is obvious
+const BUILD='260820.1636';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 let SESSION=null, CFG=null, MYREQ=null, MYSWAPS=[];
 const api=async(path,opts={})=>{
@@ -1715,8 +1729,12 @@ function renderMoonReq(pane,rq,dl){
     if(!avail.includes(v))avail.push(v);
     avail.sort(); MYREQ={...rq,nights_available:avail,shifts_wanted:collect()}; renderReq();
   };
-  pane.querySelectorAll('#mnChips [data-x]').forEach(x=>x.onclick=()=>{
-    const i=avail.indexOf(x.dataset.x); if(i>=0)avail.splice(i,1);
+  // chipList writes data-d on a .pillx. This looked for [data-x] and read dataset.x, so the
+  // selector matched nothing at all and the × on a night you had offered did nothing — the one
+  // way to take back an offer. The physicians' own chips, three functions down, were always
+  // written against the real markup; only this copy drifted.
+  $$('#mnChips .pillx',pane).forEach(c=>c.onclick=()=>{
+    const i=avail.indexOf(c.dataset.d); if(i>=0)avail.splice(i,1);
     MYREQ={...rq,nights_available:avail,shifts_wanted:collect()}; renderReq();
   });
   $('#mSave').onclick=async()=>{
