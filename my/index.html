@@ -1399,7 +1399,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260820.1333';           // shown in the account bar so a stale app is obvious
+const BUILD='260820.1421';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 let SESSION=null, CFG=null, MYREQ=null, MYSWAPS=[];
 const api=async(path,opts={})=>{
@@ -2648,7 +2648,7 @@ function stepPassword(email){
         body:JSON.stringify({email:em,password:pw,device:rememberedDevice()})});
       const j=await r.json();
       if(r.ok){
-        try{sessionStorage.setItem('__tok',j.token);}catch(e){}
+        try{sessionStorage.setItem('__tok',j.token);localStorage.setItem('ccpsa_login_email',em);}catch(e){}
         keepDevice(j.device); keepGrant(j.grant);
         // Only offer to set up 2FA to someone who has none. A returning user on a trusted
         // device already has it and was being asked to set it up again.
@@ -2833,7 +2833,21 @@ async function stepReset(token){
   setTimeout(()=>document.querySelector('#siRp').focus(),60);
 }
 
-function showGate(){ stepPassword(''); }
+/* WHICH SIGN-IN THE PASSWORD MANAGER OFFERS.
+   A manager matches on the registrable domain — schedulingwiz.com — not the host, so every
+   credential saved on any of these pages is offered on all of them: the real schedule, the test
+   copy, and the account page. Nothing a site can put in its HTML changes that; it is how the
+   browser is built.
+
+   What DOES narrow it is a username already in the field, because the manager then offers the
+   password saved for that address rather than the whole list. This remembered the email nowhere
+   and opened the form blank every time, so there was nothing to narrow on. localStorage is
+   per-origin, so test remembers the test address and the real site remembers the real one —
+   which is exactly the separation the manager cannot make on its own. */
+function lastLoginEmail(){
+  try{return localStorage.getItem('ccpsa_login_email')||'';}catch(e){return '';}
+}
+function showGate(){ stepPassword(lastLoginEmail()); }
 
 (async function start(){
   document.body.classList.add('locked');
