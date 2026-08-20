@@ -5,6 +5,7 @@
 <meta name="robots" content="noindex,nofollow">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="favicon.ico" sizes="any">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="My Schedule">
@@ -142,6 +143,7 @@ h2.sec{font-size:19px;font-weight:800;letter-spacing:-.02em;margin:22px 0 12px}
 .row .rt{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--dim);text-align:right}
 
 /* ---------- buttons ---------- */
+[hidden]{display:none!important}
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;background:var(--panel2);
   border:1px solid var(--line2);color:var(--ink);border-radius:11px;padding:12px 15px;font-size:14px;
   font-weight:700;cursor:pointer;text-decoration:none;width:100%}
@@ -827,7 +829,7 @@ function installSteps(){
       <li>Tap the <b>Share</b> button at the bottom of Safari
         <span class="ic">&#xFE0E;⬆︎</span></li>
       <li>Scroll down and tap <b>Add to Home Screen</b></li>
-      <li>Tap <b>Add</b> — "My Schedule" appears with your other apps</li>
+      <li>Tap <b>Add</b> — <b>Scheduling Wizard</b> appears with your other apps</li>
     </ol>
     <div class="note">It has to be Safari — Chrome on iPhone cannot add to the home screen.</div>`;
   if(IS_ANDROID) return `<ol class="steps">
@@ -847,7 +849,7 @@ function openInstall(){
     `<div class="sub">Add it to your home screen and it opens full-screen, signed in, like an app.</div>
     ${installSteps()}
     <div class="btnrow">
-      <button class="btn pri" id="instBtn" hidden>Install</button>
+      ${IS_IOS?'':'<button class="btn pri" id="instBtn" hidden>Install</button>'}
       <button class="btn" id="instClose">Done</button></div>`);
   const b=$('#instBtn');
   if(INSTALL_EVT&&b){ b.hidden=false;
@@ -1300,7 +1302,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260820.1017';           // shown in the account bar so a stale app is obvious
+const BUILD='260820.1046';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 let SESSION=null, CFG=null, MYREQ=null, MYSWAPS=[];
 const api=async(path,opts={})=>{
