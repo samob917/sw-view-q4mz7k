@@ -1148,7 +1148,10 @@ let schedView='cal';
 /* A subscription beats a download: a downloaded .ics is a snapshot that goes stale the moment
    anything changes, which is exactly the complaint. Calendar apps re-poll this URL. */
 function subscribeCard(){
-  if(!CFG||!CFG.icsUrl)return '';
+  if(!CFG||!CFG.icsUrl)
+    return ME?`<div class="swcard"><div class="lgh">Add to your calendar</div>
+      <div class="sub">No calendar for this account — it has no schedule of its own. Open a
+        physician from the ▾ menu to subscribe to theirs.</div></div>`:'';
   const url=API.replace(/\/api$/,'')+CFG.icsUrl;
   const webcal=url.replace(/^https?:/,'webcal:');
   return `<div class="swcard subcard">
@@ -1321,7 +1324,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260820.1118';           // shown in the account bar so a stale app is obvious
+const BUILD='260820.1152';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 let SESSION=null, CFG=null, MYREQ=null, MYSWAPS=[];
 const api=async(path,opts={})=>{
@@ -2261,6 +2264,10 @@ async function loadPersonData(){
   const viewing=onBehalf()?('?person='+encodeURIComponent(ME)):'';
   try{const r=await api('/requests'+viewing);MYREQ=r.requests||{};
       CFG={...(CFG||{}),deadline:r.deadline,locked:r.locked,allowance:r.allowance};}catch(e){MYREQ={};}
+  // The calendar link belongs to the person on screen, not to the account that signed in.
+  try{ const q=onBehalf()?('?person='+encodeURIComponent(ME)):'';
+       const pr=await api('/portal'+q);
+       CFG={...(CFG||{}),icsUrl:pr.icsUrl||null}; }catch(e){}
   await loadSwaps();
   await loadCoverage();
   if(onBehalf())MYSWAPS=(MYSWAPS||[]).filter(w=>w.fromPerson===ME||w.toPerson===ME);
