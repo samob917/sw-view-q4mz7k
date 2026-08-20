@@ -272,7 +272,9 @@ textarea.ta{width:100%;background:var(--panel);border:1px solid var(--line2);bor
   body>*:not(#printOnly){display:none!important}
   body{background:#fff!important;color:#000!important;padding:0!important;margin:0!important}
   body::before{display:none!important}      /* the orange TEST banner is a screen device */
-  #printOnly{display:block!important;font:11pt/1.35 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#000}
+  #printOnly{display:block!important;position:static!important;left:auto!important;
+    width:auto!important;height:auto!important;overflow:visible!important;
+    font:11pt/1.35 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#000}
   #printOnly h1{font-size:15pt;margin:0 0 1mm}
   #printOnly .pmeta{font-size:9.5pt;color:#333;margin:0 0 5mm;padding-bottom:2mm;border-bottom:2px solid #000}
   #printOnly h2{font-size:11.5pt;margin:6mm 0 1.5mm;padding-bottom:1mm;border-bottom:1px solid #999}
@@ -288,7 +290,11 @@ textarea.ta{width:100%;background:var(--panel);border:1px solid var(--line2);bor
   #printOnly .pnote{margin-top:6mm;font-size:8.5pt;color:#444}
   @page{margin:14mm}
 }
-#printOnly{display:none}
+/* Out of the flow entirely, not merely invisible. A hidden block still participates in enough
+   of the layout on iOS that returning from the print sheet left the page a different width,
+   with content running off the side. It is also emptied on afterprint, so nothing of the
+   printed version survives the moment it was needed. */
+#printOnly{display:none;position:absolute;left:-9999px;top:0;width:1px;height:1px;overflow:hidden}
 /* accessibility: visible focus for keyboard users; calm for reduced-motion users */
 :focus-visible{outline:2px solid var(--signal);outline-offset:2px;border-radius:6px}
 .derow{background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:13px 15px;
@@ -297,9 +303,16 @@ textarea.ta{width:100%;background:var(--panel);border:1px solid var(--line2);bor
 .deval{font-size:32px;font-weight:800;line-height:1.1;margin:2px 0 3px}
 .desub{font-size:12.5px;color:var(--dim)}
 .chev{opacity:.65;font-size:10px}
-.icsalt{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;
-  margin-top:9px;font-size:11.5px}
-.icsalt a{color:var(--dim);text-decoration:underline}
+.nudge{border-color:var(--line2)}
+.cvlist{margin-top:9px;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.cvrow{display:flex;align-items:center;gap:10px;padding:9px 11px;border-bottom:1px solid var(--line);
+  cursor:pointer;font-size:14px}
+.cvrow:last-child{border-bottom:0}
+.cvrow input{width:19px;height:19px;accent-color:var(--signal);flex:none}
+.cvnm{flex:1}
+.cvpush{font-size:12px;color:var(--dim)}
+.minorrow{display:flex;gap:16px;flex-wrap:wrap;margin-top:10px;font-size:12px}
+.minorrow a{color:var(--dim);text-decoration:underline}
 .icsmore summary{font-size:11.5px;color:var(--dim);cursor:pointer}
 .siOr{display:flex;align-items:center;gap:10px;margin:14px 0 10px;color:var(--dim);font-size:12px}
 .siOr::before,.siOr::after{content:'';flex:1;height:1px;background:var(--line)}
@@ -1186,6 +1199,32 @@ function wireDayNav(){
   if(n)n.onclick=()=>set(isoAdd(cur(),1));
 }
 
+/* THE NOW PAGE IS WHERE PEOPLE ACTUALLY LOOK. The subscription lives at the bottom of the
+   schedule tab, which is a tab away and below a quarter of shifts. Offered here as well, once,
+   with a way to say no that sticks — a prompt that cannot be dismissed is worse than no prompt. */
+function subscribeNudge(){
+  if(!ME||!CFG||CFG.icsFor!==ME||!CFG.icsUrl)return '';
+  let off=false; try{off=localStorage.getItem('ccpsa_subnudge')==='off';}catch(e){}
+  if(off)return '';
+  const whose=onBehalf()?fullOf(ME):null;
+  return `<div class="swcard nudge" id="subNudge">
+    <div class="lgh">${whose?'Put '+esc(whose)+"'s shifts in a calendar":'Put your shifts in your calendar'}</div>
+    <div class="sub">They stay up to date on their own — a swap or a change reaches your calendar
+      without you doing anything.</div>
+    <div class="btnrow">
+      <a class="btn pri" id="nudgeGo" href="${icsAbsolute().replace(/^https?:/,'webcal:')}">Subscribe</a>
+      <button class="btn" id="nudgeNo">No thanks</button>
+    </div>
+  </div>`;
+}
+function wireNudge(){
+  const no=$('#nudgeNo'), go=$('#nudgeGo');
+  const done=()=>{ try{localStorage.setItem('ccpsa_subnudge','off');}catch(e){}
+                   const n=$('#subNudge'); if(n)n.remove(); };
+  if(no)no.onclick=done;
+  if(go)go.onclick=()=>setTimeout(done,400);   // taken up: no reason to keep asking
+}
+
 function renderNow(){
   const pane=$('#pane-now');
   if(!ME){pane.innerHTML=`<div class="empty" style="margin-top:22px">Choose a physician to see a personal schedule.
@@ -1246,9 +1285,11 @@ function renderNow(){
       <span id="dayLabel">${esc(fmtD(DAYVIEW||inBlockDay(t)))}</span>
       <button class="navb" id="dayNext" aria-label="Next day">›</button></span></h2>
     <div id="onToday">${whosOnHTML(DAYVIEW||inBlockDay(t))}</div>`;
+  html+=subscribeNudge();     // after the schedule itself, before the footnote
   html+=`<div class="note">Every off and CME day you asked for was granted this block.</div>`;
   pane.innerHTML=html;
   wireInstallCard();
+  wireNudge();
   wireDayNav();
   $$('.sday',pane).forEach(d=>{d.onclick=()=>openDay(d.dataset.iso);
     d.setAttribute('role','button');d.setAttribute('tabindex','0');
@@ -1279,7 +1320,9 @@ function subscribeCard(){
   const url=icsAbsolute();
   const webcal=url.replace(/^https?:/,'webcal:');
   const whose=onBehalf()?fullOf(ME):null;
-  return `<div class="swcard subcard">
+  const n=myShifts(ME).length;
+  return `<h2 class="sec">Take it with you</h2>
+  <div class="swcard subcard">
     <div class="lgh">${whose?'Subscribe to '+esc(whose)+"'s shifts":'Subscribe in your calendar'}</div>
     <div class="sub">${whose
       ? 'You are looking at <b>'+esc(whose)+'</b>, so this adds <b>their</b> shifts to your '+
@@ -1291,14 +1334,19 @@ function subscribeCard(){
     <div class="btnrow">
       <a class="btn pri" href="${webcal}">${whose?'Subscribe to '+esc(whose)+"'s shifts":'Subscribe in my calendar'}</a>
     </div>
-    <div class="icsalt">
-      <details class="icsmore"><summary>Adding it on a computer?</summary>
-        <div class="sub" style="margin-top:6px">Paste this into Google Calendar or Outlook —
-          "add by URL", not import.</div>
-        <div class="muted sm" style="margin-top:5px;word-break:break-all">${esc(url)}</div>
-      </details>
-      <a href="#" id="csvDl">Download a CSV instead</a>
+    <div class="minorrow">
+      <a href="#" id="dlIcs">One-off calendar file</a>
+      <a href="#" id="dlCsv">CSV</a>
+      <a href="#" id="doPrint">Print</a>
     </div>
+    <details class="icsmore"><summary>Adding it on a computer?</summary>
+      <div class="sub" style="margin-top:6px">Paste this into Google Calendar or Outlook —
+        "add by URL", not import.</div>
+      <div class="muted sm" style="margin-top:5px;word-break:break-all">${esc(url)}</div>
+    </details>
+    <div class="note" style="margin-top:9px">A one-off file drops all ${n} of today's shifts into
+      your calendar once and never changes again — if the schedule moves, it will be wrong and
+      will not say so. Subscribing is the one that keeps up.</div>
   </div>`;
 }
 /* ---------- what a printed schedule is ----------
@@ -1344,25 +1392,15 @@ function buildPrintable(){
   host.innerHTML=h;
 }
 window.addEventListener('beforeprint',buildPrintable);
+window.addEventListener('afterprint',()=>{
+  const h=document.querySelector('#printOnly'); if(h)h.innerHTML='';
+  // Safari can come back from the print sheet at a different scale. Re-stating the viewport
+  // makes it recompute rather than keeping whatever the print pass left behind.
+  const v=document.querySelector('meta[name=viewport]');
+  if(v){const was=v.getAttribute('content'); v.setAttribute('content',was+',minimum-scale=1');
+        setTimeout(()=>v.setAttribute('content',was),50);}
+});
 
-/* A one-off copy for a spreadsheet. Deliberately the small print: a subscription is the thing
-   that keeps working, and anything downloaded is right only until the next swap. */
-function downloadCsv(){
-  const rows=[['Date','Day','Shift','Hours']];
-  myShifts(ME).forEach(s=>{
-    const d=d2(s.iso);
-    rows.push([s.iso, DOW[dowOf(s.iso)], shiftLabel(ME,s.iso,s.shift,false), hoursOf(s.m)]);
-  });
-  const csv=rows.map(r=>r.map(c=>{
-    const t=String(c==null?'':c);
-    return /[",\n]/.test(t)?'"'+t.replace(/"/g,'""')+'"':t;
-  }).join(',')).join('\r\n');
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
-  a.download='CCPSA_'+(ME||'schedule')+'.csv';
-  a.click(); URL.revokeObjectURL(a.href);
-  toast('Downloaded — a snapshot, not kept up to date');
-}
 
 // The feed's full address, whichever way this build talks to its API.
 function icsAbsolute(){
@@ -1370,8 +1408,10 @@ function icsAbsolute(){
   return base+CFG.icsUrl;
 }
 function wireSubscribe(){
-  const c=document.querySelector('#csvDl');
-  if(c)c.onclick=e=>{e.preventDefault();downloadCsv();};
+  const on=(id,fn)=>{const e=document.querySelector(id); if(e)e.onclick=ev=>{ev.preventDefault();fn();};};
+  on('#dlIcs',downloadICS);
+  on('#dlCsv',downloadCSV);          // the older, richer one: where, type and roles as well
+  on('#doPrint',()=>window.print());
 }
 
 function renderSched(){
@@ -1445,16 +1485,10 @@ function renderSched(){
       html+=shiftRow(s.iso,s.shift,roles.length?`◆ ${esc(roles[0])}`:'');
     });
   }
-  html+=`<h2 class="sec">Take it with you</h2>
-    <div class="btnrow">
-      <button class="btn pri" id="dlIcs">Add to my phone calendar</button>
-      <div class="btnrow two" style="margin-top:0">
-        <button class="btn" id="dlCsv">Download CSV</button>
-        <button class="btn" id="doPrint">Print</button>
-      </div>
-    </div>
-    <div class="note">The calendar file adds all ${myShifts(ME).length} of your shifts to Apple Calendar, Google Calendar or Outlook —
-      overnights land at 7pm–7am, day shifts 7am–7pm.</div>`;
+  // "Take it with you" lives entirely in subscribeCard now. It used to be a separate block
+  // ABOVE it, whose green primary button was "Add to my phone calendar" — a one-off .ics file.
+  // So the first and loudest option was the static copy, with the subscription card underneath
+  // it, no matter what the card said. That is the thing Sam kept seeing.
   pane.innerHTML=html+subscribeCard();
   wireSubscribe();
   $('#vCal').onclick=()=>{schedView='cal';renderSched();};
@@ -1463,9 +1497,6 @@ function renderSched(){
     c.onclick=()=>openDay(c.dataset.iso);
     c.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openDay(c.dataset.iso);}};
   });
-  $('#dlIcs').onclick=downloadICS;
-  $('#dlCsv').onclick=downloadCSV;
-  $('#doPrint').onclick=()=>window.print();
 }
 
 /* ---------- downloads ---------- */
@@ -1504,14 +1535,21 @@ function downloadICS(){
   save(L.join('\r\n'),`CCPSA-${ME}-Q4-2026.ics`,'text/calendar');
 }
 function downloadCSV(){
-  const rows=[['Date','Day','Shift','Where','Type','Roles']];
+  const head=['Date','Day','Shift','Where','Type','Roles'];
+  const rows=[];
   DATA.dates.forEach(iso=>{
     const a=dayOf(ME,iso);if(!a)return;
     a.s.forEach(s=>{const m=META(s);
       rows.push([iso,DOW[dowOf(iso)],m.label,m.sub,m.kind,(a.r||[]).join(' / ')]);});
     if(!a.s.length&&a.r&&a.r.length)rows.push([iso,DOW[dowOf(iso)],'—','','role',a.r.join(' / ')]);
   });
-  save(rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n'),
+  // A column nobody has anything in is a column to leave out. Most physicians hold no layered
+  // role, so Roles arrived as a header over 39 empty cells — and an empty column in a
+  // spreadsheet reads as missing data rather than as "does not apply here".
+  const keep=head.map((_,i)=>rows.some(r=>String(r[i]||'').trim()!==''));
+  const cut=r=>r.filter((_,i)=>keep[i]);
+  save([cut(head)].concat(rows.map(cut))
+         .map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n'),
        `CCPSA-${ME}-Q4-2026.csv`,'text/csv');
 }
 function save(txt,name,mime){
@@ -1525,7 +1563,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260820.1636';           // shown in the account bar so a stale app is obvious
+const BUILD='260820.1655';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 let SESSION=null, CFG=null, MYREQ=null, MYSWAPS=[];
 const api=async(path,opts={})=>{
@@ -2286,7 +2324,84 @@ function openDay(iso){
   if(a&&a.s.length)b+=`<div class="btnrow"><button class="btn" id="dsSwap">Find cover for this shift</button></div>`;
   sheet(fmtLong(iso),b);
   const sw=$('#dsSwap');
-  if(sw)sw.onclick=()=>{closeSheet();swapPick=iso;go('swap');renderSwap();};
+  // Used to close this sheet and jump to the Swaps tab — a different page, arrived at with no
+  // explanation, which for an admin also lit up the admin view. Asking someone to cover a shift
+  // is one decision; it belongs in one sheet, on the shift you were already looking at.
+  if(sw)sw.onclick=()=>openCoverFor(iso,(a.s||[])[0],a.s||[]);
+}
+
+/* ---------- ask for cover, on the shift you are looking at ----------
+   The list of who will be asked is shown BEFORE anything is sent, with a tick against each
+   name. Broadcasting to everyone eligible without saying who that is means pushing a
+   notification to a dozen colleagues sight unseen — which is exactly why somebody would think
+   twice about using this at all. Unticking a name takes them off; the server intersects the
+   list with what the rules allow, so a tick can never add somebody who cannot legally take it. */
+async function openCoverFor(iso,shift,allShifts){
+  const list=(allShifts&&allShifts.length?allShifts:[shift]).filter(Boolean);
+  sheet('Ask someone to cover',
+    `${list.length>1?`<label class="lbl" for="cvWhich">Which shift</label>
+       <select class="inp" id="cvWhich">${list.map(sh=>
+         `<option value="${esc(sh)}">${esc(META(sh).label||sh)}</option>`).join('')}</select>`:''}
+     <div class="sub" style="margin-top:8px">${esc(fmtLong(iso))} · <b>${esc(META(shift).label||shift)}</b></div>
+     <div id="cvWho" class="sub" style="margin-top:10px">Working out who can take this…</div>
+     <label class="lbl" for="cvNote" style="margin-top:10px">Anything they should know (optional)</label>
+     <input class="inp" id="cvNote" maxlength="200" placeholder="e.g. family thing, happy to swap back">
+     <div class="btnrow" style="margin-top:12px">
+       <button class="btn pri" id="cvSend" disabled>Offer to available providers</button>
+     </div>
+     <div class="msg" id="cvMsg"></div>`);
+  const sel=$('#cvWhich');
+  if(sel)sel.onchange=()=>loadCoverCandidates(iso,sel.value);
+  await loadCoverCandidates(iso,shift);
+}
+
+async function loadCoverCandidates(iso,shift){
+  const box=$('#cvWho'), go=$('#cvSend');
+  if(!box)return;
+  box.innerHTML='Working out who can take this…';
+  if(go)go.disabled=true;
+  try{
+    const q='?preview=1&date='+encodeURIComponent(iso)+'&shift='+encodeURIComponent(shift)+
+            (onBehalf()?'&person='+encodeURIComponent(ME):'');
+    const r=await api('/coverage'+q);
+    const el=r.eligible||[];
+    if(!el.length){
+      box.innerHTML='<b>Nobody is eligible for this shift right now.</b> Everyone else is either '+
+        'working, off, or not credentialed for it. Ask Dr. Nadon.';
+      return;
+    }
+    const push=el.filter(x=>x.push).length;
+    box.innerHTML='<b>'+el.length+' '+(el.length===1?'person':'people')+' can take this.</b> '+
+      (push?push+' will get it on their phone; the rest see it next time they open the app.'
+          :'None of them have phone notifications on, so they will see it next time they open the app.')+
+      '<div class="cvlist">'+el.map(x=>
+        `<label class="cvrow"><input type="checkbox" checked value="${esc(x.person)}">
+           <span class="cvnm">${esc(fullOf(x.person)||x.person)}</span>
+           <span class="cvpush">${x.push?'📱':'<span class="muted">in app</span>'}</span></label>`).join('')+
+      '</div>';
+    const upd=()=>{
+      const n=$$('#cvWho input:checked').length;
+      go.disabled=!n;
+      go.textContent=n?('Offer to '+n+' provider'+(n===1?'':'s')):'Nobody selected';
+    };
+    $$('#cvWho input').forEach(c=>c.onchange=upd);
+    upd();
+    go.onclick=async()=>{
+      const to=$$('#cvWho input:checked').map(c=>c.value);
+      const m=$('#cvMsg'); m.textContent='Sending…'; m.className='msg on';
+      go.disabled=true;
+      try{
+        const body={date:iso,shift,mode:'broadcast',to,note:($('#cvNote')||{}).value||''};
+        if(onBehalf())body.person=ME;
+        const j=await api('/coverage',{method:'POST',body:JSON.stringify(body)});
+        closeSheet();
+        toast('Asked '+(j.eligibleCount||to.length)+' — you will be told when someone takes it');
+        await loadCoverage(); if(CUR==='swap')renderSwap();
+      }catch(e){ m.textContent=e.message||'Could not send'; m.className='msg on bad'; go.disabled=false; }
+    };
+  }catch(e){
+    box.innerHTML='<span class="bad">'+esc(e.message||'Could not work out who is available')+'</span>';
+  }
 }
 let _sheetReturnFocus=null;
 function sheet(title,body){
