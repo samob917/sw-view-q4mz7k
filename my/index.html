@@ -603,6 +603,13 @@ function setIdentity(person,role){
   // OWN schedule with a toggle to the admin view; an admin who is not (Sam) has no schedule of
   // their own, so they go straight to the admin view.
   ME=(person&&DATA.people.includes(person))?person:null;
+  // Signing in should land on a SCHEDULE, not a dashboard — for an admin too. Nadon has a
+  // schedule of their own; Sam, Zac and AB do not, so they resume whoever they were last
+  // looking at. The admin view is then something you choose, not where you are dropped.
+  if(!ME && ROLE==='admin'){
+    try{ const last=localStorage.getItem('ccpsa_me');
+         if(last && DATA.people.includes(last)) ME=last; }catch(e){}
+  }
   // (IS_ADMIN_ONLY used to live here. It was computed once at sign-in and never again, so it
   // still said "admin only" after a physician had been chosen — boot() then bounced back to the
   // admin view. boot() asks !ME directly now.)
@@ -1292,7 +1299,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260819.1435';           // shown in the account bar so a stale app is obvious
+const BUILD='260819.2253';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 let SESSION=null, CFG=null, MYREQ=null, MYSWAPS=[];
 const api=async(path,opts={})=>{
@@ -2166,7 +2173,9 @@ function boot(){
     document.querySelector('#viewingBanner').innerHTML=
       'Viewing <b>'+esc(fullOf(ME))+'</b> — their schedule, requests and swaps';
   }else if(vb){vb.remove();}
-  if(!ME&&!BOOTED){BOOTED=true;showAdminView();return;}   // nobody chosen yet — admins only
+  // Still nobody to show — a first-ever sign-in for an admin with no schedule of their own.
+  // Offer the physician menu rather than the dashboard: the schedule is the point of the app.
+  if(!ME&&!BOOTED){ BOOTED=true; go('now'); setTimeout(togglePicker,150); return; }
   BOOTED=true;
   go(CUR&&CUR!=='admin'?CUR:'now');                       // stay on the tab you were reading
 }
@@ -2328,17 +2337,25 @@ async function loadPortal(token){
     sessionStorage.setItem('__acctInfo',JSON.stringify({person:j.person,role:j.role,twoFactor:true}));
   }catch(e){}
   CFG={deadline:j.deadline,locked:j.locked,lateContact:j.lateContact,icsUrl:j.icsUrl};
-  // A physician who lands on the test copy would file real requests into a schedule that gets
-  // thrown away, and a banner does not stop someone who is not looking for one. The team needs
-  // this site; nobody else does, so it simply refuses anyone who is not an admin.
-  if(TEST_BUILD && j.role!=='admin'){
+  // A physician who wanders onto the test copy would file real requests into a schedule that
+  // gets thrown away, so they are warned plainly. But this used to REFUSE them outright, which
+  // also made it impossible to test anything a physician does — requests, swaps, coverage —
+  // since those act as the signed-in person and an admin cannot stand in. Warn, and let them
+  // through if they meant it.
+  let warned=false; try{warned=sessionStorage.getItem('__testok')==='1';}catch(e){}
+  if(TEST_BUILD && j.role!=='admin' && !warned){
     document.body.classList.add('locked');
     siPaint(`
       <div class="siLead"><b>This is the test copy of the schedule.</b> Anything you do here is
         discarded and never reaches the real schedule — including requests and swaps.</div>
       <div class="siLead">Your real schedule is at <b>ccpsa.schedulingwiz.com/my/</b>.</div>
       <a class="siB" href="https://ccpsa.schedulingwiz.com/my/" style="display:block;
-        text-align:center;text-decoration:none">Take me to my real schedule</a>`);
+        text-align:center;text-decoration:none">Take me to my real schedule</a>
+      <button class="siGhost" id="testGo">I am testing — continue here</button>`);
+    document.querySelector('#testGo').onclick=()=>{
+      try{sessionStorage.setItem('__testok','1');}catch(e){}
+      loadPortal(token).catch(e=>siSay(e.message,true));
+    };
     return;
   }
   setIdentity(j.person,j.role);
