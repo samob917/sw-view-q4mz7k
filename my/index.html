@@ -1174,13 +1174,17 @@ function subscribeCard(){
         physician from the ▾ menu to subscribe to theirs.</div></div>`:'';
   const url=icsAbsolute();
   const webcal=url.replace(/^https?:/,'webcal:');
+  const whose=onBehalf()?fullOf(ME):null;
   return `<div class="swcard subcard">
-    <div class="lgh">Add to your phone's calendar</div>
-    <div class="sub">Your shifts appear in the calendar you already use and keep themselves up
-      to date — nothing is downloaded. Your phone decides how often to re-check, usually within
-      the hour, so <b>for a change that just happened, this app is the one to trust</b>.</div>
+    <div class="lgh">${whose?esc(whose)+"'s shifts in your calendar":"Add to your phone's calendar"}</div>
+    <div class="sub">${whose
+      ? 'You are looking at <b>'+esc(whose)+'</b>, so this adds <b>their</b> shifts to your '+
+        'calendar — not yours. It appears as <b>CCPSA — '+esc(ME)+'</b>.'
+      : 'Your shifts appear in the calendar you already use and keep themselves up to date — '+
+        'nothing is downloaded.'} Your phone decides how often to re-check, usually within the
+      hour, so <b>for a change that just happened, this app is the one to trust</b>.</div>
     <div class="btnrow">
-      <a class="btn pri" href="${webcal}">Add to my calendar</a>
+      <a class="btn pri" href="${webcal}">${whose?'Add '+esc(whose)+"'s shifts":'Add to my calendar'}</a>
     </div>
     <div class="sub" style="margin-top:9px">
       Adding it on a computer instead? <a href="#" id="copyIcs">Copy the link</a> and paste it
@@ -1358,7 +1362,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260820.1239';           // shown in the account bar so a stale app is obvious
+const BUILD='260820.1308';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 let SESSION=null, CFG=null, MYREQ=null, MYSWAPS=[];
 const api=async(path,opts={})=>{
