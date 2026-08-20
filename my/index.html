@@ -1399,7 +1399,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260820.1421';           // shown in the account bar so a stale app is obvious
+const BUILD='260820.1441';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 let SESSION=null, CFG=null, MYREQ=null, MYSWAPS=[];
 const api=async(path,opts={})=>{
@@ -2557,11 +2557,42 @@ function toastLive(msg){
   t.textContent=msg;t.classList.add('on');
   clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('on'),3500);
 }
+/* IS THIS APP THE VERSION THAT IS DEPLOYED? Ask the server, not the browser.
+   Everything else about updating goes through the service worker, and that is one mechanism
+   with several ways to sit still: a worker that installs but waits, a page that is resumed
+   rather than loaded, an update check that never runs because the app was suspended. Worse, a
+   fix to any of that can only reach a phone THROUGH the thing being fixed — the install that
+   most needs the update is running the code that fails to fetch it.
+
+   So this compares the build stamp baked into this page against the one the API reports for the
+   deployment, and reloads if they differ. It needs no worker, no lifecycle event and no
+   cooperation from the cache. It is the backstop for every way the rest of it can fail. */
+let VERCHECK=null;
+async function checkVersion(){
+  if(!API||typeof BUILD!=='string'||BUILD.indexOf('__')===0)return;
+  try{
+    const c=await (await fetch(API+'/config',{cache:'no-store'})).json();
+    const live=((c||{}).release||{}).build;
+    if(!live||live===BUILD)return;
+    // Reload once per build, or a mismatch that is not really a mismatch becomes a boot loop.
+    let done=null; try{done=sessionStorage.getItem('ccpsa_reloadedfor');}catch(e){}
+    if(done===live)return;
+    try{sessionStorage.setItem('ccpsa_reloadedfor',live);}catch(e){}
+    // Not while someone is mid-sentence; the next foreground will do.
+    const a=document.activeElement||{};
+    if(/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName||'')||document.querySelector('.sheet.on'))return;
+    location.reload();
+  }catch(e){}
+}
+
 function startLiveRefresh(){
   if(REFRESH_TIMER)clearInterval(REFRESH_TIMER);
   REFRESH_TIMER=setInterval(()=>{if(!document.hidden)refreshLive(false);},90000);
-  document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshLive(false);});
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden){refreshLive(false);checkVersion();}});
   window.addEventListener('focus',()=>refreshLive(false));
+  if(VERCHECK)clearInterval(VERCHECK);
+  VERCHECK=setInterval(()=>{if(!document.hidden)checkVersion();},600000);
+  checkVersion();
 }
 
 async function loadPortal(token){
