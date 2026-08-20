@@ -20,7 +20,7 @@
  * so the file the whole update path depends on was surviving by luck and would have vanished
  * on any clean checkout.
  */
-const CACHE = 'ccpsa-portal-260820.1514';
+const CACHE = 'ccpsa-portal-260820.1524';
 
 // './' and index.html are the same response; both are listed because a navigation can ask for
 // either. icon-192 is what a push notification draws, so it must work offline too.
@@ -53,12 +53,26 @@ self.addEventListener('fetch', e => {
   if (url.pathname.startsWith('/api/') || url.pathname === '/api') return;
 
   if (e.request.mode === 'navigate') {
-    // Network first: online, you get what was just deployed. Offline, the app still opens.
+    // Network first: online, you get what was just deployed. Offline — or when the host is
+    // having a moment — the app still opens.
+    //
+    // A FAILED REQUEST IS NOT ONLY A THROWN ONE. This used to hand back whatever came off the
+    // network and cache it, so a 404 became the app: shown to whoever was opening it, and
+    // stored as index.html for every future offline start. GitHub Pages serves 404s for a few
+    // seconds while a deploy swaps in, which is precisely when an app checking for a new
+    // version reloads itself — the update mechanism walking into the one window that breaks it.
+    //
+    // So: only a good response is cached, and a bad status falls back to the page already held.
+    // Yesterday's schedule beats a 404 every time, and the version check will pick up the new
+    // build on the next foreground anyway.
     e.respondWith(
       fetch(e.request).then(r => {
-        const cp = r.clone();
-        caches.open(CACHE).then(c => c.put('index.html', cp));
-        return r;
+        if (r && r.ok) {
+          const cp = r.clone();
+          caches.open(CACHE).then(c => c.put('index.html', cp));
+          return r;
+        }
+        return caches.match('index.html').then(hit => hit || caches.match('./')).then(hit => hit || r);
       }).catch(() => caches.match('index.html').then(r => r || caches.match('./')))
     );
     return;
