@@ -1152,7 +1152,7 @@ function subscribeCard(){
     return ME?`<div class="swcard"><div class="lgh">Add to your calendar</div>
       <div class="sub">No calendar for this account — it has no schedule of its own. Open a
         physician from the ▾ menu to subscribe to theirs.</div></div>`:'';
-  const url=API.replace(/\/api$/,'')+CFG.icsUrl;
+  const url=icsAbsolute();
   const webcal=url.replace(/^https?:/,'webcal:');
   return `<div class="swcard subcard">
     <div class="lgh">Add to your phone's calendar</div>
@@ -1165,10 +1165,15 @@ function subscribeCard(){
     <div class="muted sm" style="margin-top:8px;word-break:break-all">${esc(url)}</div>
   </div>`;
 }
+// The feed's full address, whichever way this build talks to its API.
+function icsAbsolute(){
+  const base=/^https?:/i.test(API) ? API.replace(/\/api$/,'') : location.origin;
+  return base+CFG.icsUrl;
+}
 function wireSubscribe(){
   const b=$('#copyIcs'); if(!b)return;
   b.onclick=async()=>{
-    try{ await navigator.clipboard.writeText(API.replace(/\/api$/,'')+CFG.icsUrl);
+    try{ await navigator.clipboard.writeText(icsAbsolute());
          b.textContent='Copied'; }
     catch(e){ b.textContent='Select the link below'; }
   };
@@ -1324,7 +1329,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260820.1152';           // shown in the account bar so a stale app is obvious
+const BUILD='260820.1203';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 let SESSION=null, CFG=null, MYREQ=null, MYSWAPS=[];
 const api=async(path,opts={})=>{
