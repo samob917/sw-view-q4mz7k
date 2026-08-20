@@ -746,7 +746,8 @@ $('#whoami').onclick=e=>{
     </div>`);
   const sw=$('#acSwitch');if(sw)sw.onclick=()=>{closeSheet();openGate();};
   $('#acOut').onclick=()=>{
-    try{localStorage.removeItem('__code');localStorage.removeItem('ccpsa_me');sessionStorage.clear();}catch(e){}
+    try{localStorage.removeItem('__code');localStorage.removeItem('ccpsa_me');
+        localStorage.removeItem('__dev');sessionStorage.clear();}catch(e){}
     location.reload();
   };
 };
@@ -1299,7 +1300,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260820.1002';           // shown in the account bar so a stale app is obvious
+const BUILD='260820.1017';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 let SESSION=null, CFG=null, MYREQ=null, MYSWAPS=[];
 const api=async(path,opts={})=>{
@@ -1694,8 +1695,10 @@ function openCoverAsk(){
     const [date,shift]=$('#cvShift').value.split('|');
     const m=$('#cvMsg'); m.textContent='Sending…'; m.className='msg on';
     try{
+      const on=onBehalf();
       const j=await api('/coverage',{method:'POST',body:JSON.stringify(
-        {date,shift,mode,toPerson,note:$('#cvNote').value})});
+        {date,shift,mode,toPerson,note:$('#cvNote').value,
+         ...(on?{person:on}:{})})});   // an admin raising it for the physician on screen
       closeSheet();
       toast(mode==='direct'?'Asked '+toPerson:'Asked '+j.eligibleCount+' colleagues');
       await loadCoverage(); renderSwap();
@@ -2118,7 +2121,10 @@ function accountBar(){
   const pb=document.querySelector('#profileBtn');
   if(pb)pb.onclick=()=>ME?openBlockStats():null;
   document.querySelector('#signOutBtn').onclick=()=>{
-    try{sessionStorage.clear();localStorage.removeItem('ccpsa_me');}catch(e){}
+    // Drop the device token too. Without this, signing out and reloading signed you straight
+    // back in — which is not signing out.
+    try{sessionStorage.clear();localStorage.removeItem('ccpsa_me');
+        localStorage.removeItem('__dev');}catch(e){}
     location.reload();
   };
 }
@@ -2659,6 +2665,25 @@ function showGate(){ stepPassword(''); }
   if(rtok){ document.body.classList.add('locked'); await stepReset(rtok); return; }
   let tok=null; try{tok=sessionStorage.getItem('__tok');}catch(e){}
   if(tok){ try{ await loadPortal(tok); return; }catch(e){ try{sessionStorage.removeItem('__tok');}catch(_){} } }
+
+  // Once an account is set up, this browser holds a device token for 90 days. Use it: closing
+  // the app and coming back should not mean typing an email and password again. The admin view
+  // still asks for a code, which is the part that needs somebody actually present.
+  const dev=rememberedDevice();
+  if(dev){
+    try{
+      const r=await fetch(API+'/session',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({device:dev})});
+      if(r.ok){
+        const j=await r.json();
+        try{sessionStorage.setItem('__tok',j.token);}catch(e){}
+        await loadPortal(j.token);
+        return;
+      }
+      // The token is dead or the account is gone — stop offering it.
+      try{localStorage.removeItem('__dev');}catch(e){}
+    }catch(e){}
+  }
   showGate();
 })();
 </script>

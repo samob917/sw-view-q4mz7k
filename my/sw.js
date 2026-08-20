@@ -2,7 +2,7 @@
    Navigations: network-first (a fresh schedule always wins when online),
    falling back to the cached copy so the app still opens with no signal.
    Static assets (icons, manifest): cache-first. */
-const CACHE = 'ccpsa-portal-260820.1002';
+const CACHE = 'ccpsa-portal-260820.1017';
 const ASSETS = ['./', 'index.html', 'manifest.webmanifest', 'icon-180.png', 'icon-512.png'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));
