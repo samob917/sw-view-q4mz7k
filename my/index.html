@@ -8,8 +8,8 @@
 <link rel="icon" href="favicon.ico" sizes="any">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="My Schedule">
-<title>My schedule · CCPSA</title>
+<meta name="apple-mobile-web-app-title" content="Scheduling Wizard">
+<title>Scheduling Wizard · CCPSA</title>
 <script>
 if('serviceWorker' in navigator){
   navigator.serviceWorker.register('sw.js').then(function(reg){
@@ -262,6 +262,13 @@ textarea.ta{width:100%;background:var(--panel);border:1px solid var(--line2);bor
 .addhint{font-size:12.5px;color:var(--amber);margin:-2px 0 8px;min-height:1px}
 .acctbuild{font-family:var(--mono);font-size:9.5px;color:var(--faint);letter-spacing:.06em;
   margin-left:auto;margin-right:10px;white-space:nowrap}
+.testdate{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:7px 14px;
+  border-top:1px solid var(--line);background:rgba(180,83,9,.14)}
+.testdate .tdl{font-size:12px;color:#FFD9A8;font-weight:700}
+.testdate .tdi{padding:5px 8px;border:1px solid var(--line2);border-radius:8px;
+  background:var(--panel2);color:var(--ink);font:inherit;font-size:13px;color-scheme:dark}
+.testdate .tdb{font:inherit;font-size:12px;padding:5px 10px;border-radius:8px;
+  border:1px solid var(--line2);background:var(--panel2);color:var(--ink);cursor:pointer}
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px;min-height:26px}
 .pillx{display:inline-flex;align-items:center;gap:7px;padding:7px 12px;border-radius:999px;
   font-size:13px;border:1px solid var(--line2);background:var(--panel2);color:var(--ink);
@@ -521,7 +528,7 @@ body.adminmode main{padding:0}
 
 <header class="top">
   <div class="topin">
-    <div class="brand">⚡ <b>My schedule</b></div>
+    <div class="brand">⚡ <b>Scheduling Wizard</b></div>
     <button class="whoami" id="whoami" hidden aria-label="Your account — switch physician or sign out"><span class="nm" id="whoNm"></span><span class="chev" aria-hidden="true">▾</span></button>
   </div>
 </header>
@@ -576,7 +583,15 @@ const dowOf=iso=>(d2(iso).getDay()+6)%7;
 const fmtD=iso=>{const d=d2(iso);return DOW[dowOf(iso)]+', '+MON[d.getMonth()]+' '+d.getDate();};
 const fmtLong=iso=>{const d=d2(iso);return DOW[dowOf(iso)]+', '+MONL[d.getMonth()]+' '+d.getDate()+', '+d.getFullYear();};
 const isoAdd=(iso,n)=>{const d=d2(iso);d.setDate(d.getDate()+n);return d.toISOString().slice(0,10);};
-const todayISO=()=>new Date().toISOString().slice(0,10);
+// WHAT DAY IS IT. Almost every screen turns on this — the next shift, what is highlighted,
+// whether requests are still open. On the test site it can be moved, so a date months away can
+// be looked at without waiting for it. Production has no such control and always reads the clock.
+const realTodayISO=()=>new Date().toISOString().slice(0,10);
+function testToday(){
+  if(typeof TEST_BUILD==='undefined'||!TEST_BUILD)return null;
+  try{ return localStorage.getItem('__today')||null; }catch(e){ return null; }
+}
+const todayISO=()=>testToday()||realTodayISO();
 const META=s=>DATA.meta[s]||{label:s,sub:'',kind:'other',color:'#7C8FA6'};
 // An Admin block on a meeting day is the meeting. Everywhere the portal names a shift it asks
 // this first, so the answer cannot differ between the calendar, the day sheet and the list.
@@ -1306,12 +1321,15 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260820.1101';           // shown in the account bar so a stale app is obvious
+const BUILD='260820.1118';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 let SESSION=null, CFG=null, MYREQ=null, MYSWAPS=[];
 const api=async(path,opts={})=>{
   const h={'Content-Type':'application/json',...(opts.headers||{})};
   if(SESSION&&SESSION.token)h.Authorization='Bearer '+SESSION.token;
+  // Tell the API which day we are pretending it is. It only honours this on the test
+  // deployment, so the same header sent at production is ignored.
+  const td=testToday(); if(td)h['x-test-today']=td;
   const r=await fetch(API+path,{...opts,headers:h});
   let j={}; try{j=await r.json();}catch(e){}
   if(!r.ok)throw Object.assign(new Error(j.error||('HTTP '+r.status)),{payload:j,status:r.status});
@@ -1335,7 +1353,8 @@ const onBehalf=()=>(ROLE==='admin'&&ME&&ACCT&&ME!==ACCT.person)?ME:null;
 const dOnly=d=>String(d||'').slice(0,10);
 function daysLeft(){
   if(!CFG||!CFG.deadline)return null;
-  const now=new Date(), dl=new Date(CFG.deadline+'T00:00:00');
+  // Reads the same "today" as everything else, so a simulated date moves the countdown too.
+  const now=new Date(todayISO()+'T00:00:00'), dl=new Date(CFG.deadline+'T00:00:00');
   return Math.ceil((dl-now)/86400000);
 }
 function chipList(arr,cls,onX){
@@ -2114,6 +2133,30 @@ async function bootApi(){
   if(CUR==='req')renderReq();
   if(CUR==='swap')renderSwap();
 }
+/* ---------- the test site's date control ----------
+   Reloading after a change is deliberate: every view computes from today at render time, and
+   re-rendering half of them would leave the other half showing a different day. */
+function testDateBar(){
+  if(!TEST_BUILD)return;
+  let bar=document.querySelector('#testDateBar');
+  if(!bar){ bar=el('div','testdate'); bar.id='testDateBar';
+            document.querySelector('header').appendChild(bar); }
+  const on=!!testToday();
+  bar.innerHTML='<label class="tdl" for="tdIn">'+(on?'Pretending it is':'Today is')+'</label>'+
+    '<input class="tdi" type="date" id="tdIn" value="'+esc(todayISO())+'" '+
+      'min="'+esc(DATA.dates[0]<realTodayISO()?DATA.dates[0]:realTodayISO())+'" '+
+      'max="'+esc(DATA.dates[DATA.dates.length-1])+'">'+
+    (on?'<button class="tdb" id="tdReset">Back to today</button>':'');
+  document.querySelector('#tdIn').onchange=e=>{
+    const v=e.target.value;
+    if(!v)return;
+    try{localStorage.setItem('__today',v);}catch(err){}
+    location.reload();
+  };
+  const r=document.querySelector('#tdReset');
+  if(r)r.onclick=()=>{ try{localStorage.removeItem('__today');}catch(err){} location.reload(); };
+}
+
 function accountBar(){
   // There was only a name chip that opened a sheet; people looked for "sign out" and found
   // nothing. Make it explicit and always present.
@@ -2233,6 +2276,7 @@ function boot(){
   $('#whoNm').textContent=ME?((p.first?p.first.charAt(0)+'. ':'')+ME)
                             :((ACCT&&ACCT.label)||'Admin');
   accountBar();
+  testDateBar();
   if(ROLE==='clinic'){ renderClinicView(); return; }
   adminBar();
   const vb=document.querySelector('#viewingBanner');
@@ -2300,7 +2344,7 @@ function askStepUp(then){
 function siShell(body){
   return `<div class="signin"><div class="siCard">
     <div class="siLogo">⚡</div>
-    <h1 class="siH">My schedule</h1>
+    <h1 class="siH">Scheduling Wizard</h1>
     <div class="siSub">CCPSA</div>
     ${body}
     <div class="siMsg" id="siMsg"></div>
