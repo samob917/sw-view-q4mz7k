@@ -1156,13 +1156,16 @@ function subscribeCard(){
   const webcal=url.replace(/^https?:/,'webcal:');
   return `<div class="swcard subcard">
     <div class="lgh">Add to your phone's calendar</div>
-    <div class="sub">Subscribe once and it keeps itself up to date — swaps and changes appear
-      without you doing anything. A downloaded file does not.</div>
+    <div class="sub">Your shifts appear in the calendar you already use, and stay right — a swap
+      or a change shows up on its own. Nothing is downloaded; it stays linked to the schedule.</div>
     <div class="btnrow">
-      <a class="btn pri" href="${webcal}">Subscribe</a>
-      <button class="btn" id="copyIcs">Copy link</button>
+      <a class="btn pri" href="${webcal}">Add to my calendar</a>
     </div>
-    <div class="muted sm" style="margin-top:8px;word-break:break-all">${esc(url)}</div>
+    <div class="sub" style="margin-top:9px">
+      Adding it on a computer instead? <a href="#" id="copyIcs">Copy the link</a> and paste it
+      into Google Calendar or Outlook.
+    </div>
+    <div class="muted sm" id="icsUrlText" hidden style="margin-top:6px;word-break:break-all">${esc(url)}</div>
   </div>`;
 }
 // The feed's full address, whichever way this build talks to its API.
@@ -1172,10 +1175,14 @@ function icsAbsolute(){
 }
 function wireSubscribe(){
   const b=$('#copyIcs'); if(!b)return;
-  b.onclick=async()=>{
-    try{ await navigator.clipboard.writeText(icsAbsolute());
-         b.textContent='Copied'; }
-    catch(e){ b.textContent='Select the link below'; }
+  b.onclick=async(e)=>{
+    e.preventDefault();
+    // Reveal the address either way. Clipboard access is refused often enough — an iframe, an
+    // older browser, a permission prompt — that "Copied" with nothing on the clipboard is a
+    // real outcome, and then there is nothing to fall back to.
+    const t=document.querySelector('#icsUrlText'); if(t)t.hidden=false;
+    try{ await navigator.clipboard.writeText(icsAbsolute()); b.textContent='Copied'; }
+    catch(err){ b.textContent='Select the link below'; }
   };
 }
 
@@ -1329,7 +1336,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260820.1203';           // shown in the account bar so a stale app is obvious
+const BUILD='260820.1209';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 let SESSION=null, CFG=null, MYREQ=null, MYSWAPS=[];
 const api=async(path,opts={})=>{
