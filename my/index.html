@@ -596,6 +596,11 @@ const META=s=>DATA.meta[s]||{label:s,sub:'',kind:'other',color:'#7C8FA6'};
 // An Admin block on a meeting day is the meeting. Everywhere the portal names a shift it asks
 // this first, so the answer cannot differ between the calendar, the day sheet and the list.
 const mtgTag=(person,iso)=>((DATA.adminMtg||{})[iso]||{})[person]||null;
+// Is this Admin block a scheduled event, or contract time the solver placed? Only the first
+// belongs on a schedule. The admin dashboard has always hidden the second; the physician's own
+// app was showing it as "Protected time", which is a tag for something nobody attends.
+const isRealShift=(person,iso,shift)=>
+  shift!=='Admin' || ((DATA.adminShown||{})[iso]||[]).includes(person);
 function shiftLabel(person,iso,shift,short){
   if(shift==='Admin'){
     // "Admin" is a category in the solver, not a thing anyone is asked to attend. On the day of
@@ -789,7 +794,8 @@ function byTime(a,b){
 }
 function myShifts(n){                       // [{iso, shift, meta}], in the order they are worked
   const out=[];
-  DATA.dates.forEach(iso=>{const a=dayOf(n,iso);if(a)a.s.forEach(s=>out.push({iso,shift:s,m:META(s)}));});
+  DATA.dates.forEach(iso=>{const a=dayOf(n,iso);
+    if(a)a.s.forEach(s=>{ if(isRealShift(n,iso,s)) out.push({iso,shift:s,m:META(s)}); });});
   return out.sort(byTime);
 }
 function counts(n){
@@ -1056,7 +1062,7 @@ function whosOnHTML(iso){
   DATA.people.forEach(p=>{
     const a=(DATA.day[p]||{})[iso];
     if(!a)return;
-    (a.s||[]).forEach(sh=>rows.push({sh,p,role:false}));
+    (a.s||[]).forEach(sh=>{ if(isRealShift(p,iso,sh)) rows.push({sh,p,role:false}); });
     (a.r||[]).forEach(r=>rows.push({sh:r,p,role:true}));
   });
   if(!rows.length)return '<div class="empty">Nobody scheduled.</div>';
@@ -1127,8 +1133,10 @@ function renderNow(){
     const inBlock=DATA.dates.includes(iso);
     // A coloured pill told you *that* you worked, never *what* — which is the one thing you
     // want at a glance (client 8/17 #4).
-    const names=(a&&a.s.length)
-      ? a.s.map(sh=>`<span class="w7s" style="border-left-color:${META(sh).color}">${esc(META(sh).label)}</span>`).join('')
+    const wshown=(a?a.s:[]).filter(sh=>isRealShift(ME,iso,sh))
+      .sort((x,y)=>startHour(x)-startHour(y));
+    const names=wshown.length
+      ? wshown.map(sh=>`<span class="w7s" style="border-left-color:${META(sh).color}">${esc(shiftLabel(ME,iso,sh,false))}</span>`).join('')
       : `<span class="w7off">${inBlock?'Off':'—'}</span>`;
     const roles=(a&&a.r&&a.r.length)
       ? a.r.map(r=>`<span class="w7r">${esc((DATA.roles[r]||{label:r}).label||r)}</span>`).join('') : '';
@@ -1223,8 +1231,9 @@ function renderSched(){
         const cmeReq=(rq.cme||[]).includes(iso);
         const offReq=(rq.off||[]).includes(iso)||cmeReq;
         let inner='';
-        if(a&&a.s.length){
-          const ds=a.s.filter(s=>META(s).kind!=='noc'),ns=a.s.filter(s=>META(s).kind==='noc');
+        const shown=(a?a.s:[]).filter(s=>isRealShift(ME,iso,s));
+        if(shown.length){
+          const ds=shown.filter(s=>META(s).kind!=='noc'),ns=shown.filter(s=>META(s).kind==='noc');
           if(ds.length&&ns.length){       // 24h combo — diagonal split
             inner=`<span class="blk split" style="background:linear-gradient(112deg,${META(ds[0]).color} 0 50%,${META(ns[0]).color} 50% 100%)" title="24-hour shift">24h</span>`;
           }else if(ns.length){
@@ -1244,14 +1253,14 @@ function renderSched(){
         if(!inner&&cmeReq)inner='<span class="blk cme">CME</span>';
         if(a&&a.r&&a.r.length)inner+='<span class="rl"></span>';
         const spoken=[`${MONL[mo]} ${d}`];
-        if(a&&a.s.length)spoken.push(a.s.map(x=>META(x).label).join(' and '));
+        if(shown.length)spoken.push(shown.map(x=>shiftLabel(ME,iso,x,false)).join(' and '));
         else spoken.push('no shift');
         if(onReq)spoken.push('requested on');
         else if(cmeReq)spoken.push('C M E day');
         else if(offReq)spoken.push('requested off');
-        html+=`<div class="cell${a&&a.s.length?' on':''}" data-iso="${iso}" role="button" tabindex="0" aria-label="${esc(spoken.join(', '))}">
+        html+=`<div class="cell${shown.length?' on':''}" data-iso="${iso}" role="button" tabindex="0" aria-label="${esc(spoken.join(', '))}">
           <span class="n" aria-hidden="true">${d}</span>${inner}
-          ${onReq?'<span class="req" aria-hidden="true">●</span>':(offReq&&!cmeReq&&!(a&&a.s.length))?'<span class="req" aria-hidden="true" style="color:#8AA0B4">○</span>':''}</div>`;
+          ${onReq?'<span class="req" aria-hidden="true">●</span>':(offReq&&!cmeReq&&!shown.length)?'<span class="req" aria-hidden="true" style="color:#8AA0B4">○</span>':''}</div>`;
       }
       html+='</div></div>';
     });
@@ -1349,7 +1358,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260820.1227';           // shown in the account bar so a stale app is obvious
+const BUILD='260820.1239';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 let SESSION=null, CFG=null, MYREQ=null, MYSWAPS=[];
 const api=async(path,opts={})=>{
@@ -1893,8 +1902,9 @@ function openDay(iso){
   const a=dayOf(ME,iso),rq=DATA.requests[ME]||{};
   const onReq=(rq.on||[]).includes(iso),offReq=(rq.off||[]).includes(iso),cmeReq=(rq.cme||[]).includes(iso);
   let b='';
-  if(a&&a.s.length){
-    a.s.slice().sort((x,y)=>startHour(x)-startHour(y)).forEach(s=>{const m=META(s);
+  const daySh=(a?a.s:[]).filter(s=>isRealShift(ME,iso,s));
+  if(daySh.length){
+    daySh.slice().sort((x,y)=>startHour(x)-startHour(y)).forEach(s=>{const m=META(s);
       const hrs=DATA.kindHours[m.kind];
       const time=!hrs?'All day':`${hrs[0]%12||12}${hrs[0]<12?'am':'pm'} – ${(hrs[0]+hrs[2])%24%12||12}${((hrs[0]+hrs[2])%24)<12?'am':'pm'}`;
       b+=`<div class="row" style="margin-top:8px"><span class="sp" style="background:${m.color}"></span>
