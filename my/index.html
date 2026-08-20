@@ -300,7 +300,11 @@ textarea.ta{width:100%;background:var(--panel);border:1px solid var(--line2);bor
 .derow{background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:13px 15px;
   margin-bottom:12px}
 .dek{font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim);font-weight:700}
-.deval{font-size:32px;font-weight:800;line-height:1.1;margin:2px 0 3px}
+.deval{font-size:32px;font-weight:800;line-height:1.1;margin:2px 0 3px;
+  display:flex;align-items:baseline;gap:9px}
+/* The number worked is the fact; the difference from contract is a note on it. Sized so the
+   headline reads as "45, and that is level" rather than as a bare "0" nobody can place. */
+.dedelta{font-size:15px;font-weight:700;letter-spacing:.01em}
 .desub{font-size:12.5px;color:var(--dim)}
 .chev{opacity:.65;font-size:10px}
 .nudge{border-color:var(--line2)}
@@ -704,6 +708,12 @@ function shiftLabel(person,iso,shift,short){
 }
 const isICU=s=>DATA.icu.includes(s), isNOC=s=>DATA.noc.includes(s);
 const f1=x=>Number.isInteger(x)?x:Math.round(x*100)/100;
+/* Day equivalents to a tenth, for display only.
+   A contract of 0.33 admin days a month times three blocks is 0.99, so a physician who is
+   exactly level reads as 57.99 worked against 54 — hundredths of a shift that mean nothing to
+   anybody and make a headline number look broken. The difference shown is worked-minus-contract
+   AFTER both are rounded, so the three numbers on screen always agree with each other. */
+const deN=x=>{const r=Math.round(x*10)/10; return Number.isInteger(r)?r:r.toFixed(1);};
 
 /* ---------- identity ----------
    Identity is whoever the SERVER says you are. It used to come from decrypting a slot in the
@@ -1032,10 +1042,13 @@ function blockStatsHTML(){
   return `<div class="derow">
       <div class="dek">Day equivalents</div>
       ${de.hasContract
-        ? `<div class="deval" style="color:${de.bal>0?'#FBBF24':'#35D6A4'}">${de.bal>0?'+':''}${de.bal}</div>
-           <div class="desub">worked <b>${de.worked}</b> against a contract of <b>${de.contract}</b>${
-             de.bal===0?' — exactly level':(de.bal>0?' — above contract':' — below contract')}</div>`
-        : `<div class="deval">${de.worked}</div>
+        ? (()=>{const w=deN(de.worked), c=deN(de.contract), d=Math.round((w-c)*10)/10;
+                return `<div class="deval">${w}<span class="dedelta" style="color:${
+                  d===0?'var(--dim)':(d>0?'#FBBF24':'#35D6A4')}">${
+                  d===0?'level':(d>0?'+'+deN(d):'\u2212'+deN(Math.abs(d)))}</span></div>
+                <div class="desub">worked, against a contract of <b>${c}</b>${
+                  d===0?'':(d>0?' — above it':' — below it')}</div>`;})()
+        : `<div class="deval">${deN(de.worked)}</div>
            <div class="desub">${de.nights?`<b>${de.nights}</b> night${de.nights===1?'':'s'} at 2 day
              equivalents each. `:''}Moonlighters have no contracted total to measure against.</div>`}
     </div>
@@ -1563,7 +1576,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260820.1655';           // shown in the account bar so a stale app is obvious
+const BUILD='260820.1706';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 let SESSION=null, CFG=null, MYREQ=null, MYSWAPS=[];
 const api=async(path,opts={})=>{
