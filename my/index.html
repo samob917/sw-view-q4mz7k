@@ -354,6 +354,14 @@ textarea.ta{width:100%;background:var(--panel);border:1px solid var(--line2);bor
 .desub{font-size:12.5px;color:var(--dim)}
 .chev{opacity:.65;font-size:10px}
 .nudge{border-color:var(--line2)}
+/* Above the tab bar, not over the content being read. */
+.gobar{position:fixed;left:10px;right:10px;z-index:60;
+  bottom:calc(var(--tabh) + env(safe-area-inset-bottom) + 10px);
+  background:var(--panel);border:1px solid var(--line2);border-radius:14px;
+  box-shadow:0 12px 30px var(--shadow);padding:11px 13px;
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:13.5px;color:var(--ink)}
+.gobar .gobtns{margin-left:auto;display:flex;gap:8px}
+.gobar .btn{padding:7px 12px;font-size:13px;width:auto}
 .testgrid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px}
 .testgrid .btn{font-size:12.5px;padding:8px 6px}
 .setrow{display:flex;justify-content:space-between;gap:12px;padding:6px 0;
@@ -1690,7 +1698,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260820.2333';           // shown in the account bar so a stale app is obvious
+const BUILD='260820.2339';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 let SESSION=null, CFG=null, MYREQ=null, MYSWAPS=[];
 const api=async(path,opts={})=>{
@@ -3261,9 +3269,12 @@ function boot(){
     document.querySelector('#viewingBanner').innerHTML=
       'Viewing <b>'+esc(fullOf(ME))+'</b> — their schedule, requests and swaps';
   }else if(vb){vb.remove();}
-  // Still nobody to show — a first-ever sign-in for an admin with no schedule of their own.
-  // Offer the physician menu rather than the dashboard: the schedule is the point of the app.
-  if(!ME&&!BOOTED){ BOOTED=true; go('now'); setTimeout(togglePicker,150); return; }
+  /* An admin with no schedule of their own used to have the physician list thrown open over
+     everything, on every boot — including on the way back from tapping a notification, which is
+     the list Sam kept finding on top of what he had just opened. The empty state already says
+     "Choose a physician" and has the button; a menu that opens itself is not more helpful than
+     one you can open. */
+  if(!ME&&!BOOTED){ BOOTED=true; go('now'); return; }
   BOOTED=true;
   go(CUR&&CUR!=='admin'?CUR:'now');                       // stay on the tab you were reading
   setTimeout(maybeOfferPush,1200);   // after the schedule is on screen, not over a blank page
@@ -3848,8 +3859,28 @@ function goFromUrl(u){
 goFromUrl();
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('message',ev=>{
-    if(ev.data&&ev.data.type==='navigate')goFromUrl(ev.data.url);
+    if(!ev.data||ev.data.type!=='navigate')return;
+    /* ARRIVING BY TAP INTO AN APP THAT IS ALREADY OPEN IS NOT THE SAME as opening the app from
+       a cold start. Somebody reading one physician's schedule did not ask to be moved somewhere
+       else; being moved anyway loses their place with no way back to it. Cold start goes
+       straight there — there is nothing to lose — and an app already open is asked. */
+    if(document.querySelector('.signin')||!BOOTED){ goFromUrl(ev.data.url); return; }
+    askToGo(ev.data.url);
   });
+}
+
+function askToGo(url){
+  let bar=document.querySelector('#goBar');
+  if(bar)bar.remove();
+  bar=el('div','gobar'); bar.id='goBar';
+  bar.innerHTML='<span>A request needs your approval.</span>'+
+    '<span class="gobtns"><button class="btn pri" id="goYes">View request</button>'+
+    '<button class="btn" id="goNo">Later</button></span>';
+  document.body.appendChild(bar);
+  document.querySelector('#goNo').onclick=()=>bar.remove();
+  document.querySelector('#goYes').onclick=()=>{ bar.remove(); goFromUrl(url); };
+  // It is a prompt, not an alarm: if it is ignored it goes quietly rather than sitting there.
+  setTimeout(()=>{ if(bar&&bar.isConnected)bar.remove(); },30000);
 }
 
 checkVersion();
