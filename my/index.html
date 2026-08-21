@@ -354,6 +354,8 @@ textarea.ta{width:100%;background:var(--panel);border:1px solid var(--line2);bor
 .desub{font-size:12.5px;color:var(--dim)}
 .chev{opacity:.65;font-size:10px}
 .nudge{border-color:var(--line2)}
+.testgrid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px}
+.testgrid .btn{font-size:12.5px;padding:8px 6px}
 .setrow{display:flex;justify-content:space-between;gap:12px;padding:6px 0;
   border-bottom:1px solid var(--line);font-size:13px}
 .setrow:last-of-type{border-bottom:0}
@@ -1682,7 +1684,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260820.2244';           // shown in the account bar so a stale app is obvious
+const BUILD='260820.2255';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 let SESSION=null, CFG=null, MYREQ=null, MYSWAPS=[];
 const api=async(path,opts={})=>{
@@ -2204,6 +2206,7 @@ function notifyCard(){
     <div class="sub" id="notifyWhat">A message on your phone when someone asks you to cover a
       shift, when your own request is taken, and when an admin approves it.</div>
     <div id="notifyBody" class="sub" style="margin-top:8px">Checking…</div>
+    ${notifyTestHTML()}
   </div>`;
 }
 /* ---------- ask once, when asking makes sense ----------
@@ -2240,6 +2243,33 @@ async function maybeOfferPush(){
            btn.disabled=false; btn.textContent='Turn on notifications'; }
     paintNotify();
   };
+}
+
+/* Admins get a way to fire each kind at themselves. Checking that a notification reads well
+   otherwise means arranging the whole three-person situation that produces it. */
+function notifyTestHTML(){
+  if(ROLE!=='admin')return '';
+  const kinds=[['ask','Asked to cover'],['taken','Someone else took it'],
+               ['approve','Needs your approval'],['claimed','Someone took yours'],
+               ['approved','Approved'],['declined','Declined'],
+               ['changed','Schedule changed'],['expired','No longer needed']];
+  return '<details class="icsmore" style="margin-top:10px"><summary>Send yourself a test</summary>'+
+    '<div class="sub" style="margin-top:6px">Goes to your devices only — nobody else is '+
+    'notified.</div><div class="testgrid">'+
+    kinds.map(([k,l])=>`<button class="btn" data-ntest="${k}">${esc(l)}</button>`).join('')+
+    '</div><div class="msg" id="ntMsg"></div></details>';
+}
+function wireNotifyTest(){
+  document.querySelectorAll('[data-ntest]').forEach(b=>b.onclick=async()=>{
+    const m=document.querySelector('#ntMsg');
+    m.textContent='Sending…'; m.className='msg on';
+    try{
+      const r=await api('/push',{method:'POST',body:JSON.stringify({action:'test',kind:b.dataset.ntest})});
+      m.textContent=r.sent?('Sent to '+r.sent+' device'+(r.sent===1?'':'s'))
+        :'No device is subscribed — turn notifications on first.';
+      m.className='msg on '+(r.sent?'ok':'bad');
+    }catch(e){ m.textContent=e.message||'Could not send'; m.className='msg on bad'; }
+  });
 }
 
 async function paintNotify(){
@@ -2332,6 +2362,7 @@ function wireCoverage(){
   const rc=document.querySelector('#reqCover'); if(rc)rc.onclick=openCoverAsk;
   paintNotify();
   paintSignIn();
+  wireNotifyTest();
 }
 function openCoverAsk(){
   const shifts=myShifts(ME).filter(s=>s.iso>=todayISO());

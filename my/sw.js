@@ -20,7 +20,7 @@
  * so the file the whole update path depends on was surviving by luck and would have vanished
  * on any clean checkout.
  */
-const CACHE = 'ccpsa-portal-260820.2244';
+const CACHE = 'ccpsa-portal-260820.2255';
 
 // './' and index.html are the same response; both are listed because a navigation can ask for
 // either. icon-192 is what a push notification draws, so it must work offline too.
@@ -103,6 +103,17 @@ self.addEventListener('message', e => {
 self.addEventListener('push', e => {
   let d = {};
   try { d = e.data ? e.data.json() : {}; } catch (err) { d = { title: 'CCPSA', body: e.data ? e.data.text() : '' }; }
+
+  // A QUESTION THAT HAS BEEN ANSWERED SHOULD LEAVE THE PHONE. Ten people are asked to cover a
+  // shift and one says yes; the other nine are left holding a live-looking request that will
+  // only tell them they were too late. `close` takes it back — the notification with this tag
+  // is dismissed rather than replaced with another card to ignore.
+  if (d.close) {
+    e.waitUntil(self.registration.getNotifications({ tag: d.tag })
+      .then(list => list.forEach(n => n.close())));
+    return;
+  }
+
   e.waitUntil(self.registration.showNotification(d.title || 'CCPSA schedule', {
     body: d.body || '',
     icon: 'icon-192.png',
