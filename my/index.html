@@ -354,14 +354,8 @@ textarea.ta{width:100%;background:var(--panel);border:1px solid var(--line2);bor
 .desub{font-size:12.5px;color:var(--dim)}
 .chev{opacity:.65;font-size:10px}
 .nudge{border-color:var(--line2)}
-/* Above the tab bar, not over the content being read. */
-.gobar{position:fixed;left:10px;right:10px;z-index:60;
-  bottom:calc(var(--tabh) + env(safe-area-inset-bottom) + 10px);
-  background:var(--panel);border:1px solid var(--line2);border-radius:14px;
-  box-shadow:0 12px 30px var(--shadow);padding:11px 13px;
-  display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:13.5px;color:var(--ink)}
-.gobar .gobtns{margin-left:auto;display:flex;gap:8px}
-.gobar .btn{padding:7px 12px;font-size:13px;width:auto}
+/* (.gobar was the "View request / Later" prompt. A notification tap goes straight to the thing
+   now, so nothing renders one — the rules went with it.) */
 .testgrid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px}
 .testgrid .btn{font-size:12.5px;padding:8px 6px}
 .setrow{display:flex;justify-content:space-between;gap:12px;padding:6px 0;
@@ -1732,7 +1726,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260821.1233';           // shown in the account bar so a stale app is obvious
+const BUILD='260821.1241';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 let SESSION=null, CFG=null, MYREQ=null, MYSWAPS=[];
 // The admin approvals queue. Declared up here with the rest of the state, not beside the code
@@ -2516,6 +2510,80 @@ async function openOffer(id){
        o.decidedBy?' Decided by '+who(o.decidedBy)+'.':''}</div>
      <div class="btnrow" style="margin-top:12px"><button class="btn" id="ofClose">OK</button></div>`);
   $('#ofClose').onclick=closeSheet;
+}
+
+/* ---------- one notification, one decision: the swap version ----------
+   openOffer's twin. A swap notification names one swap and one decision, so it opens that —
+   the shift, who it moves between, whether it passes the rules, and the buttons. Which buttons
+   depends on who is looking: the physician being asked gets take/cannot, an admin gets sign-off,
+   and anyone arriving at something already settled is told what happened instead of being shown
+   an empty decision. */
+async function openSwap(id){
+  if(!MYSWAPS.some(s=>s.id===id))await loadSwaps();
+  const s=MYSWAPS.find(x=>x.id===id);
+  if(!s){ toast('That swap is no longer there'); return; }
+  const who=(p)=>esc(fullOf(p)||p);
+  const label=esc(fmtD(s.date))+' · '+esc(META(s.shift).label||s.shift);
+  const line=`<div class="sub" style="margin-top:8px"><b>${who(s.fromPerson)}</b> → <b>${who(s.toPerson)}</b>${
+    s.backDate?' · trade, back on '+esc(fmtD(s.backDate)):''}${s.note?' — '+esc(s.note):''}</div>`;
+  const rule=`<div class="qrule ${s.ruleCheck==='CLEAN'?'ok':'bad'}" style="margin-top:8px">${
+    s.ruleCheck==='CLEAN'?'✓ Passes every rule check'
+      :'✗ '+(s.problems||[]).map(esc).join(' · ')}</div>`;
+  const done=async(msg)=>{
+    closeSheet(); toast(msg);
+    await loadSwaps(); await refreshLive(true).catch(()=>{});
+    if(CUR==='swap')renderSwap();
+    if(onAdminHome()){ await loadAdminQueue(); renderAdminHome(); adminBar(); }
+  };
+  const run=async(body,msg,btns)=>{
+    const m=$('#swMsg2'); m.textContent='…'; m.className='msg on';
+    btns.forEach(b=>{const e=$(b); if(e)e.disabled=true;});
+    try{ await api('/swaps',{method:'PATCH',body:JSON.stringify(body)}); await done(msg); }
+    catch(e){ m.textContent=(e.payload&&e.payload.problems)?e.payload.problems.join(' · ')
+                            :(e.message||'Could not save'); m.className='msg on bad';
+              btns.forEach(b=>{const e2=$(b); if(e2)e2.disabled=false;}); }
+  };
+
+  if(s.status==='awaiting_admin'&&ROLE==='admin'){
+    sheet('Approve this swap?',
+      `<div class="sub"><b>${label}</b></div>${line}${rule}
+       <div class="sub" style="margin-top:8px">Approving moves the shift on the schedule and
+         tells them both.</div>
+       <div class="btnrow" style="margin-top:12px">
+         <button class="btn pri" id="swOk">Approve</button>
+         <button class="btn" id="swNo">Reject</button>
+         ${s.ruleCheck==='CLEAN'?'':'<button class="btn warnbtn" id="swOv">Approve anyway</button>'}
+       </div><div class="msg" id="swMsg2"></div>`);
+    const ids=['#swOk','#swNo','#swOv'];
+    $('#swOk').onclick=()=>run({id:s.id,action:'approve'},'Approved — the schedule is updated',ids);
+    $('#swNo').onclick=()=>run({id:s.id,action:'reject'},'Rejected',ids);
+    const ov=$('#swOv');
+    if(ov)ov.onclick=()=>run({id:s.id,action:'approve',override:true},
+                             'Approved over the rule check',ids);
+    return;
+  }
+  if(s.status==='awaiting_partner'&&s.toPerson===ME){
+    sheet('Can you take this?',
+      `<div class="sub"><b>${label}</b></div>${line}${rule}
+       <div class="sub" style="margin-top:8px">An admin still has to sign it off afterwards.</div>
+       <div class="btnrow" style="margin-top:12px">
+         <button class="btn pri" id="swOk">I can take it</button>
+         <button class="btn" id="swNo">Can’t</button></div>
+       <div class="msg" id="swMsg2"></div>`);
+    const ids=['#swOk','#swNo'];
+    $('#swOk').onclick=()=>run({id:s.id,action:'accept'},'Accepted — waiting on an admin',ids);
+    $('#swNo').onclick=()=>run({id:s.id,action:'decline'},'Declined',ids);
+    return;
+  }
+  const state={awaiting_partner:'waiting on '+(fullOf(s.toPerson)||s.toPerson),
+               awaiting_admin:'waiting on an admin', approved:'approved',
+               rejected:'rejected', declined:'declined', blocked:'blocked by the rule check'};
+  sheet('Shift swap',
+    `<div class="sub"><b>${label}</b></div>${line}
+     <div class="sub" style="margin-top:8px">This one is <b>${esc(state[s.status]||s.status)}</b>${
+       s.decidedBy?' — decided by '+who(s.decidedBy):''}.</div>
+     <div class="btnrow" style="margin-top:12px"><button class="btn" id="swClose">OK</button></div>`);
+  $('#swClose').onclick=closeSheet;
 }
 
 function wireCoverage(){
@@ -4028,9 +4096,9 @@ function showGate(){ stepPassword(lastLoginEmail()); }
    they happened to be reading — which is not the thing they just tapped about. The parameter is
    then cleared from the address, so a later reload does not keep dragging them back to it. */
 function goFromUrl(u){
-  let tab=null,as=null,offer=null;
+  let tab=null,as=null,offer=null,swapId=null;
   try{ const q=new URL(u||location.href,location.origin).searchParams;
-       tab=q.get('go'); as=q.get('as'); offer=q.get('offer'); }catch(e){}
+       tab=q.get('go'); as=q.get('as'); offer=q.get('offer'); swapId=q.get('swap'); }catch(e){}
   if(!tab||!['now','sched','req','swap'].includes(tab))return false;
   const land=()=>{
     // NO IDENTITY SWITCHING. Putting the admin "back on their own page" set ME to their account
@@ -4051,6 +4119,7 @@ function goFromUrl(u){
     else if(typeof go==='function')go(tab);
     // The notification was about one thing; open that thing rather than the tab it lives on.
     if(offer)openOffer(offer);
+    else if(swapId)openSwap(swapId);
   };
   /* WAITING FOR A FIXED 900ms WAS A GUESS, AND IT LOST.
      goFromUrl runs at parse time, long before sign-in has finished: /api/session, then
@@ -4065,6 +4134,7 @@ function goFromUrl(u){
     try{ const clean=new URL(location.href);
          clean.searchParams.delete('go');
          clean.searchParams.delete('as'); clean.searchParams.delete('offer');
+         clean.searchParams.delete('swap');
          history.replaceState(null,'',clean.pathname+clean.search+clean.hash); }catch(e){}
   };
   const t0=Date.now();
@@ -4083,27 +4153,15 @@ goFromUrl();
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('message',ev=>{
     if(!ev.data||ev.data.type!=='navigate')return;
-    /* ARRIVING BY TAP INTO AN APP THAT IS ALREADY OPEN IS NOT THE SAME as opening the app from
-       a cold start. Somebody reading one physician's schedule did not ask to be moved somewhere
-       else; being moved anyway loses their place with no way back to it. Cold start goes
-       straight there — there is nothing to lose — and an app already open is asked. */
-    if(document.querySelector('.signin')||!BOOTED){ goFromUrl(ev.data.url); return; }
-    askToGo(ev.data.url);
+    /* A TAP IS THE ASK. This used to show a "View request / Later" bar whenever the app was
+       already open — which on a phone it almost always is — so tapping a notification about one
+       specific decision put a second button between you and it. The bar existed to protect
+       whoever was mid-read from being yanked somewhere, but the only thing that ever sends this
+       message is notificationclick, and that is always a deliberate tap on a specific thing.
+       Asking someone whether they meant to go where they just asked to go is not a safeguard.
+       Cold start and already-open now behave the same: go there. */
+    goFromUrl(ev.data.url);
   });
-}
-
-function askToGo(url){
-  let bar=document.querySelector('#goBar');
-  if(bar)bar.remove();
-  bar=el('div','gobar'); bar.id='goBar';
-  bar.innerHTML='<span>A request needs your approval.</span>'+
-    '<span class="gobtns"><button class="btn pri" id="goYes">View request</button>'+
-    '<button class="btn" id="goNo">Later</button></span>';
-  document.body.appendChild(bar);
-  document.querySelector('#goNo').onclick=()=>bar.remove();
-  document.querySelector('#goYes').onclick=()=>{ bar.remove(); goFromUrl(url); };
-  // It is a prompt, not an alarm: if it is ignored it goes quietly rather than sitting there.
-  setTimeout(()=>{ if(bar&&bar.isConnected)bar.remove(); },30000);
 }
 
 checkVersion();
