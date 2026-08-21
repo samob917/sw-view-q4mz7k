@@ -20,7 +20,7 @@
  * so the file the whole update path depends on was surviving by luck and would have vanished
  * on any clean checkout.
  */
-const CACHE = 'ccpsa-portal-260820.2255';
+const CACHE = 'ccpsa-portal-260820.2303';
 
 // './' and index.html are the same response; both are listed because a navigation can ask for
 // either. icon-192 is what a push notification draws, so it must work offline too.
@@ -128,8 +128,15 @@ self.addEventListener('notificationclick', e => {
   e.notification.close();
   const url = (e.notification.data && e.notification.data.url) || '/my/';
   e.waitUntil(clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
-    // Focus the app if it is already open rather than piling up tabs.
-    for (const c of list) { if (c.url.includes('/my/') && 'focus' in c) return c.focus(); }
+    // Focus the app if it is already open rather than piling up tabs — but focusing alone left
+    // whoever tapped on whatever screen they had been reading, which is not where the thing
+    // they tapped about is. The already-open app is told where to go.
+    for (const c of list) {
+      if ('focus' in c) {
+        if (c.postMessage) c.postMessage({ type: 'navigate', url });
+        return c.focus();
+      }
+    }
     return clients.openWindow(url);
   }));
 });

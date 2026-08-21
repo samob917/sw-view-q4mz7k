@@ -1684,7 +1684,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260820.2255';           // shown in the account bar so a stale app is obvious
+const BUILD='260820.2303';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 let SESSION=null, CFG=null, MYREQ=null, MYSWAPS=[];
 const api=async(path,opts={})=>{
@@ -2316,12 +2316,31 @@ function coverageCard(){
   const mine=COVER.filter(o=>o.fromPerson===ME&&o.status!=='approved'&&o.status!=='declined');
   const toApprove=(ROLE==='admin')?COVER.filter(o=>o.status==='claimed'):[];
   const took=COVER.filter(o=>o.claimedBy===ME&&o.status==='claimed');
+  /* DECIDED, AND NOT YET ACKNOWLEDGED. Once an admin approved it, the request vanished from
+     both people's screens — the asker and the taker each left to work out from the schedule
+     whether it had gone through. The outcome is the whole point of having asked, so it stays
+     until somebody says they have seen it, with the name of whoever decided: "approved" with
+     no author is a fact with nobody behind it. */
+  const decided=COVER.filter(o=>(o.fromPerson===ME||o.claimedBy===ME)&&
+    (o.status==='approved'||o.status==='declined')&&!coverSeen(o.id));
   let h='';
   if(open.length)h+=`<h2 class="sec">Can you cover?</h2>`+open.map(o=>`
     <div class="swcard"><div class="lgh">${esc(META(o.shift).label||o.shift)} · ${esc(fmtD(o.date))}</div>
       <div class="sub">${esc(fullOf(o.fromPerson))} needs this covered${o.note?' — '+esc(o.note):''}</div>
       <div class="btnrow"><button class="btn pri" data-claim="${esc(o.id)}">I'll take it</button></div>
     </div>`).join('');
+  if(decided.length)h+=`<h2 class="sec">Decided</h2>`+decided.map(o=>{
+    const ok=o.status==='approved';
+    const who=o.decidedBy?fullOf(o.decidedBy)||o.decidedBy:'an admin';
+    const mine=o.fromPerson===ME;
+    return `<div class="swcard"><div class="lgh">${esc(META(o.shift).label||o.shift)} · ${esc(fmtD(o.date))}</div>
+      <div class="sub"><b style="color:var(--${ok?'signal':'alert'})">${ok?'Approved':'Declined'} by ${esc(who)}</b> —
+        ${ok ? (mine ? esc(fullOf(o.claimedBy)||o.claimedBy)+' is covering this for you; it is off your schedule.'
+                     : 'you are covering this for '+esc(fullOf(o.fromPerson)||o.fromPerson)+'. It is on your schedule now.')
+             : (mine ? 'your shift is unchanged — you are still on it.'
+                     : 'you are not covering this after all.')}</div>
+      <div class="btnrow"><button class="btn" data-covok="${esc(o.id)}">OK</button></div>
+    </div>`;}).join('');
   if(took.length)h+=`<h2 class="sec">You accepted</h2>`+took.map(o=>`
     <div class="swcard"><div class="lgh">${esc(META(o.shift).label||o.shift)} · ${esc(fmtD(o.date))}</div>
       <div class="sub">Covering for <b>${esc(fullOf(o.fromPerson))}</b> —
@@ -2342,7 +2361,24 @@ function coverageCard(){
         : esc(o.status)}</div></div>`).join('');
   return h;
 }
+/* Acknowledgement is per request and per person, so one being cleared cannot hide the next. */
+function coverSeen(id){
+  try{ return (localStorage.getItem('ccpsa_coverseen')||'').split(',').includes((ME||'')+':'+id); }
+  catch(e){ return false; }
+}
+function markCoverSeen(id){
+  try{
+    const k=(ME||'')+':'+id;
+    const cur=(localStorage.getItem('ccpsa_coverseen')||'').split(',').filter(Boolean);
+    if(!cur.includes(k))cur.push(k);
+    localStorage.setItem('ccpsa_coverseen',cur.slice(-60).join(','));   // a bounded list
+  }catch(e){}
+}
+
 function wireCoverage(){
+  document.querySelectorAll('[data-covok]').forEach(b=>b.onclick=()=>{
+    markCoverSeen(b.dataset.covok); renderSwap();
+  });
   document.querySelectorAll('[data-claim]').forEach(b=>b.onclick=async()=>{
     b.disabled=true;b.textContent='…';
     try{ const body={id:b.dataset.claim,action:'claim'};
@@ -3681,6 +3717,29 @@ function showGate(){ stepPassword(lastLoginEmail()); }
    has expired, never checked at all. That is the case that most needs it: nobody can get past
    that screen to trigger anything. /api/config is public, so this asks for nothing it is not
    entitled to. */
+/* ---------- landing where the notification was about ----------
+   A push carries ?go=<tab>. Opened cold the app reads it here; already open, the service worker
+   sends the same instruction, because focusing a window leaves whoever tapped on whatever screen
+   they happened to be reading — which is not the thing they just tapped about. The parameter is
+   then cleared from the address, so a later reload does not keep dragging them back to it. */
+function goFromUrl(u){
+  let tab=null;
+  try{ tab=new URL(u||location.href,location.origin).searchParams.get('go'); }catch(e){}
+  if(!tab||!['now','sched','req','swap'].includes(tab))return false;
+  const land=()=>{ if(typeof go==='function')go(tab); };
+  if(BOOTED)land(); else setTimeout(land,900);      // wait for the schedule to be on screen
+  try{ const clean=new URL(location.href);
+       clean.searchParams.delete('go');
+       history.replaceState(null,'',clean.pathname+clean.search+clean.hash); }catch(e){}
+  return true;
+}
+goFromUrl();
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.addEventListener('message',ev=>{
+    if(ev.data&&ev.data.type==='navigate')goFromUrl(ev.data.url);
+  });
+}
+
 checkVersion();
 touchSeen();
 document.addEventListener('visibilitychange',()=>{
