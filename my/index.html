@@ -1594,7 +1594,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260820.2136';           // shown in the account bar so a stale app is obvious
+const BUILD='260820.2151';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 let SESSION=null, CFG=null, MYREQ=null, MYSWAPS=[];
 const api=async(path,opts={})=>{
@@ -2536,7 +2536,15 @@ function sheet(title,body){
   $('#shX').onclick=closeSheet;
   $('#shX').focus({preventScroll:true});
 }
-function closeSheet(){$('#sheet').classList.remove('on');$('#scrim').classList.remove('on');
+/* A sheet can be dismissed four ways — the ✕, Cancel, Escape, and the scrim — and anything that
+   has to be undone on dismissal has to be undone by all four. Cancel alone put the admin/physician
+   toggle back, so leaving the code prompt by any other route left "Admin view" highlighted while
+   the physician's schedule was on screen. */
+let _sheetOnClose=null;
+function onSheetClose(fn){ _sheetOnClose=fn; }
+function closeSheet(){
+  const fn=_sheetOnClose; _sheetOnClose=null; if(fn)try{fn();}catch(e){}
+  $('#sheet').classList.remove('on');$('#scrim').classList.remove('on');
   $$('.cell.sel').forEach(c=>c.classList.remove('sel'));
   if(_sheetReturnFocus&&_sheetReturnFocus.focus){_sheetReturnFocus.focus({preventScroll:true});_sheetReturnFocus=null;}}
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('#sheet').classList.contains('on'))closeSheet();});
@@ -2977,6 +2985,7 @@ function askStepUp(then){
       const j=await api('/stepup',{method:'POST',body:JSON.stringify({totp:$('#suCode').value.trim()})});
       ADMIN_GRANT=j.grant;
       try{sessionStorage.setItem('__grant',ADMIN_GRANT);}catch(e){}
+      onSheetClose(null);      // the code was accepted; do NOT bounce back to physicians
       closeSheet(); then();
     }catch(e){
       if(e.payload&&e.payload.need==='enrol2fa'){
@@ -2985,7 +2994,11 @@ function askStepUp(then){
     }
   };
   $('#suGo').onclick=go;
-  $('#suCancel').onclick=()=>{closeSheet();markBar(ME?'mine':'pick');hideAdminView();};
+  // 'mine' matches no button — the two are data-v="admin" and data-v="pick" — so this used to
+  // clear BOTH, leaving neither side of the toggle lit.
+  const backToPhysicians=()=>{ markBar('pick'); hideAdminView(); if(ME)boot(); };
+  onSheetClose(backToPhysicians);
+  $('#suCancel').onclick=()=>closeSheet();
   const c=$('#suCode');
   c.addEventListener('keydown',ev=>{if(ev.key==='Enter'){ev.preventDefault();go();}});
   c.addEventListener('input',()=>{if(c.value.replace(/\D/g,'').length===6)go();});
