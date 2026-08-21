@@ -1682,7 +1682,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260820.2235';           // shown in the account bar so a stale app is obvious
+const BUILD='260820.2244';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 let SESSION=null, CFG=null, MYREQ=null, MYSWAPS=[];
 const api=async(path,opts={})=>{
@@ -2285,11 +2285,18 @@ function coverageCard(){
   const open=COVER.filter(o=>o.status==='open'&&(o.eligible||[]).includes(ME)&&o.fromPerson!==ME);
   const mine=COVER.filter(o=>o.fromPerson===ME&&o.status!=='approved'&&o.status!=='declined');
   const toApprove=(ROLE==='admin')?COVER.filter(o=>o.status==='claimed'):[];
+  const took=COVER.filter(o=>o.claimedBy===ME&&o.status==='claimed');
   let h='';
   if(open.length)h+=`<h2 class="sec">Can you cover?</h2>`+open.map(o=>`
     <div class="swcard"><div class="lgh">${esc(META(o.shift).label||o.shift)} · ${esc(fmtD(o.date))}</div>
       <div class="sub">${esc(fullOf(o.fromPerson))} needs this covered${o.note?' — '+esc(o.note):''}</div>
       <div class="btnrow"><button class="btn pri" data-claim="${esc(o.id)}">I'll take it</button></div>
+    </div>`).join('');
+  if(took.length)h+=`<h2 class="sec">You accepted</h2>`+took.map(o=>`
+    <div class="swcard"><div class="lgh">${esc(META(o.shift).label||o.shift)} · ${esc(fmtD(o.date))}</div>
+      <div class="sub">Covering for <b>${esc(fullOf(o.fromPerson))}</b> —
+        <b style="color:var(--amber)">waiting for final approval</b>. It is not on your schedule
+        until an admin confirms it, and you will be told when they do.</div>
     </div>`).join('');
   if(toApprove.length)h+=`<h2 class="sec">Waiting on you</h2>`+toApprove.map(o=>`
     <div class="swcard"><div class="lgh">${esc(META(o.shift).label||o.shift)} · ${esc(fmtD(o.date))}</div>
@@ -2308,8 +2315,10 @@ function coverageCard(){
 function wireCoverage(){
   document.querySelectorAll('[data-claim]').forEach(b=>b.onclick=async()=>{
     b.disabled=true;b.textContent='…';
-    try{ await api('/coverage',{method:'POST',body:JSON.stringify({id:b.dataset.claim,action:'claim'})});
-         toast('Accepted — an admin will confirm'); await loadCoverage(); renderSwap(); }
+    try{ const body={id:b.dataset.claim,action:'claim'};
+         if(onBehalf())body.person=ME;      // accepting FOR the physician being viewed
+         await api('/coverage',{method:'POST',body:JSON.stringify(body)});
+         toast('Accepted — waiting for final approval'); await loadCoverage(); renderSwap(); }
     catch(e){ toast(e.message); b.disabled=false; b.textContent="I'll take it"; }
   });
   document.querySelectorAll('[data-ok],[data-no]').forEach(b=>b.onclick=async()=>{
