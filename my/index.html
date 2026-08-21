@@ -60,13 +60,55 @@ if('serviceWorker' in navigator){
 }
 </script>
 <style>
+/* ---------- COLOUR ----------
+   Everything on screen is drawn from these tokens, and the two themes are two sets of values
+   for them. That is the only way a second theme stays true: a component that reaches for a
+   literal is a component that will be unreadable in the theme its author was not looking at.
+
+   Dark is the default because a schedule gets checked at 3am on a night shift, and a white
+   screen at 3am is genuinely unpleasant. Light follows the phone's own setting unless somebody
+   overrides it, because that setting is already their answer to this question.
+
+   --card, --ok/--warn/--bad and their -ink partners were literals scattered through the sheet
+   before this. One of them, var(--card) on the holiday chips, was never defined at all. */
 :root{
+  color-scheme:dark;
+  --chrome:rgba(14,22,33,.92);      /* sticky header / tab bar, translucent over content */
+  --chrome-solid:#0E1621;
   --ground:#0E1621; --panel:#16212E; --panel2:#1C2A3A; --line:#24374A; --line2:#31485F;
   --ink:#E8EEF4; --dim:#8AA0B4; --faint:#6F94B3;   /* 4.55:1 at worst — AA for small text */
   --signal:#35D6A4; --amber:#FBBF24; --alert:#FF6B6B;
+  --card:#1C2A3A;                 /* a raised surface inside a panel */
+  --chip:#35D6A4; --chip-ink:#06231A;      /* a chosen chip: the accent, not a darker dark */
+  --ok:rgba(53,214,164,.14);   --ok-ink:#9BF0D5;
+  --warn:rgba(251,191,36,.14); --warn-ink:#FCD98A;
+  --bad:rgba(255,107,107,.14); --bad-ink:#FFC9C9;
+  --info:rgba(96,165,250,.14); --info-ink:#C3DBFF;
+  --info-line:rgba(96,165,250,.42); --info-strong:#EAF2FF; --info-soft:#A9C8F0;
+  --test:rgba(180,83,9,.14); --test-ink:#FFD9A8;
+  --shadow:rgba(0,0,0,.34);
   --mono:ui-monospace,SFMono-Regular,"SF Mono","JetBrains Mono",Menlo,Consolas,monospace;
   --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
   --tabh:60px;
+}
+
+/* Light. The accent darkens: a mint that reads well on near-black is close to invisible on
+   white, so the token changes rather than the components that use it. */
+:root[data-theme="light"]{
+  color-scheme:light;
+  --chrome:rgba(255,255,255,.92); --chrome-solid:#FFFFFF;
+  --ground:#F4F7FA; --panel:#FFFFFF; --panel2:#F0F4F8; --line:#DCE5EE; --line2:#C3D2E0;
+  --ink:#0F1D2B; --dim:#4A5A6B; --faint:#42586D;
+  --signal:#0A7A57; --amber:#8A5C06; --alert:#C2352F;
+  --card:#F0F4F8; --muted:#5A6B7D;
+  --chip:#0A7A57; --chip-ink:#FFFFFF;
+  --ok:rgba(14,159,115,.12);   --ok-ink:#0A6E50;
+  --warn:rgba(180,121,11,.14); --warn-ink:#7A5207;
+  --bad:rgba(194,53,47,.10);   --bad-ink:#8E2420;
+  --info:rgba(37,99,235,.10);  --info-ink:#1D4ED8;
+  --info-line:rgba(37,99,235,.30); --info-strong:#12328C; --info-soft:#2A4E9B;
+  --test:rgba(180,83,9,.12); --test-ink:#7A3E05;
+  --shadow:rgba(15,29,43,.12);
 }
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
@@ -95,7 +137,7 @@ body.wide .wrap{max-width:1500px}
   place-items:center;font-size:10px;font-weight:700;color:var(--dim);flex:0 0 auto}
 .pdrow.on .av{background:var(--signal);color:#06231A}
 .pdnone{padding:14px 12px;font-size:13px;color:var(--dim)}
-header.top{position:sticky;top:0;z-index:30;background:rgba(14,22,33,.92);
+header.top{position:sticky;top:0;z-index:30;background:var(--chrome);
   backdrop-filter:saturate(1.4) blur(10px);border-bottom:1px solid var(--line)}
 .topin{padding:11px 14px;display:flex;align-items:center;gap:10px}
 .brand{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);font-weight:700}
@@ -163,9 +205,9 @@ h2.sec{font-size:19px;font-weight:800;letter-spacing:-.02em;margin:22px 0 12px}
 .cell.on .n{color:var(--ink);font-weight:700}
 .cell.sel{border-color:var(--signal)}
 .cell .blk{width:100%;height:15px;border-radius:4px;display:flex;align-items:center;justify-content:center;
-  font-family:var(--mono);font-size:8px;font-weight:700;color:#0E1621;overflow:hidden;white-space:nowrap}
-.cell .blk.noc{color:#0E1621;font-size:8px;letter-spacing:0}
-.cell .blk.cme{background:rgba(96,165,250,.22);border:1px solid rgba(96,165,250,.55);color:#C3DBFF;
+  font-family:var(--mono);font-size:8px;font-weight:700;color:var(--ground);overflow:hidden;white-space:nowrap}
+.cell .blk.noc{font-size:8px;letter-spacing:0}
+.cell .blk.cme{background:rgba(96,165,250,.22);border:1px solid rgba(96,165,250,.55);color:var(--info-ink);
   letter-spacing:.04em}
 .cell .blk.split{background-image:none}
 .cell .req{position:absolute;top:2px;right:3px;font-size:8px;color:var(--signal)}
@@ -187,7 +229,7 @@ h2.sec{font-size:19px;font-weight:800;letter-spacing:-.02em;margin:22px 0 12px}
   border:1px solid var(--line2);color:var(--ink);border-radius:11px;padding:12px 15px;font-size:14px;
   font-weight:700;cursor:pointer;text-decoration:none;width:100%}
 .btn:active{transform:translateY(1px)}
-.btn.pri{background:var(--signal);border-color:var(--signal);color:#06231A}
+.btn.pri{background:var(--signal);border-color:var(--signal);color:var(--chip-ink)}
 .btn.gho{background:transparent}
 .btn[disabled]{opacity:.45;cursor:not-allowed}
 .btnrow{display:grid;gap:8px;margin-top:10px}
@@ -203,7 +245,7 @@ h2.sec{font-size:19px;font-weight:800;letter-spacing:-.02em;margin:22px 0 12px}
   font-size:13.5px;margin-top:10px}
 
 /* ---------- tab bar ---------- */
-nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:40;background:rgba(14,22,33,.96);
+nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:40;background:var(--chrome);
   backdrop-filter:blur(10px);border-top:1px solid var(--line);
   padding-bottom:env(safe-area-inset-bottom)}
 .tabsin{max-width:600px;margin:0 auto;display:grid;grid-template-columns:repeat(4,1fr)}
@@ -312,6 +354,11 @@ textarea.ta{width:100%;background:var(--panel);border:1px solid var(--line2);bor
 .desub{font-size:12.5px;color:var(--dim)}
 .chev{opacity:.65;font-size:10px}
 .nudge{border-color:var(--line2)}
+.setrow{display:flex;justify-content:space-between;gap:12px;padding:6px 0;
+  border-bottom:1px solid var(--line);font-size:13px}
+.setrow:last-of-type{border-bottom:0}
+.setk{color:var(--dim)}
+.setv{text-align:right}
 .cvlist{margin-top:9px;border:1px solid var(--line);border-radius:12px;overflow:hidden}
 .cvrow{display:flex;align-items:center;gap:10px;padding:9px 11px;border-bottom:1px solid var(--line);
   cursor:pointer;font-size:14px}
@@ -335,10 +382,10 @@ textarea.ta{width:100%;background:var(--panel);border:1px solid var(--line2);bor
 .behalf{background:#eff6ff;border:1px solid #bfdbfe;color:#1e40af;border-radius:10px;
   padding:9px 12px;font-size:13px;margin:0 0 12px;line-height:1.45}
 .deadline{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;
-  background:rgba(96,165,250,.14);border:1px solid rgba(96,165,250,.42);color:#D8E8FF;
+  background:var(--info);border:1px solid var(--info-line);color:var(--info-ink);
   border-radius:12px;padding:11px 14px;margin:4px 0 12px;font-size:13.5px}
-.deadline b{color:#EAF2FF}
-.deadline span{color:#A9C8F0}
+.deadline b{color:var(--info-strong)}
+.deadline span{color:var(--info-soft)}
 .deadline.soon{background:rgba(251,191,36,.15);border-color:rgba(251,191,36,.5);color:#FFE6B0}
 .deadline.soon b{color:#FFF1D0}
 .deadline.soon span{color:#F0C97A}
@@ -356,11 +403,14 @@ textarea.ta{width:100%;background:var(--panel);border:1px solid var(--line2);bor
 .addhint{font-size:12.5px;color:var(--amber);margin:-2px 0 8px;min-height:1px}
 .icsmore{margin-top:9px}
 .icsmore summary{font-size:12.5px;color:var(--dim);cursor:pointer}
+.accttheme{background:transparent;border:1px solid var(--line);color:var(--dim);
+  width:28px;height:28px;border-radius:50%;font-size:13px;cursor:pointer;flex:none;
+  display:flex;align-items:center;justify-content:center;line-height:1;padding:0}
 .acctbuild{font-family:var(--mono);font-size:9.5px;color:var(--faint);letter-spacing:.06em;
   margin-left:auto;margin-right:10px;white-space:nowrap}
 .testdate{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:7px 14px;
-  border-top:1px solid var(--line);background:rgba(180,83,9,.14)}
-.testdate .tdl{font-size:12px;color:#FFD9A8;font-weight:700}
+  border-top:1px solid var(--line);background:var(--test)}
+.testdate .tdl{font-size:12px;color:var(--test-ink);font-weight:700}
 .testdate .tdi{padding:5px 8px;border:1px solid var(--line2);border-radius:8px;
   background:var(--panel2);color:var(--ink);font:inherit;color-scheme:dark;
   font-size:16px}   /* the test-site date picker zoomed the page like any other small field */
@@ -373,16 +423,21 @@ textarea.ta{width:100%;background:var(--panel);border:1px solid var(--line2);bor
 .pillx b{opacity:.65;font-weight:700}
 .pillx:hover b,.pillx:active b{opacity:1;color:#fff}
 .pillx.off{background:rgba(255,107,107,.15);border-color:rgba(255,107,107,.45);color:#FFC2C2}
-.pillx.cme{background:rgba(96,165,250,.15);border-color:rgba(96,165,250,.45);color:#C3DBFF}
+.pillx.cme{background:rgba(96,165,250,.15);border-color:rgba(96,165,250,.45);color:var(--info-ink)}
 .pillx.nn{background:rgba(167,139,250,.15);border-color:rgba(167,139,250,.45);color:#DCD1FF}
-.pillx.on{background:rgba(53,214,164,.15);border-color:rgba(53,214,164,.5);color:#9BF0D5}
+.pillx.on{background:rgba(53,214,164,.15);border-color:rgba(53,214,164,.5);color:var(--ok-ink)}
 .segx{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
 .segx button{padding:8px 14px;border:1px solid var(--line);background:var(--card);border-radius:999px;font-size:13px}
-.segx button.on{background:#0f172a;color:#fff;border-color:#0f172a}
+.segx button{color:var(--ink)}
+/* Selected read as "slightly different dark" against the panel behind it — on a phone in a
+   corridor that is no signal at all. It is the accent now, with a tick, so a glance answers
+   "which one is chosen". */
+.segx button.on{background:var(--chip);color:var(--chip-ink);border-color:var(--chip);font-weight:700}
+.segx button.on::before{content:'✓ ';font-weight:800}
 .savebar{display:flex;align-items:center;gap:12px;margin:16px 0 8px}
-.btn.primary{background:#0f172a;color:#fff;border-color:#0f172a}
+.btn.primary{background:var(--chip);color:var(--chip-ink);border-color:var(--chip)}
 .btn.warnbtn{background:#fff7ed;border-color:#fdba74;color:#9a3412}
-.errbox{background:rgba(255,107,107,.14);border:1px solid rgba(255,107,107,.45);color:#FFC9C9;
+.errbox{background:var(--bad);border:1px solid rgba(255,107,107,.45);color:var(--bad-ink);
   border-radius:12px;padding:12px 14px;margin-top:8px;font-size:13px}
 .errbox b{color:#FFE1E1}
 .errbox ul{margin:6px 0 0 18px}
@@ -404,8 +459,8 @@ textarea.ta{width:100%;background:var(--panel);border:1px solid var(--line2);bor
 .swtop{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:14px}
 .swwho{font-size:12.5px;color:var(--muted);margin-top:3px}
 .swprob,.swrule{margin-top:8px;font-size:12.5px;border-radius:10px;padding:8px 10px}
-.swprob,.swrule.bad{background:rgba(255,107,107,.14);border:1px solid rgba(255,107,107,.45);color:#FFC9C9}
-.swrule.ok{background:rgba(53,214,164,.14);border:1px solid rgba(53,214,164,.5);color:#9BF0D5}
+.swprob,.swrule.bad{background:var(--bad);border:1px solid rgba(255,107,107,.45);color:var(--bad-ink)}
+.swrule.ok{background:var(--ok);border:1px solid rgba(53,214,164,.5);color:var(--ok-ink)}
 .swact{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
 
 .chg{border-left:3px solid var(--warn,#FBBF24);background:rgba(251,191,36,.07)}
@@ -428,7 +483,7 @@ textarea.ta{width:100%;background:var(--panel);border:1px solid var(--line2);bor
 .edu{font-weight:600;font-size:13.5px}
 .edw{font-family:var(--mono);font-size:12px;color:var(--dim);text-align:right}
 .cpick{cursor:pointer;font:inherit;font-size:12.5px}
-.cpick.on{background:var(--signal);border-color:var(--signal);color:#04121e;font-weight:600}
+.cpick.on{background:var(--signal);border-color:var(--signal);color:var(--ground);font-weight:600}
 .shh{display:flex;align-items:center;gap:8px;font-weight:700;margin-bottom:4px}
 .lgh{font-weight:600;font-size:13.5px}
 .tagw{font-size:10px;letter-spacing:.05em;text-transform:uppercase;background:#fff7ed;color:#9a3412;
@@ -462,12 +517,12 @@ body.locked header,body.locked main,body.locked .tabs{display:none}
 .siI:focus{outline:2px solid var(--signal);outline-offset:1px}
 /* Belt and braces for anything typed into that does not carry .inp or .siI. */
 input,select,textarea{font-size:16px}
-.siB{width:100%;margin-top:16px;background:var(--signal);border:0;color:#04121e;font:inherit;
+.siB{width:100%;margin-top:16px;background:var(--signal);border:0;color:var(--ground);font:inherit;
   font-weight:700;font-size:15px;border-radius:10px;padding:13px;cursor:pointer}
 .siMsg{display:none;margin-top:12px;font-size:13px;border-radius:9px;padding:9px 11px;
   background:var(--panel2);border:1px solid var(--line2);color:var(--dim)}
 .siMsg.on{display:block}
-.siMsg.bad{border-color:#F87171;color:#FCA5A5;background:rgba(248,113,113,.1)}
+.siMsg.bad{border-color:var(--alert);color:var(--bad-ink);background:rgba(248,113,113,.1)}
 .siNote{color:var(--faint);font-size:12px;margin-top:14px;line-height:1.5}
 .siNote a{color:var(--signal)}
 
@@ -488,19 +543,19 @@ input,select,textarea{font-size:16px}
 .siCard{position:relative;overflow:hidden;box-shadow:0 14px 40px rgba(0,0,0,.34);
   border-radius:18px;padding:24px 22px;animation:siRise .22s ease-out}
 .siCard::before{content:'';position:absolute;inset:0 0 auto 0;height:2px;
-  background:linear-gradient(90deg,#FF6B6B,#FFC94D,#4ADE80,#60A5FA,#818CF8,#F472B6);opacity:.85}
+  background:linear-gradient(90deg,#FF6B6B,#FFC94D,var(--signal),#60A5FA,#818CF8,#F472B6);opacity:.85}
 @keyframes siRise{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
 @media (prefers-reduced-motion:reduce){.siCard{animation:none}}
 .siLogo{font-size:22px;line-height:1}
 .siH{font-family:var(--mono);font-size:23px;margin:10px 0 2px;font-weight:600;letter-spacing:-.025em}
 .siSub{color:var(--dim);font-size:12.5px;margin-bottom:2px;letter-spacing:.01em}
 .siI{border-radius:11px;padding:13px 14px;transition:border-color .15s}
-.siI:hover{border-color:#3B506A}
+.siI:hover{border-color:var(--line2)}
 .siI::placeholder{color:var(--faint)}
 .siB{transition:transform .06s ease,filter .15s;font-size:15.5px;padding:14px}
 .siB:active{transform:translateY(1px)}
 .siB:hover{filter:brightness(1.06)}
-.siGhost:hover{border-color:#3B506A}
+.siGhost:hover{border-color:var(--line2)}
 
 /* secondary actions read as secondary here too */
 .siGhost{opacity:.92;font-size:13.5px;padding:12px}
@@ -511,7 +566,7 @@ input,select,textarea{font-size:16px}
 .admbar{display:flex;gap:6px;padding:8px 14px 10px;border-top:1px solid var(--line)}
 .ab{flex:1;background:var(--panel2);border:1px solid var(--line2);color:var(--dim);
   font:inherit;font-size:12.5px;border-radius:9px;padding:8px 6px;cursor:pointer}
-.ab.on{background:var(--signal);border-color:var(--signal);color:#04121e;font-weight:650}
+.ab.on{background:var(--signal);border-color:var(--signal);color:var(--ground);font-weight:650}
 .admwrap{padding:18px 16px}
 .pitem .nm{font-size:15px}
 
@@ -526,7 +581,7 @@ input,select,textarea{font-size:16px}
 .gatetop{display:flex;gap:8px;margin-bottom:14px}
 .gback{background:var(--panel2);border:1px solid var(--line2);color:var(--ink);font:inherit;
   font-size:13px;border-radius:9px;padding:8px 14px;cursor:pointer}
-.gback:hover{border-color:#3B506A}
+.gback:hover{border-color:var(--line2)}
 
 .admwrap{padding:0}
 #admFrame{width:100%;height:calc(100vh - 118px);border:0;background:#f1f5f9;display:block}
@@ -546,18 +601,18 @@ body.adminmode main{padding:0}
   .admload{padding:18px 14px}
 }
 
-.viewbar{padding:7px 14px;background:rgba(74,222,128,.10);border-top:1px solid var(--line);
+.viewbar{padding:7px 14px;background:var(--ok);border-top:1px solid var(--line);
   color:var(--dim);font-size:12.5px}
 .viewbar b{color:var(--ink)}
 
 /* --card and --muted were used by the swap pane but never defined, so those cards had no
    background and their names inherited a colour meant for a light surface — invisible on the
    dark ground. Alias them to the real tokens rather than hunting every use. */
-:root{--card:#16212E;--muted:#8A9BAD}
+:root{--card:var(--panel);--muted:#8A9BAD}
 /* the rule verdicts were light-mode boxes (near-white) with light text on top */
-.swprob{background:rgba(248,113,113,.12)!important;border:1px solid #F87171!important;color:#FCA5A5!important}
-.swrule.bad{background:rgba(248,113,113,.12)!important;border:1px solid #F87171!important;color:#FCA5A5!important}
-.swrule.ok{background:rgba(74,222,128,.12)!important;border:1px solid #4ADE80!important;color:#86EFAC!important}
+.swprob{background:rgba(248,113,113,.12)!important;border:1px solid var(--alert)!important;color:var(--bad-ink)!important}
+.swrule.bad{background:rgba(248,113,113,.12)!important;border:1px solid var(--alert)!important;color:var(--bad-ink)!important}
+.swrule.ok{background:rgba(74,222,128,.12)!important;border:1px solid var(--signal)!important;color:#86EFAC!important}
 .swwho{color:var(--dim)}
 .swcard{background:var(--panel);border:1px solid var(--line)}
 
@@ -567,7 +622,7 @@ body.adminmode main{padding:0}
   text-overflow:ellipsis;white-space:nowrap}
 .acctout{background:transparent;border:1px solid var(--line2);color:var(--ink);font:inherit;
   font-size:12px;border-radius:8px;padding:6px 12px;min-height:34px;cursor:pointer}
-.acctout:hover{border-color:#3B506A}
+.acctout:hover{border-color:var(--line2)}
 
 .mgrid{display:flex;flex-direction:column;gap:8px;margin-top:8px}
 .mrow{display:flex;align-items:center;gap:10px;background:var(--panel2);border:1px solid var(--line);
@@ -580,7 +635,7 @@ body.adminmode main{padding:0}
   background:var(--panel2);border:1px solid var(--line2);color:var(--dim)}
 .msg.on{display:block}
 .msg.ok{border-color:var(--signal);color:#86EFAC}
-.msg.bad{border-color:#F87171;color:#FCA5A5}
+.msg.bad{border-color:var(--alert);color:var(--bad-ink)}
 
 .wk7{display:flex;flex-direction:column;gap:6px;margin-top:10px}
 .w7d{display:grid;grid-template-columns:76px 1fr;gap:10px;align-items:center;background:var(--panel);
@@ -599,7 +654,7 @@ body.adminmode main{padding:0}
   font-size:12.5px;color:var(--dim);font-family:var(--mono)}
 .navb{background:var(--panel2);border:1px solid var(--line2);color:var(--ink);font:inherit;
   font-size:15px;line-height:1;border-radius:8px;min-width:34px;min-height:34px;cursor:pointer}
-.navb:hover{border-color:#3B506A}
+.navb:hover{border-color:var(--line2)}
 .sec{display:flex;align-items:center}
 .onrow{display:grid;grid-template-columns:9px 128px 1fr;gap:9px;align-items:baseline;
   padding:7px 0;border-bottom:1px solid var(--line)}
@@ -611,7 +666,7 @@ body.adminmode main{padding:0}
 
 .gpick{display:flex;flex-wrap:wrap;gap:5px;margin:10px 0}
 .gp{cursor:pointer;font-size:12px;padding:5px 10px}
-.gp.on{background:var(--signal);border-color:var(--signal);color:#04121e;font-weight:650}
+.gp.on{background:var(--signal);border-color:var(--signal);color:var(--ground);font-weight:650}
 .gwrap{overflow-x:auto;margin-top:12px;border:1px solid var(--line);border-radius:12px}
 .gtab{border-collapse:collapse;font-size:11px;min-width:100%}
 .gtab th.gn{position:sticky;left:0;background:var(--panel);text-align:left;padding:6px 10px;
@@ -698,6 +753,25 @@ function testToday(){
 }
 const todayISO=()=>testToday()||realTodayISO();
 const META=s=>DATA.meta[s]||{label:s,sub:'',kind:'other',color:'#7C8FA6'};
+/* THE INK ON A COLOURED CHIP FOLLOWS THE CHIP, NOT THE THEME. These were drawn with the page's
+   own background colour as the text — near-black on dark, which works on a bright unit colour
+   and fails on a dim one, and near-white in light mode, which fails on nearly all of them. The
+   unit colours are fixed by the client and cannot be re-picked, so the text has to be chosen
+   per chip: black on a light colour, white on a dark one. */
+function chipLum(hex){
+  const h=String(hex||'').replace('#','');
+  if(h.length!==6)return 1;
+  const v=[0,2,4].map(i=>parseInt(h.slice(i,i+2),16)/255)
+    .map(x=>x<=.03928?x/12.92:Math.pow((x+.055)/1.055,2.4));
+  return .2126*v[0]+.7152*v[1]+.0722*v[2];
+}
+// Both ratios are worked out and the better one wins, rather than guessing where the crossover
+// sits. A guessed threshold of .42 put white on the mid-tone reds and blues, where black is
+// nearly three times the contrast — the real crossover is about .18.
+function chipInk(hex){
+  const L=chipLum(hex);
+  return ((L+.05)/.05) >= (1.05/(L+.05)) ? '#0B1220' : '#FFFFFF';
+}
 // An Admin block on a meeting day is the meeting. Everywhere the portal names a shift it asks
 // this first, so the answer cannot differ between the calendar, the day sheet and the list.
 const mtgTag=(person,iso)=>((DATA.adminMtg||{})[iso]||{})[person]||null;
@@ -760,7 +834,7 @@ function renderGate(filter){
   const list=$('#gateList');list.innerHTML='';
   const q=(filter||'').trim().toLowerCase();
   const ppl=DATA.people.filter(n=>!q||n.toLowerCase().includes(q)||((DATA.providers[n].first||'').toLowerCase().includes(q)));
-  if(!ppl.length){list.innerHTML='<div style="padding:16px;color:#8AA0B4;font-size:13.5px">No one by that name. Check the spelling, or ask Sam to add you.</div>';return;}
+  if(!ppl.length){list.innerHTML='<div style="padding:16px;color:var(--dim);font-size:13.5px">No one by that name. Check the spelling, or ask Sam to add you.</div>';return;}
   ppl.forEach(n=>{
     const p=DATA.providers[n];
     // Names only. Employed / APP / moonlighter / partner is a contracting distinction and has
@@ -873,7 +947,7 @@ $('#whoami').onclick=e=>{
   if(CAN_SWITCH){ e.stopPropagation(); togglePicker(); return; }
   const who=(ACCT&&ACCT.label)||fullOf(ME)||'—';
   sheet('Your account',`
-    <div class="row" style="margin-top:0"><span class="sp" style="background:#35D6A4"></span>
+    <div class="row" style="margin-top:0"><span class="sp" style="background:var(--signal)"></span>
       <span><span class="t">${esc(who)}</span><span class="s">${ROLE==='admin'?'Administrator — full dashboard access':'Signed in'}</span></span></div>
     ${ME?`<div class="row"><span class="sp" style="background:var(--line2)"></span>
       <span><span class="t">Viewing</span><span class="s">${esc(fullOf(ME))}’s schedule</span></span></div>`:''}
@@ -1468,7 +1542,14 @@ function renderSched(){
         if(shown.length){
           const ds=shown.filter(s=>META(s).kind!=='noc'),ns=shown.filter(s=>META(s).kind==='noc');
           if(ds.length&&ns.length){       // 24h combo — diagonal split
-            inner=`<span class="blk split" style="background:linear-gradient(112deg,${META(ds[0]).color} 0 50%,${META(ns[0]).color} 50% 100%)" title="24-hour shift">24h</span>`;
+            // Two colours under one label: take the ink that suits the darker half, so the
+            // word cannot disappear into whichever end it happens to sit over.
+            const _a=META(ds[0]).color,_b=META(ns[0]).color;
+            // Whichever ink is least bad across both halves of the gradient.
+            const _worst=f=>Math.min(...[_a,_b].map(c=>{const L=chipLum(c);
+              return f==='#0B1220'?(L+.05)/.05:1.05/(L+.05);}));
+            const _ink=_worst('#0B1220')>=_worst('#FFFFFF')?'#0B1220':'#FFFFFF';
+            inner=`<span class="blk split" style="background:linear-gradient(112deg,${_a} 0 50%,${_b} 50% 100%);color:${_ink};text-shadow:0 1px 1px rgba(0,0,0,.35)" title="24-hour shift">24h</span>`;
           }else if(ns.length){
             // every night used to read "NOC" whatever the site, so a month of nights gave no
             // clue whether they were SAH, Porter or Littleton
@@ -1476,10 +1557,10 @@ function renderSched(){
             // The moon already says night, so the cell names the SITE: ☾ SAH, ☾ PTR, ☾ LAH.
             // Spelling out "SAH NOC" beside it clipped at phone width.
             const site=String(nm.short||'NOC').replace(/\s*NOC\s*/,' ').trim()||'NOC';
-            inner=`<span class="blk noc" style="background:${nm.color}">☾ ${esc(site)}</span>`;
+            inner=`<span class="blk noc" style="background:${nm.color};color:${chipInk(nm.color)}">☾ ${esc(site)}</span>`;
           }else{
             const m=META(ds[0]);
-            inner=`<span class="blk" style="background:${m.color}">${
+            inner=`<span class="blk" style="background:${m.color};color:${chipInk(m.color)}">${
               esc(shiftLabel(ME,iso,ds[0],true))}</span>`;
           }
         }
@@ -1497,13 +1578,13 @@ function renderSched(){
         if(isNow)spoken.unshift('Today');
         html+=`<div class="cell${shown.length?' on':''}${isNow?' today':''}" data-iso="${iso}" role="button" tabindex="0" aria-label="${esc(spoken.join(', '))}">
           <span class="n" aria-hidden="true">${d}</span>${inner}
-          ${onReq?'<span class="req" aria-hidden="true">●</span>':(offReq&&!cmeReq&&!shown.length)?'<span class="req" aria-hidden="true" style="color:#8AA0B4">○</span>':''}</div>`;
+          ${onReq?'<span class="req" aria-hidden="true">●</span>':(offReq&&!cmeReq&&!shown.length)?'<span class="req" aria-hidden="true" style="color:var(--dim)">○</span>':''}</div>`;
       }
       html+='</div></div>';
     });
-    html+=`<div class="note"><b style="color:#E8EEF4">Reading the calendar.</b> Colour = the unit. A moon marks an overnight;
-      a split cell is a 24-hour shift. <b style="color:#C3DBFF">CME</b> marks a CME day.
-      ● is a day you asked to work, ○ a day off you requested. <b style="color:#35D6A4">Today</b>
+    html+=`<div class="note"><b style="color:var(--ink)">Reading the calendar.</b> Colour = the unit. A moon marks an overnight;
+      a split cell is a 24-hour shift. <b style="color:var(--info-ink)">CME</b> marks a CME day.
+      ● is a day you asked to work, ○ a day off you requested. <b style="color:var(--signal)">Today</b>
       is ringed in green. Tap any day for the details.</div>`;
   }else{
     const all=myShifts(ME).sort(byTime);
@@ -1594,7 +1675,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260820.2151';           // shown in the account bar so a stale app is obvious
+const BUILD='260820.2225';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 let SESSION=null, CFG=null, MYREQ=null, MYSWAPS=[];
 const api=async(path,opts={})=>{
@@ -1714,7 +1795,7 @@ async function maybeOfferFaceId(){
         'from the Swaps tab.':m;
       msg.className='msg on bad'; btn.disabled=false; btn.textContent='Turn on '+face;
     }
-    paintFaceId();
+    paintSignIn();
   };
 }
 
@@ -2039,93 +2120,74 @@ async function pushState(){
 }
 /* A permanent home for Face ID, beside notifications. The one-time offer below is easy to
    decline by reflex, and an offer you can never find again is a feature that does not exist. */
-function faceIdCard(){
-  return `<div class="swcard" id="faceCard">
-    <div class="lgh">Face ID / Touch ID</div>
-    <div class="sub">Sign in with your face or fingerprint instead of typing your password. The
-      key stays in this phone's secure hardware — it is never sent anywhere and we never see it.</div>
-    <div id="faceBody" class="sub" style="margin-top:8px">Checking…</div>
-  </div>`;
-}
-async function paintFaceId(){
-  const box=document.querySelector('#faceBody'); if(!box)return;
-  if(!(await pkAvailable())){
-    box.innerHTML='This device cannot do this — it has no Face ID, Touch ID or device passcode '+
-      'set up, or the browser does not support it.';
-    return;
-  }
-  let list=[];
-  try{ list=(await api('/passkey',{method:'POST',body:JSON.stringify({action:'list'})})).passkeys||[]; }
-  catch(e){ box.textContent='Could not check.'; return; }
-  if(list.length){
-    box.innerHTML='<b style="color:var(--signal)">On.</b> '+
-      list.map(k=>esc(k.label||'A device')).join(', ')+
-      '. Turn it on separately on any other phone you use.'+
-      '<div class="btnrow" style="margin-top:9px"><button class="btn" id="faceAdd">Add this device</button>'+
-      '<button class="btn" id="faceOff">Turn off</button></div>';
-    document.querySelector('#faceOff').onclick=async()=>{
-      for(const k of list){
-        try{await api('/passkey',{method:'POST',body:JSON.stringify({action:'remove',id:k.id})});}catch(e){}
-      }
-      try{localStorage.removeItem('ccpsa_passkey');}catch(e){}
-      toast('Face ID turned off'); paintFaceId();
-    };
-  }else{
-    box.innerHTML='<div class="btnrow"><button class="btn pri" id="faceAdd">Turn on Face ID</button></div>';
-  }
-  const add=document.querySelector('#faceAdd');
-  if(add)add.onclick=async()=>{
-    add.disabled=true; const was=add.textContent; add.textContent='…';
-    try{ await enrollPasskey(); toast('Face ID is on'); }
-    catch(e){ const m=String((e&&e.message)||e);
-              toast(/NotAllowed|Cancel|abort/i.test(m)?'Cancelled':m); }
-    add.disabled=false; add.textContent=was; paintFaceId();
-  };
-}
-
-/* SIGNING OUT A LOST PHONE. Device trust lasts ninety days, which is right for a schedule
-   somebody checks between patients and wrong for a phone left in a taxi. There is no server-side
-   list of sessions to delete — they are signed claims held by the browser — so this is a
-   timestamp on the account that anything older than is refused.
-
-   Shown to the person themselves and to an admin viewing them, because the physician who has
-   just lost the phone is the one who knows it, and the admin is the one who can act at 2am. */
-function devicesCard(){
+function signInCard(){
   if(!ME)return '';
   const whose=onBehalf()?fullOf(ME):null;
-  return `<div class="swcard" id="devCard">
-    <div class="lgh">${whose?esc(whose)+"'s devices":'Signed-in devices'}</div>
-    <div class="sub">A phone stays signed in for 90 days so the schedule is one tap away. If one
-      is lost, sign it out — the schedule is on it until you do.</div>
-    <div id="devBody" class="sub" style="margin-top:8px">Checking…</div>
+  return `<div class="swcard" id="signinCard">
+    <div class="lgh">${whose?esc(whose)+"'s sign-in":'How you sign in'}</div>
+    <div id="signinBody" class="sub" style="margin-top:6px">Checking…</div>
   </div>`;
 }
-async function paintDevices(){
-  const box=$('#devBody'); if(!box)return;
+
+/* ONE CARD, ONE REQUEST. Face ID and signed-in devices were separate cards that each fetched on
+   render — two round trips, two "Checking…" spinners, and a settings screen that sat blank for a
+   second while three things loaded. They are one subject anyway: how you get in, and what is
+   currently let in. /account {action:'devices'} already returns the passkeys, so both come back
+   in a single answer. */
+async function paintSignIn(){
+  const box=$('#signinBody'); if(!box)return;
+  const can=await pkAvailable();
   let d=null;
   try{ d=await api('/account',{method:'POST',
         body:JSON.stringify({action:'devices',...(onBehalf()?{person:ME}:{})})}); }
   catch(e){ box.textContent='Could not check.'; return; }
-  const bits=[];
-  bits.push(d.lastLogin?'Last signed in '+esc(new Date(d.lastLogin).toLocaleString()):'Never signed in');
-  if((d.passkeys||[]).length)bits.push((d.passkeys||[]).length+' device'+
-    ((d.passkeys||[]).length===1?'':'s')+' set up with Face ID');
-  if(d.signedOutAt)bits.push('All devices signed out '+esc(new Date(d.signedOutAt).toLocaleString()));
-  box.innerHTML=bits.join(' · ')+
-    '<div class="btnrow" style="margin-top:9px"><button class="btn" id="devOut">Sign out all devices</button></div>';
-  document.querySelector('#devOut').onclick=async()=>{
-    const b=document.querySelector('#devOut');
-    b.disabled=true; b.textContent='…';
+  const keys=d.passkeys||[];
+  const face=/iPhone|iPad/.test(navigator.userAgent)?'Face ID':'Face ID or a fingerprint';
+
+  let h='<div class="setrow"><span class="setk">'+esc(face)+'</span><span class="setv">'+
+    (keys.length
+      ? '<b style="color:var(--signal)">On</b> · '+keys.map(k=>esc(k.label||'a device')).join(', ')
+      : (can?'Off':'This device cannot'))+'</span></div>';
+  h+='<div class="setrow"><span class="setk">Last signed in</span><span class="setv">'+
+    (d.lastLogin?esc(new Date(d.lastLogin).toLocaleString()):'never')+'</span></div>';
+  if(d.signedOutAt)h+='<div class="setrow"><span class="setk">All devices signed out</span>'+
+    '<span class="setv">'+esc(new Date(d.signedOutAt).toLocaleString())+'</span></div>';
+  h+='<div class="btnrow" style="margin-top:10px">';
+  if(can)h+='<button class="btn'+(keys.length?'':' pri')+'" id="faceAdd">'+
+    (keys.length?'Add this device':'Turn on '+esc(face))+'</button>';
+  if(keys.length)h+='<button class="btn" id="faceOff">Turn off</button>';
+  h+='<button class="btn" id="devOut">Sign out all devices</button></div>';
+  h+='<div class="note" style="margin-top:8px">A phone stays signed in for 90 days. If one is '+
+     'lost, sign it out — your schedule is on it until you do.</div>';
+  box.innerHTML=h;
+
+  const add=$('#faceAdd');
+  if(add)add.onclick=async()=>{
+    add.disabled=true; const was=add.textContent; add.textContent='…';
+    try{ await enrollPasskey(); toast(face+' is on'); }
+    catch(e){ const m=String((e&&e.message)||e);
+              toast(/NotAllowed|Cancel|abort/i.test(m)?'Cancelled':m); }
+    add.disabled=false; add.textContent=was; paintSignIn();
+  };
+  const off=$('#faceOff');
+  if(off)off.onclick=async()=>{
+    for(const k of keys){
+      try{await api('/passkey',{method:'POST',body:JSON.stringify({action:'remove',id:k.id})});}catch(e){}
+    }
+    try{localStorage.removeItem('ccpsa_passkey');}catch(e){}
+    toast(face+' turned off'); paintSignIn();
+  };
+  $('#devOut').onclick=async()=>{
+    const b=$('#devOut'); b.disabled=true; b.textContent='…';
     try{
-      const r=await api('/account',{method:'POST',
+      await api('/account',{method:'POST',
         body:JSON.stringify({action:'signOutEverywhere',...(onBehalf()?{person:ME}:{})})});
       toast('Signed out — they will have to sign in again');
-      // Signing yourself out everywhere has to sign THIS device out too, or the one browser it
-      // did not affect is the one you are holding.
       if(!onBehalf()){ try{localStorage.removeItem('__dev');sessionStorage.clear();}catch(e){}
                        setTimeout(()=>location.reload(),700); return; }
-      paintDevices();
-    }catch(e){ toast(e.message||'Could not sign them out'); b.disabled=false; b.textContent='Sign out all devices'; }
+      paintSignIn();
+    }catch(e){ toast(e.message||'Could not sign them out'); b.disabled=false;
+               b.textContent='Sign out all devices'; }
   };
 }
 
@@ -2253,8 +2315,7 @@ function wireCoverage(){
   });
   const rc=document.querySelector('#reqCover'); if(rc)rc.onclick=openCoverAsk;
   paintNotify();
-  paintFaceId();
-  paintDevices();
+  paintSignIn();
 }
 function openCoverAsk(){
   const shifts=myShifts(ME).filter(s=>s.iso>=todayISO());
@@ -2316,7 +2377,7 @@ function renderSwap(){
   };
 
   pane.innerHTML=`<div class="btnrow"><button class="btn pri" id="reqCover">Request coverage</button></div>
-    ${notifyCard()}${faceIdCard()}${devicesCard()}${coverageCard()}
+    ${notifyCard()}${signInCard()}${coverageCard()}
     <h2 class="sec">Ask someone to cover a shift</h2>
     ${mine.length?`
     <div class="swapform">
@@ -2385,6 +2446,13 @@ function renderSwap(){
     act('[data-rj]',{action:'reject'});
     act('[data-ov]',{action:'approve',override:true});
   }
+  /* WIRING BELONGS WITH RENDERING. wireCoverage() was called from one place — the moment you
+     navigate to this tab — while renderSwap() is called from nine: after loading, after a live
+     refresh, after sending a request, after claiming one. Every one of those replaced the
+     buttons with fresh HTML carrying no handlers, so "I'll take it" did nothing at all unless
+     the tab had just been opened and nothing had happened since. Re-rendering must not be able
+     to leave dead buttons behind. */
+  wireCoverage();
 }
 
 async function loadSwaps(){
@@ -2394,7 +2462,7 @@ async function loadSwaps(){
 
 function candRow(p,cta,mode,back){
   const pr=DATA.providers[p]||{};
-  return `<div class="row"><span class="sp" style="background:#35D6A4"></span>
+  return `<div class="row"><span class="sp" style="background:var(--signal)"></span>
     <span><span class="t">${esc(pr.first?pr.first+' '+p:p)}</span><span class="s">${esc(cta)}</span></span>
     <button class="btn" data-cand="${esc(p)}" data-mode="${mode}" ${back?`data-back="${esc(back)}"`:''}
       style="width:auto;padding:8px 12px;font-size:12.5px;margin-left:auto;flex:none">${mode==='cover'?'Ask':'Trade'}</button></div>`;
@@ -2433,7 +2501,7 @@ function openDay(iso){
     if(a.s.filter(s=>META(s).kind!=='noc').length&&a.s.some(s=>META(s).kind==='noc'))
       b+=`<div class="note"><span class="pill warn">24-hour shift</span> Two full days off follow.</div>`;
   }else if(offReq||cmeReq){
-    b+=`<div class="row" style="margin-top:8px"><span class="sp" style="background:#35D6A4"></span>
+    b+=`<div class="row" style="margin-top:8px"><span class="sp" style="background:var(--signal)"></span>
       <span><span class="t">Off — you asked for it</span><span class="s">${cmeReq?'CME':'Requested day off'} · granted</span></span></div>`;
   }else{
     b+=`<div class="row" style="margin-top:8px"><span class="sp" style="background:var(--line2)"></span>
@@ -2744,7 +2812,7 @@ function go(t){
   if(t==='now')renderNow();
   if(t==='sched')renderSched();
   if(t==='req')renderReq();
-  if(t==='swap'){renderSwap();wireCoverage();}
+  if(t==='swap')renderSwap();      // renderSwap wires its own buttons
   if(t==='edit')renderEdit();
   if(t==='admin')renderAdmin();
 }
@@ -2800,6 +2868,43 @@ function testDateBar(){
   if(r)r.onclick=()=>{ try{localStorage.removeItem('__today');}catch(err){} location.reload(); };
 }
 
+/* ---------- light or dark ----------
+   No stored choice means follow the phone, which is already somebody's answer to this question.
+   A tap makes it explicit and that choice sticks; the system stops being consulted from then on,
+   because someone who has chosen does not want their preference re-litigated at sunset. */
+function storedTheme(){ try{return localStorage.getItem('ccpsa_theme')||'';}catch(e){return '';} }
+function systemTheme(){ return matchMedia('(prefers-color-scheme: light)').matches?'light':'dark'; }
+function currentTheme(){ return storedTheme()||systemTheme(); }
+function setTheme(t){
+  try{localStorage.setItem('ccpsa_theme',t);}catch(e){}
+  document.documentElement.setAttribute('data-theme',t);
+  const m=document.querySelector('meta[name=theme-color]');
+  if(m)m.setAttribute('content',t==='light'?'#F4F7FA':'#0E1621');
+  paintThemeBtn();
+}
+function paintThemeBtn(){
+  const b=document.querySelector('#themeBtn'); if(!b)return;
+  // The icon is what you will GET, not what you are on — a sun while already light is a puzzle.
+  b.textContent=currentTheme()==='light'?'☾':'☀';
+}
+// Applied before anything renders, or the app flashes the wrong theme on every open. This is
+// also what makes ONE light palette enough: the system preference is turned into the same
+// data-theme attribute an explicit choice sets, so the stylesheet needs no media-query copy of
+// the values to drift out of step with.
+(function(){
+  const apply=()=>{
+    const t=currentTheme();
+    document.documentElement.setAttribute('data-theme',t);
+    const m=document.querySelector('meta[name=theme-color]');
+    if(m)m.setAttribute('content',t==='light'?'#F4F7FA':'#0E1621');
+    paintThemeBtn();
+  };
+  apply();
+  matchMedia('(prefers-color-scheme: light)').addEventListener('change',()=>{
+    if(!storedTheme())apply();          // still following the phone
+  });
+})();
+
 function accountBar(){
   // There was only a name chip that opened a sheet; people looked for "sign out" and found
   // nothing. Make it explicit and always present.
@@ -2810,9 +2915,14 @@ function accountBar(){
   a.innerHTML='<button class="acctwho" id="profileBtn" title="Day equivalents and block totals">'+
     esc((ACCT&&ACCT.person)||'Signed in')+(ROLE==='admin'?' · admin':'')+
     (ME?' <span class="chev">▾</span>':'')+'</button>'+
+    '<button class="accttheme" id="themeBtn" aria-label="Switch between light and dark" '+
+      'title="Light or dark. Follows your phone until you choose."></button>'+
     '<span class="acctbuild" title="Which version of the app you are running. '+
       'If this is older than the one you were told about, pull down to refresh.">'+esc(BUILD)+'</span>'+
     '<button class="acctout" id="signOutBtn">Sign out</button>';
+  paintThemeBtn();
+  const tb=document.querySelector('#themeBtn');
+  if(tb)tb.onclick=()=>{ setTheme(currentTheme()==='light'?'dark':'light'); };
   const pb=document.querySelector('#profileBtn');
   if(pb)pb.onclick=()=>ME?openBlockStats():null;
   document.querySelector('#signOutBtn').onclick=()=>{
