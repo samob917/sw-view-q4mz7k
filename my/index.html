@@ -1732,7 +1732,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260821.1149';           // shown in the account bar so a stale app is obvious
+const BUILD='260821.1233';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 let SESSION=null, CFG=null, MYREQ=null, MYSWAPS=[];
 // The admin approvals queue. Declared up here with the rest of the state, not beside the code
@@ -2470,7 +2470,10 @@ async function openOffer(id){
       $('#ofOk').disabled=true; $('#ofNo').disabled=true;
       try{ await api('/coverage',{method:'PATCH',body:JSON.stringify({id:o.id,action})});
            closeSheet(); toast(action==='approve'?'Approved — the schedule is updated':'Declined');
-           await loadCoverage(); await refreshLive(true); if(CUR==='swap')renderSwap(); }
+           await loadCoverage(); await refreshLive(true); if(CUR==='swap')renderSwap();
+           // Deciding from a notification leaves you standing on the desk; the card that was
+           // just handled has to come off it, and the count with it.
+           if(onAdminHome()){ await loadAdminQueue(); renderAdminHome(); adminBar(); } }
       catch(e){ m.textContent=e.message||'Could not save'; m.className='msg on bad';
                 $('#ofOk').disabled=false; $('#ofNo').disabled=false; }
     };
@@ -4040,15 +4043,40 @@ function goFromUrl(u){
     // restore the tab bar or drop body.adminmode — both of those are switched off by hand when
     // you leave. Without this you landed on the right tab with no tab bar to leave it by.
     hideAdminHome(); hideAdminView();
-    if(typeof go==='function')go(tab);
+    // as=me means "your own queue". For an admin that is now a real page — the approvals desk —
+    // and it carries the same approve/reject buttons. Dropping a person-less admin on the Swaps
+    // TAB put them on a physician's page with an empty swap form behind the sheet, and nothing
+    // useful under it if the offer had already been handled.
+    if(as==='me'&&ROLE==='admin')showAdminHome();
+    else if(typeof go==='function')go(tab);
     // The notification was about one thing; open that thing rather than the tab it lives on.
-    if(offer)setTimeout(()=>openOffer(offer),350);
+    if(offer)openOffer(offer);
   };
-  if(BOOTED)land(); else setTimeout(land,900);      // wait for the schedule to be on screen
-  try{ const clean=new URL(location.href);
-       clean.searchParams.delete('go');
-       clean.searchParams.delete('as'); clean.searchParams.delete('offer');
-       history.replaceState(null,'',clean.pathname+clean.search+clean.hash); }catch(e){}
+  /* WAITING FOR A FIXED 900ms WAS A GUESS, AND IT LOST.
+     goFromUrl runs at parse time, long before sign-in has finished: /api/session, then
+     /api/portal with 160KB of schedule behind it. On a cold app open over cellular that is
+     routinely more than 900ms, and when land() fired early there was no session yet — so
+     openOffer found an empty COVER, gave up with "that request is no longer there", and boot()
+     then moved the person somewhere else entirely. Intermittent by construction: fast network,
+     works; slow network, silently lands you nowhere near the decision.
+     Wait for the app to actually BE ready instead, and keep the parameters until it is, so
+     nothing is thrown away while we are still waiting. */
+  const clearUrl=()=>{
+    try{ const clean=new URL(location.href);
+         clean.searchParams.delete('go');
+         clean.searchParams.delete('as'); clean.searchParams.delete('offer');
+         history.replaceState(null,'',clean.pathname+clean.search+clean.hash); }catch(e){}
+  };
+  const t0=Date.now();
+  (function ready(){
+    // BOOTED alone is not enough — boot() can run before the API has answered. openOffer needs
+    // a session to load the offer, and go() needs DATA to render anything at all.
+    if(BOOTED&&DATA&&SESSION){ land(); clearUrl(); return; }
+    // Give up after 20s and land anyway: offline, the app should still go somewhere sensible
+    // rather than sit on the last screen forever with the notification unanswered.
+    if(Date.now()-t0>20000){ land(); clearUrl(); return; }
+    setTimeout(ready,120);
+  })();
   return true;
 }
 goFromUrl();
