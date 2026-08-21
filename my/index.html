@@ -617,6 +617,35 @@ body.adminmode main{padding:0}
   .admload{padding:18px 14px}
 }
 
+/* ---------- admin home: the approvals desk ----------
+   An admin with no schedule of their own had nowhere of their own to land — either a physician's
+   page or a dashboard iframe, neither of which is theirs. This is: everything waiting on a
+   decision, in one column, with the two buttons next to each thing. */
+.homewrap{padding:16px 0 26px}
+.hgreet{font-size:19px;font-weight:800;letter-spacing:-.02em;margin:2px 0 3px}
+.hsub{color:var(--dim);font-size:13px;line-height:1.5;margin-bottom:16px}
+.qcard{background:var(--panel);border:1px solid var(--line);border-radius:14px;
+  padding:13px 14px;margin-bottom:10px}
+.qk{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);
+  font-weight:700;margin-bottom:5px}
+.qt{font-size:15px;font-weight:650;line-height:1.35}
+.qw{color:var(--dim);font-size:13px;line-height:1.5;margin-top:4px}
+.qrule{font-size:12px;margin-top:7px;padding:6px 9px;border-radius:8px;line-height:1.45}
+.qrule.ok{background:var(--ok);color:var(--ok-ink)}
+.qrule.bad{background:var(--bad);color:var(--bad-ink)}
+.qact{display:flex;gap:8px;margin-top:11px;flex-wrap:wrap}
+.qact .btn{flex:1 1 104px;min-height:40px;width:auto}
+.hzero{border:1px dashed var(--line2);border-radius:13px;padding:30px 18px;text-align:center}
+.hzero .zt{font-size:15px;color:var(--ink);font-weight:650;margin-bottom:4px}
+.hzero .zs{color:var(--dim);font-size:13px;line-height:1.5}
+.hlinks{display:flex;gap:8px;margin-top:20px;flex-wrap:wrap}
+.hlinks .btn{flex:1 1 150px;min-height:42px;width:auto}
+/* The count is the whole point of the button — an admin should not have to open the page to
+   learn there is nothing on it. */
+.abadge{display:inline-block;min-width:17px;padding:0 5px;margin-left:5px;border-radius:9px;
+  background:var(--alert);color:#fff;font-size:10.5px;font-weight:750;line-height:17px}
+.ab.on .abadge{background:var(--ground);color:var(--signal)}
+
 .viewbar{padding:7px 14px;background:var(--ok);border-top:1px solid var(--line);
   color:var(--dim);font-size:12.5px}
 .viewbar b{color:var(--ink)}
@@ -822,9 +851,11 @@ const deN=x=>{const r=Math.round(x*10)/10; return Number.isInteger(r)?r:r.toFixe
    Identity is whoever the SERVER says you are. It used to come from decrypting a slot in the
    page, which meant the page had to contain everyone's schedule for anyone to read their own. */
 let ACCT=null, ADMIN_HTML=null, ROLE='doctor', CAN_SWITCH=false, ME=null;
-function setIdentity(person,role){
+function setIdentity(person,role,label){
   ROLE=role||'doctor';
-  ACCT={person,role:ROLE,label:person};
+  // The account key is the last resort, not the name: it reads as "sam" or "Greco". The API
+  // sends the label from the accounts table; a physician falls back to their own full name.
+  ACCT={person,role:ROLE,label:label||fullOf(person)||person};
   CAN_SWITCH=(ROLE==='admin');
   // A physician is fixed to themselves. An admin who is also a physician (Nadon) opens on their
   // OWN schedule with a toggle to the admin view; an admin who is not (Sam) has no schedule of
@@ -880,13 +911,16 @@ function openGate(){
   if(top){
     // The same three controls, not a lone back arrow: the overlay covers the header, so the
     // toggle has to exist here or it looks like it vanished.
-    top.innerHTML=(ROLE==='admin'?'<button class="gback" data-g="admin">Admin view</button>':'')+
+    top.innerHTML=(ROLE==='admin'
+        ?'<button class="gback" data-g="home">Home</button>'+
+         '<button class="gback" data-g="admin">Admin view</button>':'')+
       '<button class="gback on" data-g="pick">Physicians</button>';
     top.querySelectorAll('.gback').forEach(bt=>bt.onclick=()=>{
       const v=bt.dataset.g;
       if(v==='pick')return;
       closeGate();
-      if(v==='admin'){showAdminView();markBar('admin');}
+      if(v==='home'){showAdminHome();markBar('home');}
+      else if(v==='admin'){showAdminView();markBar('admin');}
       else{hideAdminView();if(ME){boot();}markBar('pick');}
     });
   }
@@ -950,7 +984,7 @@ function togglePicker(){
 }
 function restoreFromGate(){
   if(GATE_FROM==='admin'){showAdminView();markBar('admin');}
-  else{hideAdminView();markBar(ME?'pick':'admin');if(!ME)showAdminView();}
+  else{hideAdminView();markBar(ME?'pick':'home');if(!ME)showAdminHome();}
   // (openGate is kept only as the sign-in-time chooser; switching always uses the menu.)
 }
 function markBar(v){
@@ -1698,9 +1732,12 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260821.0003';           // shown in the account bar so a stale app is obvious
+const BUILD='260821.1149';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 let SESSION=null, CFG=null, MYREQ=null, MYSWAPS=[];
+// The admin approvals queue. Declared up here with the rest of the state, not beside the code
+// that fills it — adminBar() reads the count to paint its badge and runs early.
+let ADMINQ={cover:[],swaps:[],hol:[]};
 const api=async(path,opts={})=>{
   const h={'Content-Type':'application/json',...(opts.headers||{})};
   if(SESSION&&SESSION.token)h.Authorization='Bearer '+SESSION.token;
@@ -3057,6 +3094,11 @@ async function bootApi(){
   }
   if(CUR==='req')renderReq();
   if(CUR==='swap')renderSwap();
+  // The count on the Home button has to be true before anyone opens Home — an admin should be
+  // able to tell from the header that nothing is waiting.
+  if(ROLE==='admin'){
+    loadAdminQueue().then(()=>{ adminBar(); if(onAdminHome())renderAdminHome(); }).catch(()=>{});
+  }
 }
 /* ---------- the test site's date control ----------
    Reloading after a change is deliberate: every view computes from today at render time, and
@@ -3147,20 +3189,25 @@ function accountBar(){
     location.reload();
   };
 }
-// Two buttons: Admin view, Physicians. Which physician you are looking at is a SELECTION, not a
-// third mode — it persists until you change it from the ▾ chip at the top. Naming the person on
-// a toggle button made the header a three-way switch for something that is not a switch.
+// Three buttons: Home, Admin view, Physicians. Which physician you are looking at is a
+// SELECTION, not a fourth mode — it persists until you change it from the ▾ chip at the top.
+// Naming the person on a toggle button made the header a switch for something that is not one.
 function adminBar(){
   if(ROLE!=='admin')return;
   let bar=document.querySelector('#admBar');
   if(!bar){ bar=el('div','admbar');bar.id='admBar';document.querySelector('header').appendChild(bar); }
-  const onAdmin=!!document.querySelector('#admWrap.on');
-  bar.innerHTML='<button class="ab'+(onAdmin?' on':'')+'" data-v="admin">Admin view</button>'+
-    '<button class="ab'+(onAdmin?'':' on')+'" data-v="pick">Physicians</button>';
+  const onAdmin=!!document.querySelector('#admWrap.on'), onHome=onAdminHome();
+  const n=adminQCount();
+  bar.innerHTML='<button class="ab'+(onHome?' on':'')+'" data-v="home">Home'+
+      (n?'<span class="abadge">'+n+'</span>':'')+'</button>'+
+    '<button class="ab'+(onAdmin?' on':'')+'" data-v="admin">Admin view</button>'+
+    '<button class="ab'+(onAdmin||onHome?'':' on')+'" data-v="pick">Physicians</button>';
   bar.querySelectorAll('.ab').forEach(b=>b.onclick=()=>{
     const v=b.dataset.v;
     bar.querySelectorAll('.ab').forEach(x=>x.classList.toggle('on',x===b));
+    if(v==='home'){showAdminHome();return;}
     if(v==='admin'){showAdminView();return;}
+    hideAdminHome();
     hideAdminView();
     if(ME){boot();}               // straight back to whoever was selected, on the same tab
     else togglePicker();          // nobody chosen yet: the same menu, not a different screen
@@ -3168,6 +3215,7 @@ function adminBar(){
 }
 function showAdminView(){
   if(!ADMIN_GRANT){ askStepUp(showAdminView); return; }
+  hideAdminHome();                     // Home is a pane of its own; go() never sees it
   setTimeout(adminBar,0);              // repaint the toggle: the admin pane is now the one on
   let w=document.querySelector('#admWrap');
   if(!w){
@@ -3223,6 +3271,133 @@ function hideAdminView(){
   if(t){t.style.display='';t.hidden=false;}   // Schedule / Requests / Swaps come back
   document.body.classList.remove('adminmode');
 }
+
+/* ---------- the approvals desk ----------
+   Three queues used to live in three places, all of them inside SOME PHYSICIAN'S page: cover
+   approvals in the offer sheet, swap sign-off at the bottom of the Swaps tab, and holiday
+   decisions nowhere at all — /api/requests has taken a PATCH since 8/17 and nothing ever sent
+   one. An admin who is not a physician has no page to find any of it on. This is that page.
+
+   It is deliberately NOT behind the 6-digit step-up. Every decision here is one the Swaps tab
+   already offers on a session alone; the code guards the admin DASHBOARD, where the schedule
+   itself can be rewritten. Asking for one to see a list of the same two buttons would be
+   theatre — and it would fire on every boot for the admins who land here. */
+async function loadAdminQueue(){
+  if(ROLE!=='admin'||!SESSION){ADMINQ={cover:[],swaps:[],hol:[]};return;}
+  const [cov,sw,rq]=await Promise.all([
+    api('/coverage').catch(()=>({offers:[]})),
+    api('/swaps').catch(()=>({swaps:[]})),
+    api('/requests?all=1').catch(()=>({all:{}})),
+  ]);
+  // Claimed, not open: an offer nobody has accepted is not waiting on an admin.
+  ADMINQ.cover=(cov.offers||[]).filter(o=>o.status==='claimed');
+  // 'blocked' is waiting on the two physicians, not on us — it never reached a partner.
+  ADMINQ.swaps=(sw.swaps||[]).filter(s=>s.status==='awaiting_admin');
+  ADMINQ.hol=Object.values(rq.all||{})
+    .filter(r=>r&&r.holiday&&!['approved','declined'].includes(r.holidayStatus||''))
+    .sort((a,b)=>String(a.person).localeCompare(String(b.person)));
+}
+function adminQCount(){ return ADMINQ.cover.length+ADMINQ.swaps.length+ADMINQ.hol.length; }
+
+const HOLNAME={thanksgiving:'Thanksgiving',christmas:'Christmas',newyear:'New Year'};
+function renderAdminHome(){
+  const w=document.querySelector('#homeWrap'); if(!w)return;
+  const who=(p)=>esc(fullOf(p)||p);
+  const n=adminQCount();
+  const cards=[];
+
+  ADMINQ.cover.forEach(o=>cards.push(`<div class="qcard">
+    <div class="qk">Cover · needs approval</div>
+    <div class="qt">${esc(META(o.shift).label||o.shift)} · ${esc(fmtD(o.date))}</div>
+    <div class="qw"><b>${who(o.claimedBy)}</b> will cover for <b>${who(o.fromPerson)}</b>.${
+      o.note?' — '+esc(o.note):''}</div>
+    <div class="qw">Approving moves the shift on the schedule and tells them both.</div>
+    <div class="qact"><button class="btn pri" data-qc="${esc(o.id)}" data-act="approve">Approve</button>
+      <button class="btn" data-qc="${esc(o.id)}" data-act="decline">Decline</button></div></div>`));
+
+  ADMINQ.swaps.forEach(s=>cards.push(`<div class="qcard">
+    <div class="qk">Swap · needs sign-off</div>
+    <div class="qt">${esc(fmtD(s.date))} · ${esc(META(s.shift).label||s.shift)}</div>
+    <div class="qw"><b>${who(s.fromPerson)}</b> → <b>${who(s.toPerson)}</b>${
+      s.backDate?' (trade, back on '+esc(fmtD(s.backDate))+')':''}${s.note?' · '+esc(s.note):''}</div>
+    <div class="qrule ${s.ruleCheck==='CLEAN'?'ok':'bad'}">${s.ruleCheck==='CLEAN'
+      ?'✓ Passes every rule check':'✗ '+(s.problems||[]).map(esc).join(' · ')}</div>
+    <div class="qact"><button class="btn pri" data-qs="${esc(s.id)}" data-act="approve">Approve</button>
+      <button class="btn" data-qs="${esc(s.id)}" data-act="reject">Reject</button>${
+      s.ruleCheck==='CLEAN'?''
+        :`<button class="btn warnbtn" data-qs="${esc(s.id)}" data-act="override">Approve anyway</button>`}
+    </div></div>`));
+
+  ADMINQ.hol.forEach(r=>cards.push(`<div class="qcard">
+    <div class="qk">Priority holiday · needs a decision</div>
+    <div class="qt">${who(r.person)} — ${esc(HOLNAME[String(r.holiday).toLowerCase()]||r.holiday)}</div>
+    <div class="qw">Their one guaranteed 4-day holiday block for the year.</div>
+    <div class="qact"><button class="btn pri" data-qh="${esc(r.person)}" data-act="approved">Approve</button>
+      <button class="btn" data-qh="${esc(r.person)}" data-act="declined">Decline</button></div></div>`));
+
+  w.innerHTML=`<h1 class="hgreet">${esc((ACCT&&ACCT.label)||'Admin')}</h1>
+    <div class="hsub">${n?`${n} thing${n===1?'':'s'} waiting on you.`
+      :'Nothing is waiting on you right now.'}</div>
+    ${cards.length?cards.join('')
+      :`<div class="hzero"><div class="zt">You are all caught up</div>
+         <div class="zs">Cover approvals, swap sign-offs and holiday decisions land here.</div></div>`}
+    <div class="hlinks">
+      <button class="btn" id="hDash">Open the dashboard</button>
+      <button class="btn" id="hPick">Look at a physician</button>
+      <button class="btn gho" id="hRef">Refresh</button>
+    </div>`;
+
+  // A decision is one round trip, then the whole queue is re-read: approving a cover can settle
+  // a swap on the same shift, and a stale card is an invitation to decide something twice.
+  const after=async(msg)=>{ toast(msg); await loadAdminQueue(); renderAdminHome();
+                            adminBar(); await refreshLive(true).catch(()=>{}); };
+  const wire=(sel,run)=>$$(sel,w).forEach(b=>b.onclick=async()=>{
+    $$('button',w).forEach(x=>x.disabled=true);
+    try{ await run(b); }
+    catch(e){ toast((e.payload&&e.payload.problems)?e.payload.problems.join(' · ')
+                    :(e.message||'Could not save'));
+              $$('button',w).forEach(x=>x.disabled=false); }
+  });
+  wire('[data-qc]',async b=>{
+    const act=b.dataset.act;
+    await api('/coverage',{method:'PATCH',body:JSON.stringify({id:b.dataset.qc,action:act})});
+    await after(act==='approve'?'Approved — the schedule is updated':'Declined');
+  });
+  wire('[data-qs]',async b=>{
+    const act=b.dataset.act;
+    await api('/swaps',{method:'PATCH',body:JSON.stringify({id:b.dataset.qs,
+      action:act==='reject'?'reject':'approve', override:act==='override'})});
+    await after(act==='reject'?'Rejected':'Approved — the schedule is updated');
+  });
+  wire('[data-qh]',async b=>{
+    await api('/requests',{method:'PATCH',
+      body:JSON.stringify({person:b.dataset.qh,decision:b.dataset.act})});
+    await after(b.dataset.act==='approved'?'Holiday approved':'Holiday declined');
+  });
+  $('#hDash').onclick=()=>{ showAdminView(); markBar('admin'); };
+  $('#hPick').onclick=()=>{ hideAdminHome(); if(ME){boot();markBar('pick');} else togglePicker(); };
+  $('#hRef').onclick=async()=>{ await loadAdminQueue(); renderAdminHome(); adminBar(); };
+}
+function showAdminHome(){
+  hideAdminView();
+  let w=document.querySelector('#homeWrap');
+  if(!w){ w=el('section','pane homewrap'); w.id='homeWrap';
+          document.querySelector('main').appendChild(w); }
+  $$('.pane').forEach(p=>p.classList.remove('on'));
+  w.classList.add('on');
+  const t=document.querySelector('.tabs'); if(t)t.style.display='none';
+  renderAdminHome();
+  setTimeout(adminBar,0);
+  // Painted from whatever was last loaded so the page is never blank, then again once the
+  // three queues have actually been re-read.
+  loadAdminQueue().then(()=>{ if(document.querySelector('#homeWrap.on'))renderAdminHome();
+                              adminBar(); }).catch(()=>{});
+}
+function hideAdminHome(){
+  const w=document.querySelector('#homeWrap'); if(w)w.classList.remove('on');
+  const t=document.querySelector('.tabs'); if(t){t.style.display='';t.hidden=false;}
+}
+function onAdminHome(){ return !!document.querySelector('#homeWrap.on'); }
 // Everything that belongs to ONE person. Called at boot and again whenever the admin switches
 // who they are looking at, so what is on screen is always that person's own data.
 let LOADED_FOR=null;
@@ -3274,7 +3449,13 @@ function boot(){
      the list Sam kept finding on top of what he had just opened. The empty state already says
      "Choose a physician" and has the button; a menu that opens itself is not more helpful than
      one you can open. */
-  if(!ME&&!BOOTED){ BOOTED=true; go('now'); return; }
+  if(!ME&&!BOOTED){
+    BOOTED=true;
+    // An admin who is not a physician now has somewhere of their own to be. Landing on the
+    // approvals desk beats landing on an empty "choose a physician" — it is the work.
+    if(ROLE==='admin'){ showAdminHome(); return; }
+    go('now'); return;
+  }
   BOOTED=true;
   go(CUR&&CUR!=='admin'?CUR:'now');                       // stay on the tab you were reading
   setTimeout(maybeOfferPush,1200);   // after the schedule is on screen, not over a blank page
@@ -3321,9 +3502,13 @@ function askStepUp(then){
     }
   };
   $('#suGo').onclick=go;
-  // 'mine' matches no button — the two are data-v="admin" and data-v="pick" — so this used to
-  // clear BOTH, leaving neither side of the toggle lit.
-  const backToPhysicians=()=>{ markBar('pick'); hideAdminView(); if(ME)boot(); };
+  // 'mine' matched no button — they are data-v="home"/"admin"/"pick" — so this used to clear
+  // every one of them, leaving no side of the toggle lit. An admin with no schedule cancels
+  // back to their own page, not to a physician they never chose.
+  const backToPhysicians=()=>{
+    hideAdminView();
+    if(ME){ markBar('pick'); boot(); } else { markBar('home'); showAdminHome(); }
+  };
   onSheetClose(backToPhysicians);
   $('#suCancel').onclick=()=>closeSheet();
   const c=$('#suCode');
@@ -3403,9 +3588,14 @@ async function refreshLive(force){
       const inAdmin=!!document.querySelector('#admWrap.on');
       const inGroup=!!document.querySelector('#pane-group.on');
       const inClinic=!!document.querySelector('#pane-clinic.on');
-      if(inAdmin||inGroup||inClinic){
+      // Home belongs on this list for the same reason as the rest: boot() lands on the schedule
+      // tab, so without it, approving anything from the desk threw you off the desk — after()
+      // calls refreshLive, and the admin ended up on "Choose a physician" mid-queue.
+      const inHome=onAdminHome();
+      if(inAdmin||inGroup||inClinic||inHome){
         if(inGroup)renderGroup();
         if(inClinic)renderClinicView();
+        if(inHome)renderAdminHome();
         // the admin view is an iframe with its own data; leave it alone
       }else{
         boot();
@@ -3496,7 +3686,7 @@ async function loadPortal(token){
     };
     return;
   }
-  setIdentity(j.person,j.role);
+  setIdentity(j.person,j.role,j.label);
   document.body.classList.remove('locked');
   const g=document.querySelector('.signin'); if(g)g.remove();
   LAST_EDIT_SIG=editSig(j.edits);
@@ -3845,6 +4035,11 @@ function goFromUrl(u){
     // "choose somebody", which is the provider list Sam saw open over the top of everything.
     // The decision sheet below is identity-independent: it approves the same offer whoever is
     // being viewed, which is what the notification was actually asking for.
+    //
+    // Leave the admin panes properly first. go() clears whichever pane is on, but it cannot
+    // restore the tab bar or drop body.adminmode — both of those are switched off by hand when
+    // you leave. Without this you landed on the right tab with no tab bar to leave it by.
+    hideAdminHome(); hideAdminView();
     if(typeof go==='function')go(tab);
     // The notification was about one thing; open that thing rather than the tab it lives on.
     if(offer)setTimeout(()=>openOffer(offer),350);
