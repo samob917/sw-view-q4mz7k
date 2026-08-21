@@ -426,14 +426,20 @@ textarea.ta{width:100%;background:var(--panel);border:1px solid var(--line2);bor
 .pillx.cme{background:rgba(96,165,250,.15);border-color:rgba(96,165,250,.45);color:var(--info-ink)}
 .pillx.nn{background:rgba(167,139,250,.15);border-color:rgba(167,139,250,.45);color:#DCD1FF}
 .pillx.on{background:rgba(53,214,164,.15);border-color:rgba(53,214,164,.5);color:var(--ok-ink)}
-.segx{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
-.segx button{padding:8px 14px;border:1px solid var(--line);background:var(--card);border-radius:999px;font-size:13px}
-.segx button{color:var(--ink)}
+/* Two balanced rows, and the tick takes up its space whether or not it is showing. As a wrapping
+   flex row the four chips sized themselves to their words, so ticking one made it wider and shoved
+   the others onto a different line — the row rearranging itself under the finger that just tapped
+   it. Equal columns and a reserved marker mean choosing changes the colour and nothing else. */
+.segx{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px}
+.segx button{padding:9px 10px;border:1px solid var(--line);background:var(--card);
+  border-radius:999px;font-size:13px;color:var(--ink);
+  display:flex;align-items:center;justify-content:center;gap:5px;min-height:38px}
+.segx button::before{content:'✓';font-weight:800;visibility:hidden;flex:none}
 /* Selected read as "slightly different dark" against the panel behind it — on a phone in a
    corridor that is no signal at all. It is the accent now, with a tick, so a glance answers
    "which one is chosen". */
 .segx button.on{background:var(--chip);color:var(--chip-ink);border-color:var(--chip);font-weight:700}
-.segx button.on::before{content:'✓ ';font-weight:800}
+.segx button.on::before{visibility:visible}
 .savebar{display:flex;align-items:center;gap:12px;margin:16px 0 8px}
 .btn.primary{background:var(--chip);color:var(--chip-ink);border-color:var(--chip)}
 .btn.warnbtn{background:#fff7ed;border-color:#fdba74;color:#9a3412}
@@ -1389,6 +1395,7 @@ function renderNow(){
   html+=`<div class="note">Every off and CME day you asked for was granted this block.</div>`;
   pane.innerHTML=html;
   wireInstallCard();
+  wireChangeBanner();
   wireNudge();
   wireDayNav();
   $$('.sday',pane).forEach(d=>{d.onclick=()=>openDay(d.dataset.iso);
@@ -1675,7 +1682,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260820.2225';           // shown in the account bar so a stale app is obvious
+const BUILD='260820.2235';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 let SESSION=null, CFG=null, MYREQ=null, MYSWAPS=[];
 const api=async(path,opts={})=>{
@@ -2639,17 +2646,39 @@ function applyEdits(edits){
   });
   MYCHANGES.sort((x,y)=>x.date.localeCompare(y.date));
 }
+/* ACKNOWLEDGED, NOT DISMISSED FOREVER.
+   This sat at the top of the schedule permanently. A notice that never goes away stops being
+   read within a day, which is the opposite of what a schedule change needs — and there was no
+   way to say "yes, I saw that", so it kept claiming the schedule had just changed weeks later.
+
+   Dismissal is keyed to WHICH changes, not to the banner: acknowledging today's change cannot
+   hide tomorrow's. The key is the changes themselves, so a new one — or the same shift changed
+   again — brings it straight back. Per person too, since an admin steps through several. */
+function changeKey(){
+  return (ME||'')+'|'+MYCHANGES.map(c=>c.date+':'+c.unit+':'+(c.added?'+':'-')+(c.at||'')).join(',');
+}
+function changesSeen(){
+  try{ return localStorage.getItem('ccpsa_chgseen')===changeKey(); }catch(e){ return false; }
+}
 function changeBanner(){
-  if(!MYCHANGES.length)return '';
+  if(!MYCHANGES.length||changesSeen())return '';
   const rows=MYCHANGES.map(c=>{
     const m=META(c.unit)||{label:c.unit};
     return '<li>'+(c.added?'<b>Added</b> ':'<b>Removed</b> ')+(m.label||c.unit)+
            ' on '+fmtD(c.date)+(c.note?' — '+esc(c.note):'')+'</li>';
   }).join('');
-  return '<div class="swcard chg"><div class="chgh">Your schedule changed</div>'+
+  return '<div class="swcard chg" id="chgCard"><div class="chgh">Your schedule changed</div>'+
          '<ul class="chgl">'+rows+'</ul>'+
          '<div class="muted sm">Changed by the scheduling lead. Questions go to '+
-         esc((CFG&&CFG.lateContact)||'your scheduling lead')+'.</div></div>';
+         esc((CFG&&CFG.lateContact)||'your scheduling lead')+'.</div>'+
+         '<div class="btnrow"><button class="btn" id="chgOk">OK, got it</button></div></div>';
+}
+function wireChangeBanner(){
+  const b=document.querySelector('#chgOk'); if(!b)return;
+  b.onclick=()=>{
+    try{localStorage.setItem('ccpsa_chgseen',changeKey());}catch(e){}
+    const c=document.querySelector('#chgCard'); if(c)c.remove();
+  };
 }
 
 
