@@ -1161,8 +1161,14 @@ function blockStatsHTML(){
   </div>
   <div class="note">Every off and CME day you asked for was granted this block.</div>`;
 }
+/* Face ID and signed-in devices moved here from the Swaps tab. On a screen about covering
+   shifts they were a non-sequitur — "How you sign in" sitting between a coverage request and a
+   swap — and Sam read them as clutter, correctly. Behind the name is where somebody looks for
+   their own account, and it is one tap from every screen. */
 function openBlockStats(){
-  sheet((ME?(fullOf(ME)||ME)+' — ':'')+'day equivalents', blockStatsHTML());
+  sheet((ME?(fullOf(ME)||ME)+' — ':'')+'day equivalents',
+        blockStatsHTML()+signInCard());
+  paintSignIn();
 }
 
 
@@ -1684,7 +1690,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260820.2303';           // shown in the account bar so a stale app is obvious
+const BUILD='260820.2333';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 let SESSION=null, CFG=null, MYREQ=null, MYSWAPS=[];
 const api=async(path,opts={})=>{
@@ -2168,6 +2174,10 @@ async function paintSignIn(){
   h+='<button class="btn" id="devOut">Sign out all devices</button></div>';
   h+='<div class="note" style="margin-top:8px">A phone stays signed in for 90 days. If one is '+
      'lost, sign it out — your schedule is on it until you do.</div>';
+  // The pane can be re-rendered while this is waiting on the server — a live refresh, a tab
+  // switch, an admin changing who they are viewing. Writing into the card we started with then
+  // fills a node that is no longer on the page, and the wiring below finds nothing to wire.
+  if(!box.isConnected)return;
   box.innerHTML=h;
 
   const add=$('#faceAdd');
@@ -2186,7 +2196,8 @@ async function paintSignIn(){
     try{localStorage.removeItem('ccpsa_passkey');}catch(e){}
     toast(face+' turned off'); paintSignIn();
   };
-  $('#devOut').onclick=async()=>{
+  const out=$('#devOut');
+  if(out)out.onclick=async()=>{
     const b=$('#devOut'); b.disabled=true; b.textContent='…';
     try{
       await api('/account',{method:'POST',
@@ -2275,6 +2286,8 @@ function wireNotifyTest(){
 async function paintNotify(){
   const box=document.querySelector('#notifyBody'); if(!box)return;
   const st=await pushState();
+  // Awaited above; the pane may have been re-rendered underneath us since. See paintSignIn.
+  if(!box.isConnected)return;
   if(st==='on'){
     box.innerHTML='<b style="color:var(--signal)">On for this device.</b> Turn them on separately '+
       'on any other phone or computer you use.';
@@ -2302,6 +2315,7 @@ async function paintNotify(){
   box.innerHTML='<div class="btnrow"><button class="btn pri" id="pushOn">Turn on notifications'+
     '</button></div><div style="margin-top:6px">Your phone will ask you to allow them.</div>';
   const pn=document.querySelector('#pushOn');
+  if(!pn)return;                 // the card was replaced while this was waiting on the browser
   pn.onclick=async()=>{
     pn.disabled=true; pn.textContent='…';
     const r=await enablePush();
@@ -2313,8 +2327,13 @@ async function paintNotify(){
 
 function coverageCard(){
   const open=COVER.filter(o=>o.status==='open'&&(o.eligible||[]).includes(ME)&&o.fromPerson!==ME);
-  const mine=COVER.filter(o=>o.fromPerson===ME&&o.status!=='approved'&&o.status!=='declined');
-  const toApprove=(ROLE==='admin')?COVER.filter(o=>o.status==='claimed'):[];
+  // Only requests still in play. A withdrawn or expired one is finished business; leaving it
+  // here is how a list becomes a pile nobody reads.
+  const mine=COVER.filter(o=>o.fromPerson===ME&&['open','claimed'].includes(o.status));
+  /* "Waiting on you" is the ADMIN's queue and belongs on the admin's own screen. Viewing Brian
+     Ahn, it appeared on his page as though these were his to approve — they are not, and he
+     cannot act on them. An admin looking at a physician is reading that physician's app. */
+  const toApprove=(ROLE==='admin'&&!onBehalf())?COVER.filter(o=>o.status==='claimed'):[];
   const took=COVER.filter(o=>o.claimedBy===ME&&o.status==='claimed');
   /* DECIDED, AND NOT YET ACKNOWLEDGED. Once an admin approved it, the request vanished from
      both people's screens — the asker and the taker each left to work out from the schedule
@@ -2358,7 +2377,9 @@ function coverageCard(){
       <div class="sub">${o.status==='open'
         ? 'Asked '+(o.eligible||[]).length+' colleague'+((o.eligible||[]).length===1?'':'s')+' — nobody has accepted yet'
         : o.status==='claimed' ? esc(fullOf(o.claimedBy))+' accepted — waiting on an admin'
-        : esc(o.status)}</div></div>`).join('');
+        : esc(o.status)}</div>
+      <div class="btnrow"><button class="btn" data-covcancel="${esc(o.id)}">Withdraw</button></div>
+    </div>`).join('');
   return h;
 }
 /* Acknowledgement is per request and per person, so one being cleared cannot hide the next. */
@@ -2375,9 +2396,90 @@ function markCoverSeen(id){
   }catch(e){}
 }
 
+/* ---------- one notification, one decision ----------
+   Tapping "Coverage needs approval" landed on the Swaps tab, which carries the approval queue,
+   the coverage requests, the swap form, this person's own swaps, and the admin sign-off queue —
+   five unrelated things, with the one you were told about somewhere among them. The notification
+   is about a single shift and a single decision, so it opens that: the shift, who is covering
+   for whom, and the two buttons. Everything else stays a tab away where it belongs. */
+async function openOffer(id){
+  if(!COVER.some(o=>o.id===id))await loadCoverage();
+  const o=COVER.find(x=>x.id===id);
+  if(!o){ toast('That request is no longer there'); return; }
+  const label=esc(META(o.shift).label||o.shift)+' · '+esc(fmtD(o.date));
+  const who=(p)=>esc(fullOf(p)||p);
+
+  if(o.status==='claimed'&&ROLE==='admin'){
+    sheet('Approve this cover?',
+      `<div class="sub"><b>${label}</b></div>
+       <div class="sub" style="margin-top:8px"><b>${who(o.claimedBy)}</b> will cover for
+         <b>${who(o.fromPerson)}</b>.${o.note?' — '+esc(o.note):''}</div>
+       <div class="sub" style="margin-top:8px">Approving moves the shift on the schedule and
+         tells them both.</div>
+       <div class="btnrow" style="margin-top:12px">
+         <button class="btn pri" id="ofOk">Approve</button>
+         <button class="btn" id="ofNo">Decline</button></div>
+       <div class="msg" id="ofMsg"></div>`);
+    const decide=async(action)=>{
+      const m=$('#ofMsg'); m.textContent='…'; m.className='msg on';
+      $('#ofOk').disabled=true; $('#ofNo').disabled=true;
+      try{ await api('/coverage',{method:'PATCH',body:JSON.stringify({id:o.id,action})});
+           closeSheet(); toast(action==='approve'?'Approved — the schedule is updated':'Declined');
+           await loadCoverage(); await refreshLive(true); if(CUR==='swap')renderSwap(); }
+      catch(e){ m.textContent=e.message||'Could not save'; m.className='msg on bad';
+                $('#ofOk').disabled=false; $('#ofNo').disabled=false; }
+    };
+    $('#ofOk').onclick=()=>decide('approve');
+    $('#ofNo').onclick=()=>decide('decline');
+    return;
+  }
+
+  if(o.status==='open'&&(o.eligible||[]).includes(ME)){
+    sheet('Can you cover this?',
+      `<div class="sub"><b>${label}</b></div>
+       <div class="sub" style="margin-top:8px">${who(o.fromPerson)} needs this covered.${
+         o.note?' — '+esc(o.note):''}</div>
+       <div class="sub" style="margin-top:8px">An admin still has to confirm it afterwards.</div>
+       <div class="btnrow" style="margin-top:12px">
+         <button class="btn pri" id="ofTake">I'll take it</button>
+         <button class="btn" id="ofSkip">Not this time</button></div>
+       <div class="msg" id="ofMsg"></div>`);
+    $('#ofSkip').onclick=closeSheet;
+    $('#ofTake').onclick=async()=>{
+      const m=$('#ofMsg'); m.textContent='…'; m.className='msg on';
+      $('#ofTake').disabled=true;
+      try{ const body={id:o.id,action:'claim'}; if(onBehalf())body.person=ME;
+           await api('/coverage',{method:'POST',body:JSON.stringify(body)});
+           closeSheet(); toast('Accepted — waiting for final approval');
+           await loadCoverage(); if(CUR==='swap')renderSwap(); }
+      catch(e){ m.textContent=e.message||'Could not accept'; m.className='msg on bad';
+                $('#ofTake').disabled=false; }
+    };
+    return;
+  }
+
+  // Anything already settled: say what happened rather than opening an empty decision.
+  const done=o.status==='approved'?'approved':o.status==='declined'?'declined'
+            :o.status==='expired'?'expired':o.status;
+  sheet('Cover request',
+    `<div class="sub"><b>${label}</b></div>
+     <div class="sub" style="margin-top:8px">This one is <b>${esc(done)}</b>${
+       o.claimedBy?' — '+who(o.claimedBy)+' covering for '+who(o.fromPerson):''}.${
+       o.decidedBy?' Decided by '+who(o.decidedBy)+'.':''}</div>
+     <div class="btnrow" style="margin-top:12px"><button class="btn" id="ofClose">OK</button></div>`);
+  $('#ofClose').onclick=closeSheet;
+}
+
 function wireCoverage(){
   document.querySelectorAll('[data-covok]').forEach(b=>b.onclick=()=>{
     markCoverSeen(b.dataset.covok); renderSwap();
+  });
+  document.querySelectorAll('[data-covcancel]').forEach(b=>b.onclick=async()=>{
+    b.disabled=true; b.textContent='…';
+    try{ await api('/coverage',{method:'POST',body:JSON.stringify({id:b.dataset.covcancel,action:'cancel'})});
+         toast('Withdrawn — nobody is being asked any more');
+         await loadCoverage(); renderSwap(); }
+    catch(e){ toast(e.message); b.disabled=false; b.textContent='Withdraw'; }
   });
   document.querySelectorAll('[data-claim]').forEach(b=>b.onclick=async()=>{
     b.disabled=true;b.textContent='…';
@@ -2397,7 +2499,6 @@ function wireCoverage(){
   });
   const rc=document.querySelector('#reqCover'); if(rc)rc.onclick=openCoverAsk;
   paintNotify();
-  paintSignIn();
   wireNotifyTest();
 }
 function openCoverAsk(){
@@ -2460,7 +2561,7 @@ function renderSwap(){
   };
 
   pane.innerHTML=`<div class="btnrow"><button class="btn pri" id="reqCover">Request coverage</button></div>
-    ${notifyCard()}${signInCard()}${coverageCard()}
+    ${notifyCard()}${coverageCard()}
     <h2 class="sec">Ask someone to cover a shift</h2>
     ${mine.length?`
     <div class="swapform">
@@ -3723,13 +3824,24 @@ function showGate(){ stepPassword(lastLoginEmail()); }
    they happened to be reading — which is not the thing they just tapped about. The parameter is
    then cleared from the address, so a later reload does not keep dragging them back to it. */
 function goFromUrl(u){
-  let tab=null;
-  try{ tab=new URL(u||location.href,location.origin).searchParams.get('go'); }catch(e){}
+  let tab=null,as=null,offer=null;
+  try{ const q=new URL(u||location.href,location.origin).searchParams;
+       tab=q.get('go'); as=q.get('as'); offer=q.get('offer'); }catch(e){}
   if(!tab||!['now','sched','req','swap'].includes(tab))return false;
-  const land=()=>{ if(typeof go==='function')go(tab); };
+  const land=()=>{
+    // NO IDENTITY SWITCHING. Putting the admin "back on their own page" set ME to their account
+    // name — and an admin like sam is not a physician, so ME blanked and the app fell back to
+    // "choose somebody", which is the provider list Sam saw open over the top of everything.
+    // The decision sheet below is identity-independent: it approves the same offer whoever is
+    // being viewed, which is what the notification was actually asking for.
+    if(typeof go==='function')go(tab);
+    // The notification was about one thing; open that thing rather than the tab it lives on.
+    if(offer)setTimeout(()=>openOffer(offer),350);
+  };
   if(BOOTED)land(); else setTimeout(land,900);      // wait for the schedule to be on screen
   try{ const clean=new URL(location.href);
        clean.searchParams.delete('go');
+       clean.searchParams.delete('as'); clean.searchParams.delete('offer');
        history.replaceState(null,'',clean.pathname+clean.search+clean.hash); }catch(e){}
   return true;
 }
