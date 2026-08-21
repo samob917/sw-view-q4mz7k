@@ -20,7 +20,10 @@
  * so the file the whole update path depends on was surviving by luck and would have vanished
  * on any clean checkout.
  */
-const CACHE = 'ccpsa-portal-260821.1241';
+const CACHE = 'ccpsa-portal-260821.1309';
+// The name every notification leads with. One constant, because it is the first thing anyone
+// reads and it must not drift between the two places a notification can be shown.
+const APP_NAME = 'Scheduling Wizard';
 
 // './' and index.html are the same response; both are listed because a navigation can ask for
 // either. icon-192 is what a push notification draws, so it must work offline too.
@@ -104,27 +107,40 @@ self.addEventListener('push', e => {
   let d = {};
   try { d = e.data ? e.data.json() : {}; } catch (err) { d = { title: 'CCPSA', body: e.data ? e.data.text() : '' }; }
 
+  // The event and its detail, as one line. See the note on the title below.
+  const line = [d.title, d.body].filter(Boolean).join(' — ');
+  const common = { icon: 'icon-192.png', badge: 'icon-192.png',
+                   tag: d.tag || 'ccpsa', data: { url: d.url || '/my/' } };
+
   // A QUESTION THAT HAS BEEN ANSWERED SHOULD LEAVE THE PHONE. Ten people are asked to cover a
   // shift and one says yes; the other nine are left holding a live-looking request that will
   // only tell them they were too late. `close` takes it back — the notification with this tag
   // is dismissed rather than replaced with another card to ignore.
   if (d.close) {
-    e.waitUntil(self.registration.getNotifications({ tag: d.tag })
-      .then(list => list.forEach(n => n.close())));
+    e.waitUntil(self.registration.getNotifications({ tag: d.tag }).then(list => {
+      list.forEach(n => n.close());
+      // A push has to end in something visible — that is the deal browsers enforce for
+      // userVisibleOnly subscriptions. When there was nothing left to take back (already
+      // dismissed, or a platform that will not list its own notifications) this handler
+      // showed nothing at all, and the browser is entitled to post its own "this site was
+      // updated in the background" card in its place. One honest line beats that.
+      if (list.length) return;
+      return self.registration.showNotification(APP_NAME, {
+        ...common, body: line || 'That request is closed.', renotify: false, silent: true });
+    }));
     return;
   }
 
-  // THE APP'S NAME COMES FROM THE OPERATING SYSTEM, not from us. Every notification already
-  // carries "Scheduling Wizard" as its header — that is the installed app's name, drawn by iOS
-  // and Android above whatever we supply. Setting it as the title too produced "Scheduling
-  // Wizard: from Scheduling Wizard", the same words twice with the actual news pushed below.
-  // So the title is the event, and the system says who it is from.
-  e.waitUntil(self.registration.showNotification(d.title || 'CCPSA schedule', {
-    body: d.body || '',
-    icon: 'icon-192.png',
-    badge: 'icon-192.png',
-    tag: d.tag || 'ccpsa',
-    data: { url: d.url || '/my/' },
+  // THE APP NAME COMES FIRST. Where the system draws it is not consistent: an installed iOS app
+  // puts it in the header above the title, while other renderers append "from Scheduling Wizard"
+  // underneath — which reads as the news first and the sender last, and is the thing Sam asked
+  // to be rid of (8/21). The only way to be certain it reads "Scheduling Wizard" and THEN the
+  // event on every renderer is to make the app name the title and lead the body with the event.
+  // (An earlier note here argued the opposite, on the assumption that the OS always draws the
+  // name above. On the phone this is actually read on, it does not.)
+  e.waitUntil(self.registration.showNotification(APP_NAME, {
+    ...common,
+    body: line || 'Open your schedule',
     renotify: !!d.tag,
   }));
 });

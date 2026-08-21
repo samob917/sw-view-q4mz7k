@@ -656,8 +656,12 @@ body.adminmode main{padding:0}
 .swcard{background:var(--panel);border:1px solid var(--line)}
 
 .acctbar{display:flex;align-items:center;gap:10px;padding:7px 14px;border-top:1px solid var(--line)}
-.acctwho{font-family:var(--mono);font-size:12px;color:var(--dim);flex:1;overflow:hidden;
-  background:transparent;border:0;text-align:left;cursor:pointer;padding:0;
+/* A control, so it reads as one: the account name beside it is plain text and stays quiet. */
+.acctwho{font-size:12px;color:var(--ink);background:transparent;border:0;text-align:left;
+  cursor:pointer;padding:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  font-weight:600;flex:0 1 auto}
+.acctwho:hover{color:var(--signal)}
+.acctid{font-family:var(--mono);font-size:11px;color:var(--faint);flex:1;overflow:hidden;
   text-overflow:ellipsis;white-space:nowrap}
 .acctout{background:transparent;border:1px solid var(--line2);color:var(--ink);font:inherit;
   font-size:12px;border-radius:8px;padding:6px 12px;min-height:34px;cursor:pointer}
@@ -1201,9 +1205,20 @@ function blockStatsHTML(){
    shifts they were a non-sequitur — "How you sign in" sitting between a coverage request and a
    swap — and Sam read them as clutter, correctly. Behind the name is where somebody looks for
    their own account, and it is one tap from every screen. */
+// "Bailey's", not "Bailey s". A name already ending in s takes the apostrophe alone.
+function possessive(n){ return /s$/i.test(n) ? n+'’' : n+'’s'; }
+/* WHOSE NUMBERS ARE THESE. The control that opens this sits in the account bar and read
+   "sam · admin" — the ADMIN's own name — while the sheet behind it showed the FTE and day
+   equivalents of whichever physician was being viewed. Sam went looking for a physician's
+   numbers and found a button apparently about himself. Both now name the person the numbers
+   belong to. */
+function statsLabel(short){
+  if(!ME)return 'Stats';
+  if(ACCT&&ME===ACCT.person)return 'Your stats';
+  return possessive(short?ME:(fullOf(ME)||ME))+' stats';
+}
 function openBlockStats(){
-  sheet((ME?(fullOf(ME)||ME)+' — ':'')+'day equivalents',
-        blockStatsHTML()+signInCard());
+  sheet(statsLabel(false), blockStatsHTML()+signInCard());
   paintSignIn();
 }
 
@@ -1726,7 +1741,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260821.1241';           // shown in the account bar so a stale app is obvious
+const BUILD='260821.1309';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 let SESSION=null, CFG=null, MYREQ=null, MYSWAPS=[];
 // The admin approvals queue. Declared up here with the rest of the state, not beside the code
@@ -2643,7 +2658,17 @@ function openCoverAsk(){
         {date,shift,mode,toPerson,note:$('#cvNote').value,
          ...(on?{person:on}:{})})});   // an admin raising it for the physician on screen
       closeSheet();
-      toast(mode==='direct'?'Asked '+toPerson:'Asked '+j.eligibleCount+' colleagues');
+      /* SAY WHAT ACTUALLY HAPPENED. This said "Asked 11 colleagues" whether eleven phones had
+         buzzed or none had — the API has always returned how many were reached, and the toast
+         threw it away. Someone who raises a request and hears nothing back has no way to tell
+         "nobody has notifications on" from "it did not send", and reasonably concludes the
+         second. The count of PEOPLE reached is the honest number; `notified` counts devices,
+         and someone with a phone and a laptop is not two colleagues. */
+      const who=mode==='direct'?toPerson:(j.eligibleCount+' colleague'+(j.eligibleCount===1?'':'s'));
+      toast(j.duplicate ? 'Already sent — nobody was asked twice'
+        : 'Asked '+who+' · '+(j.subscribed
+            ? j.subscribed+' notified now'
+            : 'they will see it next time they open the app'));
       await loadCoverage(); renderSwap();
     }catch(e){ m.textContent=e.message; m.className='msg on bad'; }
   };
@@ -3237,11 +3262,14 @@ function accountBar(){
   // nothing. Make it explicit and always present.
   let a=document.querySelector('#acctBar');
   if(!a){a=el('div','acctbar');a.id='acctBar';document.querySelector('header').appendChild(a);}
-  // The chip opens this person's totals. Unlabelled it read as a status line rather than a
-  // control, so the day equivalents behind it were effectively unreachable.
-  a.innerHTML='<button class="acctwho" id="profileBtn" title="Day equivalents and block totals">'+
-    esc((ACCT&&ACCT.person)||'Signed in')+(ROLE==='admin'?' · admin':'')+
-    (ME?' <span class="chev">▾</span>':'')+'</button>'+
+  // The button names WHOSE numbers it opens, not who is signed in — those are different people
+  // whenever an admin is looking at a physician, and labelling it with the account name made it
+  // look like the admin's own page. Who you are signed in as stays visible beside it, as text:
+  // it is information, not a control, and it was never what this button did.
+  a.innerHTML=(ME?'<button class="acctwho" id="profileBtn" title="Day equivalents, shift counts '+
+      'and contract totals">'+esc(statsLabel(true))+' <span class="chev">▾</span></button>':'')+
+    '<span class="acctid">'+esc((ACCT&&ACCT.person)||'Signed in')+
+      (ROLE==='admin'?' · admin':'')+'</span>'+
     '<button class="accttheme" id="themeBtn" aria-label="Switch between light and dark" '+
       'title="Light or dark. Follows your phone until you choose."></button>'+
     '<span class="acctbuild" title="Which version of the app you are running. '+
