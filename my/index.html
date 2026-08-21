@@ -155,6 +155,10 @@ h2.sec{font-size:19px;font-weight:800;letter-spacing:-.02em;margin:22px 0 12px}
 .cell{min-height:46px;border-radius:8px;background:var(--panel2);padding:4px 3px 3px;cursor:pointer;
   display:flex;flex-direction:column;align-items:center;gap:3px;position:relative;border:1px solid transparent}
 .cell.blank{background:transparent;cursor:default}
+/* The ring is drawn inside the border box so a highlighted day does not shift its neighbours,
+   and it sits over the unit colour rather than replacing it — today still shows what you are on. */
+.cell.today{border-color:var(--signal);box-shadow:0 0 0 1px var(--signal) inset}
+.cell.today .n{color:var(--signal);font-weight:700}
 .cell .n{font-family:var(--mono);font-size:11px;color:var(--dim);line-height:1}
 .cell.on .n{color:var(--ink);font-weight:700}
 .cell.sel{border-color:var(--signal)}
@@ -358,7 +362,8 @@ textarea.ta{width:100%;background:var(--panel);border:1px solid var(--line2);bor
   border-top:1px solid var(--line);background:rgba(180,83,9,.14)}
 .testdate .tdl{font-size:12px;color:#FFD9A8;font-weight:700}
 .testdate .tdi{padding:5px 8px;border:1px solid var(--line2);border-radius:8px;
-  background:var(--panel2);color:var(--ink);font:inherit;font-size:13px;color-scheme:dark}
+  background:var(--panel2);color:var(--ink);font:inherit;color-scheme:dark;
+  font-size:16px}   /* the test-site date picker zoomed the page like any other small field */
 .testdate .tdb{font:inherit;font-size:12px;padding:5px 10px;border-radius:8px;
   border:1px solid var(--line2);background:var(--panel2);color:var(--ink);cursor:pointer}
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px;min-height:26px}
@@ -411,7 +416,10 @@ textarea.ta{width:100%;background:var(--panel);border:1px solid var(--line2);bor
 
 .lbl{display:block;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);margin:10px 0 5px}
 .inp{width:100%;background:var(--panel2);border:1px solid var(--line2);color:var(--ink);
-  border-radius:10px;padding:10px 12px;font:inherit;font-size:14px}
+  border-radius:10px;padding:10px 12px;font:inherit;
+  /* 16px is the threshold below which iOS zooms the page on focus and does not zoom back.
+     Every field a physician types into has to clear it — a note, a date, a search box. */
+  font-size:16px}
 .edlist{margin-top:8px}
 .edrow{display:grid;grid-template-columns:12px 1fr auto 12px;gap:10px;align-items:center;width:100%;
   text-align:left;background:var(--panel2);border:1px solid var(--line);color:var(--ink);
@@ -452,6 +460,8 @@ body.locked header,body.locked main,body.locked .tabs{display:none}
 .siI{width:100%;background:var(--panel2);border:1px solid var(--line2);color:var(--ink);
   border-radius:10px;padding:12px;font:inherit;font-size:16px}
 .siI:focus{outline:2px solid var(--signal);outline-offset:1px}
+/* Belt and braces for anything typed into that does not carry .inp or .siI. */
+input,select,textarea{font-size:16px}
 .siB{width:100%;margin-top:16px;background:var(--signal);border:0;color:#04121e;font:inherit;
   font-weight:700;font-size:15px;border-radius:10px;padding:13px;cursor:pointer}
 .siMsg{display:none;margin-top:12px;font-size:13px;border-radius:9px;padding:9px 11px;
@@ -469,8 +479,11 @@ body.locked header,body.locked main,body.locked .tabs{display:none}
   color:var(--ink);font:inherit;font-size:14px;border-radius:10px;padding:11px;cursor:pointer}
 .siQr{background:#fff;padding:10px;border-radius:12px;display:grid;place-items:center;margin:12px 0}
 .siQr img{display:block;width:190px;height:190px;image-rendering:pixelated}
+.siHint{font-size:12px;color:var(--dim);margin-top:7px;text-align:center}
 .siKey{font-family:var(--mono);font-size:11.5px;word-break:break-all;color:var(--faint);
-  background:var(--panel2);border:1px dashed var(--line2);border-radius:8px;padding:8px}
+  background:var(--panel2);border:1px dashed var(--line2);border-radius:8px;padding:10px;
+  display:block;width:100%;text-align:center;cursor:pointer;margin-top:10px}
+.siKey:active{background:var(--panel)}
 
 .siCard{position:relative;overflow:hidden;box-shadow:0 14px 40px rgba(0,0,0,.34);
   border-radius:18px;padding:24px 22px;animation:siRise .22s ease-out}
@@ -1478,7 +1491,11 @@ function renderSched(){
         if(onReq)spoken.push('requested on');
         else if(cmeReq)spoken.push('C M E day');
         else if(offReq)spoken.push('requested off');
-        html+=`<div class="cell${shown.length?' on':''}" data-iso="${iso}" role="button" tabindex="0" aria-label="${esc(spoken.join(', '))}">
+        // Today gets a ring. On a month grid the eye has nothing to anchor to otherwise, and
+        // "which square is now" is the question being asked before any other.
+        const isNow=(iso===todayISO());
+        if(isNow)spoken.unshift('Today');
+        html+=`<div class="cell${shown.length?' on':''}${isNow?' today':''}" data-iso="${iso}" role="button" tabindex="0" aria-label="${esc(spoken.join(', '))}">
           <span class="n" aria-hidden="true">${d}</span>${inner}
           ${onReq?'<span class="req" aria-hidden="true">●</span>':(offReq&&!cmeReq&&!shown.length)?'<span class="req" aria-hidden="true" style="color:#8AA0B4">○</span>':''}</div>`;
       }
@@ -1486,7 +1503,8 @@ function renderSched(){
     });
     html+=`<div class="note"><b style="color:#E8EEF4">Reading the calendar.</b> Colour = the unit. A moon marks an overnight;
       a split cell is a 24-hour shift. <b style="color:#C3DBFF">CME</b> marks a CME day.
-      ● is a day you asked to work, ○ a day off you requested. Tap any day for the details.</div>`;
+      ● is a day you asked to work, ○ a day off you requested. <b style="color:#35D6A4">Today</b>
+      is ringed in green. Tap any day for the details.</div>`;
   }else{
     const all=myShifts(ME).sort(byTime);
     if(!all.length)html+='<div class="empty">Nothing scheduled this block.</div>';
@@ -1576,7 +1594,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260820.2117';           // shown in the account bar so a stale app is obvious
+const BUILD='260820.2136';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 let SESSION=null, CFG=null, MYREQ=null, MYSWAPS=[];
 const api=async(path,opts={})=>{
@@ -1662,10 +1680,14 @@ async function signInWithPasskey(){
    cost of not having this is being felt, and the moment the offer makes sense. A session
    resumed from a trusted device gets no prompt, because nothing was asked of them to prompt
    about. Never stacked on top of the notifications offer; one interruption per visit. */
-let PW_TYPED=false;
+let PW_TYPED=false, DID_2FA_SETUP=false;
 async function maybeOfferFaceId(){
-  if(!PW_TYPED||pkEnrolled())return;
+  if(!PW_TYPED||pkEnrolled()||DID_2FA_SETUP)return;
   if(document.querySelector('.sheet.on'))return;
+  // Strictly after login: not over the sign-in screens, and not before the schedule is on
+  // screen. Offered while a gate is still up, it reads as another hoop in signing in.
+  if(document.body.classList.contains('locked'))return;
+  if(document.querySelector('.signin'))return;
   let asked=false; try{asked=localStorage.getItem('ccpsa_faceask')==='1';}catch(e){}
   if(asked)return;
   if(!(await pkAvailable()))return;
@@ -2242,7 +2264,7 @@ function openCoverAsk(){
      <select class="inp" id="cvShift">${shifts.map(s=>
        `<option value="${s.iso}|${esc(s.shift)}">${esc(fmtD(s.iso))} — ${esc(META(s.shift).label)}</option>`).join('')}</select>
      <label class="lbl" for="cvNote">Why (optional)</label>
-     <input class="inp" id="cvNote" placeholder="family thing">
+     <input class="inp" id="cvNote" placeholder="e.g. away at a conference">
      <div class="lbl">Who to ask</div>
      <div class="btnrow" style="flex-direction:column;gap:8px">
        <button class="btn pri" id="cvAll">Ask everyone who can take it</button>
@@ -2303,7 +2325,7 @@ function renderSwap(){
       <label class="l" for="swWho">Ask who</label>
       <select id="swWho">${others.map(p=>`<option>${esc(p)}</option>`).join('')}</select>
       <label class="l" for="swNote">Note (optional)</label>
-      <input id="swNote" placeholder="e.g. family thing, happy to owe you one">
+      <input id="swNote" placeholder="e.g. away at a conference — happy to return the favour">
       <button class="btn primary" id="swSend">Send request</button>
       <div id="swMsg" class="muted"></div>
     </div>`:'<div class="empty">No upcoming shifts to trade.</div>'}
@@ -2445,7 +2467,7 @@ async function openCoverFor(iso,shift,allShifts){
      <div class="sub" style="margin-top:8px">${esc(fmtLong(iso))} · <b>${esc(META(shift).label||shift)}</b></div>
      <div id="cvWho" class="sub" style="margin-top:10px">Working out who can take this…</div>
      <label class="lbl" for="cvNote" style="margin-top:10px">Anything they should know (optional)</label>
-     <input class="inp" id="cvNote" maxlength="200" placeholder="e.g. family thing, happy to swap back">
+     <input class="inp" id="cvNote" maxlength="200" placeholder="e.g. away at a conference">
      <div class="btnrow" style="margin-top:12px">
        <button class="btn pri" id="cvSend" disabled>Offer to available providers</button>
      </div>
@@ -3277,17 +3299,42 @@ function stepOffer2fa(email,pw,token){
   };
 }
 function stepScan(email,pw,token,setup){
+  /* A QR CODE ON THE PHONE YOU ARE SETTING UP CANNOT BE SCANNED BY THAT PHONE. This screen was
+     written for somebody sitting at a computer with a phone in hand, and then shipped to people
+     whose only device is the phone in front of them. The otpauth:// link has always been in the
+     response; nothing used it. On a phone it opens the authenticator app directly and the whole
+     scanning problem disappears, so that is the button, and the QR moves to where it belongs —
+     behind "setting this up from a computer?".
+
+     The key stays visible and copyable either way: it is the route that works when the app is
+     one the link does not reach. */
+  const touch=matchMedia('(pointer:coarse)').matches||/iPhone|iPad|Android/i.test(navigator.userAgent);
+  const qrBlock=`<div class="siQr"><img src="${setup.totpQr||''}" alt="QR code"></div>`;
   siPaint(`
-    <div class="siStep">Scan this</div>
+    <div class="siStep">${touch?'Add it to your authenticator':'Scan this'}</div>
     <div class="siLead">Google Authenticator, Authy, 1Password, or the password app on iPhone.</div>
-    <div class="siQr"><img src="${setup.totpQr||''}" alt="QR code"></div>
-    <div class="siKey">${setup.totpSecret||''}</div>
+    ${touch
+      ? `<a class="siB" id="siOpenAuth" href="${esc(setup.totpUri||'')}">Open my authenticator app</a>
+         <div class="siHint">If nothing opens, copy the key below and paste it into the app by hand.</div>
+         <details class="icsmore" style="margin-top:10px"><summary>Setting this up from a computer?</summary>
+           ${qrBlock}</details>`
+      : qrBlock}
+    <button class="siKey" id="siCopyKey" type="button" title="Tap to copy">${setup.totpSecret||''}</button>
     <label class="siL" for="siNew">Then enter the 6-digit code</label>
     <input class="siI siCode" id="siNew" inputmode="numeric" autocomplete="one-time-code"
            maxlength="6" placeholder="000000">
     <button class="siB" id="siDone">Turn on and sign in</button>
     <button class="siGhost" id="siSkip">Skip for now</button>`);
   document.querySelector('#siSkip').onclick=()=>loadPortal(token).catch(e=>siSay(e.message,true));
+  const ck=document.querySelector('#siCopyKey');
+  if(ck)ck.onclick=async()=>{
+    try{ await navigator.clipboard.writeText(setup.totpSecret||''); siSay('Key copied'); }
+    catch(e){ siSay('Select the key and copy it',true); }
+  };
+  // Two security set-ups back to back is one too many. If somebody has just done the
+  // authenticator, Face ID waits until their next visit rather than stacking on top of it —
+  // which is also how a QR screen ended up looking like it was part of setting up Face ID.
+  DID_2FA_SETUP=true;
   const go=async()=>{
     siSay('Checking…');
     try{
