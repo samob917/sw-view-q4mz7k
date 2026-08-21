@@ -1576,7 +1576,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260820.1706';           // shown in the account bar so a stale app is obvious
+const BUILD='260820.2117';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 let SESSION=null, CFG=null, MYREQ=null, MYSWAPS=[];
 const api=async(path,opts={})=>{
@@ -1694,6 +1694,46 @@ async function maybeOfferFaceId(){
     }
     paintFaceId();
   };
+}
+
+/* ---------- Face ID when you come back ----------
+   Staying signed in for ninety days is right for a schedule checked between patients, and wrong
+   for a phone left in a taxi. Face ID resolves that: the app stays signed in, and coming back to
+   it after a few hours costs a glance instead of a password.
+
+   ONLY WHERE IT IS FREE. If no passkey is enrolled this does nothing at all — locking someone
+   out behind a factor they have not set up would be the app breaking, not the app being careful.
+   The password route stays on the screen for the day the face does not work, because a schedule
+   nobody can open is worse than one that opens too easily. */
+const RELOCK_AFTER=4*60*60*1000;                 // a shift's worth of idle, not a coffee break
+function touchSeen(){ try{localStorage.setItem('ccpsa_lastseen',String(Date.now()));}catch(e){} }
+function idleTooLong(){
+  let t=0; try{t=+localStorage.getItem('ccpsa_lastseen')||0;}catch(e){}
+  return !t||(Date.now()-t)>RELOCK_AFTER;
+}
+let LOCKED=false;
+async function maybeLock(){
+  if(LOCKED||!pkEnrolled()||!idleTooLong())return false;
+  if(!(await pkAvailable()))return false;
+  LOCKED=true;
+  document.body.classList.add('locked');
+  siPaint(`<div class="siLead"><b>Welcome back.</b> Use Face ID to open your schedule.</div>
+     <button class="siB" id="lkGo">Use Face ID</button>
+     <button class="siGhost" id="lkPw">Use my password instead</button>
+     <div class="msg" id="lkMsg"></div>`);
+  const go=async()=>{
+    const m=$('#lkMsg'); m.textContent='Waiting for Face ID…'; m.className='msg on';
+    try{ await signInWithPasskey(); LOCKED=false; touchSeen(); }
+    catch(e){
+      const t=String((e&&e.message)||e);
+      m.textContent=/NotAllowed|Cancel|abort/i.test(t)?'Cancelled.':t;
+      m.className='msg on bad';
+    }
+  };
+  $('#lkGo').onclick=go;
+  $('#lkPw').onclick=()=>{ LOCKED=false; stepPassword(lastLoginEmail()); };
+  go();                       // offer it immediately; the prompt is the whole point
+  return true;
 }
 
 async function signInApi(){
@@ -2021,6 +2061,52 @@ async function paintFaceId(){
   };
 }
 
+/* SIGNING OUT A LOST PHONE. Device trust lasts ninety days, which is right for a schedule
+   somebody checks between patients and wrong for a phone left in a taxi. There is no server-side
+   list of sessions to delete — they are signed claims held by the browser — so this is a
+   timestamp on the account that anything older than is refused.
+
+   Shown to the person themselves and to an admin viewing them, because the physician who has
+   just lost the phone is the one who knows it, and the admin is the one who can act at 2am. */
+function devicesCard(){
+  if(!ME)return '';
+  const whose=onBehalf()?fullOf(ME):null;
+  return `<div class="swcard" id="devCard">
+    <div class="lgh">${whose?esc(whose)+"'s devices":'Signed-in devices'}</div>
+    <div class="sub">A phone stays signed in for 90 days so the schedule is one tap away. If one
+      is lost, sign it out — the schedule is on it until you do.</div>
+    <div id="devBody" class="sub" style="margin-top:8px">Checking…</div>
+  </div>`;
+}
+async function paintDevices(){
+  const box=$('#devBody'); if(!box)return;
+  let d=null;
+  try{ d=await api('/account',{method:'POST',
+        body:JSON.stringify({action:'devices',...(onBehalf()?{person:ME}:{})})}); }
+  catch(e){ box.textContent='Could not check.'; return; }
+  const bits=[];
+  bits.push(d.lastLogin?'Last signed in '+esc(new Date(d.lastLogin).toLocaleString()):'Never signed in');
+  if((d.passkeys||[]).length)bits.push((d.passkeys||[]).length+' device'+
+    ((d.passkeys||[]).length===1?'':'s')+' set up with Face ID');
+  if(d.signedOutAt)bits.push('All devices signed out '+esc(new Date(d.signedOutAt).toLocaleString()));
+  box.innerHTML=bits.join(' · ')+
+    '<div class="btnrow" style="margin-top:9px"><button class="btn" id="devOut">Sign out all devices</button></div>';
+  document.querySelector('#devOut').onclick=async()=>{
+    const b=document.querySelector('#devOut');
+    b.disabled=true; b.textContent='…';
+    try{
+      const r=await api('/account',{method:'POST',
+        body:JSON.stringify({action:'signOutEverywhere',...(onBehalf()?{person:ME}:{})})});
+      toast('Signed out — they will have to sign in again');
+      // Signing yourself out everywhere has to sign THIS device out too, or the one browser it
+      // did not affect is the one you are holding.
+      if(!onBehalf()){ try{localStorage.removeItem('__dev');sessionStorage.clear();}catch(e){}
+                       setTimeout(()=>location.reload(),700); return; }
+      paintDevices();
+    }catch(e){ toast(e.message||'Could not sign them out'); b.disabled=false; b.textContent='Sign out all devices'; }
+  };
+}
+
 function notifyCard(){
   return `<div class="swcard" id="notifyCard">
     <div class="lgh">Notifications</div>
@@ -2146,6 +2232,7 @@ function wireCoverage(){
   const rc=document.querySelector('#reqCover'); if(rc)rc.onclick=openCoverAsk;
   paintNotify();
   paintFaceId();
+  paintDevices();
 }
 function openCoverAsk(){
   const shifts=myShifts(ME).filter(s=>s.iso>=todayISO());
@@ -2207,7 +2294,7 @@ function renderSwap(){
   };
 
   pane.innerHTML=`<div class="btnrow"><button class="btn pri" id="reqCover">Request coverage</button></div>
-    ${notifyCard()}${faceIdCard()}${coverageCard()}
+    ${notifyCard()}${faceIdCard()}${devicesCard()}${coverageCard()}
     <h2 class="sec">Ask someone to cover a shift</h2>
     ${mine.length?`
     <div class="swapform">
@@ -3336,6 +3423,8 @@ function showGate(){ stepPassword(lastLoginEmail()); }
         body:JSON.stringify({device:dev})});
       if(r.ok){
         const j=await r.json();
+        // Resuming is exactly the moment to ask, if there is something to ask with.
+        if(await maybeLock())return;
         try{sessionStorage.setItem('__tok',j.token);}catch(e){}
         await loadPortal(j.token);
         return;
@@ -3354,6 +3443,13 @@ function showGate(){ stepPassword(lastLoginEmail()); }
    that screen to trigger anything. /api/config is public, so this asks for nothing it is not
    entitled to. */
 checkVersion();
-document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkVersion();});
+touchSeen();
+document.addEventListener('visibilitychange',()=>{
+  if(document.hidden){touchSeen();return;}     // stamp on the way out, judge on the way back
+  checkVersion();
+  maybeLock();
+});
+window.addEventListener('pagehide',touchSeen);
+setInterval(()=>{if(!document.hidden)touchSeen();},60000);
 window.addEventListener('pageshow',e=>{if(e.persisted)checkVersion();});
 </script>

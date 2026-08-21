@@ -20,7 +20,7 @@
  * so the file the whole update path depends on was surviving by luck and would have vanished
  * on any clean checkout.
  */
-const CACHE = 'ccpsa-portal-260820.1706';
+const CACHE = 'ccpsa-portal-260820.2117';
 
 // './' and index.html are the same response; both are listed because a navigation can ask for
 // either. icon-192 is what a push notification draws, so it must work offline too.
