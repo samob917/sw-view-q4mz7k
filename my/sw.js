@@ -20,7 +20,7 @@
  * so the file the whole update path depends on was surviving by luck and would have vanished
  * on any clean checkout.
  */
-const CACHE = 'ccpsa-portal-260820.2346';
+const CACHE = 'ccpsa-portal-260821.0003';
 
 // './' and index.html are the same response; both are listed because a navigation can ask for
 // either. icon-192 is what a push notification draws, so it must work offline too.
@@ -114,13 +114,13 @@ self.addEventListener('push', e => {
     return;
   }
 
-  // WHOSE NOTIFICATION IS THIS? The headline was the event — "Coverage needs approval" — with
-  // the app's name only in the small print, which on a locked screen full of other apps' cards
-  // is a message from nowhere. The name leads; what happened is the first line of the body,
-  // where it still reads at a glance.
-  const line = [d.title, d.body].filter(Boolean).join('\n');
-  e.waitUntil(self.registration.showNotification('Scheduling Wizard', {
-    body: line,
+  // THE APP'S NAME COMES FROM THE OPERATING SYSTEM, not from us. Every notification already
+  // carries "Scheduling Wizard" as its header — that is the installed app's name, drawn by iOS
+  // and Android above whatever we supply. Setting it as the title too produced "Scheduling
+  // Wizard: from Scheduling Wizard", the same words twice with the actual news pushed below.
+  // So the title is the event, and the system says who it is from.
+  e.waitUntil(self.registration.showNotification(d.title || 'CCPSA schedule', {
+    body: d.body || '',
     icon: 'icon-192.png',
     badge: 'icon-192.png',
     tag: d.tag || 'ccpsa',
