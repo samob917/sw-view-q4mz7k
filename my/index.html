@@ -1341,12 +1341,18 @@ function renderClinicView(){
 function whosOnHTML(iso){
   if(!DATA.dates.includes(iso))
     return '<div class="empty">Outside this block.</div>';
+  /* ADMIN IS NOT "ON" (Aaron 8/21). Protected time is the opposite of being on the board: it
+     answers "who is unavailable", and this screen is read to find out who is covering what.
+     Dropped here rather than un-grouped, because an un-grouped shift falls into the Other
+     catch-all and would come back as a heading of its own. Inpatient Backup shares kind 'admin'
+     and STAYS — it is real cover and the dashboard lists it under Backup. */
+  const OFF_BOARD=new Set(['Admin']);
   const rows=[];
   DATA.people.forEach(p=>{
     const a=(DATA.day[p]||{})[iso];
     if(!a)return;
-    (a.s||[]).forEach(sh=>{ if(isRealShift(p,iso,sh)) rows.push({sh,p,role:false}); });
-    (a.r||[]).forEach(r=>rows.push({sh:r,p,role:true}));
+    (a.s||[]).forEach(sh=>{ if(!OFF_BOARD.has(sh)&&isRealShift(p,iso,sh)) rows.push({sh,p,role:false}); });
+    (a.r||[]).forEach(r=>{ if(!OFF_BOARD.has(r)) rows.push({sh:r,p,role:true}); });
   });
   if(!rows.length)return '<div class="empty">Nobody scheduled.</div>';
   /* THE SAME GROUPS THE ADMIN VIEW DRAWS (Aaron 8/21).
@@ -1360,7 +1366,8 @@ function whosOnHTML(iso){
 
      Order is Aaron's, which is NOT quite the dashboard's own — over there Backup and Admin sit
      above Swing/Night. He asked for nights before backup, so nights before backup it is; the
-     grouping and the membership are what had to match. */
+     grouping and the membership are what had to match. Admin then came off the screen entirely
+     (8/21, second pass) — see OFF_BOARD. */
   const GROUPS=[
     ['ICU — Day', ['Red - Neuro/Trauma (201-224)','Yellow - CICU-M (225-236)',
                    'Green - CICU-C (237-248)','Blue - SMICU (329-340)','SAN ICU',
@@ -1371,8 +1378,7 @@ function whosOnHTML(iso){
     ['Noc / Swing',['South Swing','SAH NOC','SAH NOC2','PTR NOC','LAH NOC']],
     ['Backup',    ['Day Jeopardy','IP Backup']],
     ['Layered roles', null],          // whatever arrived as a layered role, in DATA.roles order
-    ['Admin',     ['Admin']],
-  ];
+  ];                                  // no Admin band — see OFF_BOARD above
   const byShift={};
   rows.forEach(r=>{(byShift[r.sh]=byShift[r.sh]||{role:r.role,who:[]}).who.push(r.p);});
   /* DATA.roles IS the layered-role registry, and membership of it is the real test — not how a
@@ -1793,7 +1799,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260821.2251';           // shown in the account bar so a stale app is obvious
+const BUILD='260821.2308';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 let SESSION=null, CFG=null, MYREQ=null, MYSWAPS=[];
 // The admin approvals queue. Declared up here with the rest of the state, not beside the code
