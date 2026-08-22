@@ -706,6 +706,12 @@ body.adminmode main{padding:0}
 .ondot{width:9px;height:9px;border-radius:3px;align-self:center}
 .onshift{font-size:12.5px;font-weight:600}
 .onwho{font-size:13px;color:var(--dim)}
+/* The dashboard's section band, at phone size: the group label the client reads over there.
+   First one has no top rule — a divider above the first heading looks like a mistake. */
+.ongrp{font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--faint);
+  font-weight:700;padding:13px 0 5px;border-top:1px solid var(--line2);margin-top:6px}
+.ongrp:first-child{border-top:0;margin-top:0;padding-top:2px}
+.onrow+.ongrp{margin-top:8px}
 
 .gpick{display:flex;flex-wrap:wrap;gap:5px;margin:10px 0}
 .gp{cursor:pointer;font-size:12px;padding:5px 10px}
@@ -1337,35 +1343,62 @@ function whosOnHTML(iso){
     (a.r||[]).forEach(r=>rows.push({sh:r,p,role:true}));
   });
   if(!rows.length)return '<div class="empty">Nobody scheduled.</div>';
-  /* THE ORDER THE ADMIN VIEW USES (Aaron 8/21):
-       ICU days (SAH first) · Clinic · Noc/Swing · Backup · Layered roles · Admin
-     Two things were wrong. Nights and the swing sorted BELOW Admin and Backup, and inside a
-     band the tie was broken ALPHABETICALLY BY SHIFT KEY — which pulled SAH's four colours apart
-     and scattered them through the list: "Avista", "Blue", "Green", "Porter", "Red", "SAN",
-     "Yellow". The unit order is not alphabetical and never was; it is the order the META table
-     is written in, SAH first, and that is the same order the dashboard renders. Use it. */
-  const BAND={icu:0,clinic:1,proc:1,noc:2,swing:2,jeop:3,admin:5};
-  const UNITSEQ=Object.keys(DATA.meta);
-  // A layered role is not a shift and has no kind, so it cannot be banded by one — it sits
-  // above Admin and below Backup because that is where the client reads it.
-  const band=(sh,isRole)=>{
-    if(isRole)return 4;
-    const k=(META(sh)||{}).kind;
-    return BAND[k]!==undefined?BAND[k]:6;
-  };
-  const seq=sh=>{const i=UNITSEQ.indexOf(sh);return i<0?9999:i;};
+  /* THE SAME GROUPS THE ADMIN VIEW DRAWS (Aaron 8/21).
+     Reordering alone was not what he asked for. The dashboard's grid is banded — it prints a
+     labelled section row (.secrow) above each set of units — and this was a flat list, so the
+     groups he reads over there simply were not here. It is banded now, from the SAME membership
+     the dashboard uses, spelled out by unit rather than inferred from `kind`.
+
+     Inferring was its own bug: IP Backup carries kind 'admin', so a kind-based band filed it
+     under Admin while the dashboard has always shown it under Backup.
+
+     Order is Aaron's, which is NOT quite the dashboard's own — over there Backup and Admin sit
+     above Swing/Night. He asked for nights before backup, so nights before backup it is; the
+     grouping and the membership are what had to match. */
+  const GROUPS=[
+    ['ICU — Day', ['Red - Neuro/Trauma (201-224)','Yellow - CICU-M (225-236)',
+                   'Green - CICU-C (237-248)','Blue - SMICU (329-340)','SAN ICU',
+                   'Avista/North 2','LAH CVICU','LAH ICU 1','LAH ICU 2/PTR','Porter ICU',
+                   'CR/PKR','Parker ICU']],
+    ['Clinic',    ['West Clinic','North Clinic','South Clinic','Central Clinic','SAH EBUS',
+                   'Porter EBUS','Goodland Clinic','RHC-SAN']],
+    ['Noc / Swing',['South Swing','SAH NOC','SAH NOC2','PTR NOC','LAH NOC']],
+    ['Backup',    ['Day Jeopardy','IP Backup']],
+    ['Layered roles', null],          // whatever arrived as a layered role, in DATA.roles order
+    ['Admin',     ['Admin']],
+  ];
   const byShift={};
   rows.forEach(r=>{(byShift[r.sh]=byShift[r.sh]||{role:r.role,who:[]}).who.push(r.p);});
-  return Object.keys(byShift)
-    .sort((a,b)=>band(a,byShift[a].role)-band(b,byShift[b].role)
-                 ||seq(a)-seq(b)||String(a).localeCompare(String(b)))
-    .map(sh=>{
-      const m=META(sh), g=byShift[sh];
-      return `<div class="onrow${g.role?' isrole':''}">
-        <span class="ondot" style="background:${g.role?'var(--line2)':m.color}"></span>
-        <span class="onshift">${esc(g.role?((DATA.roles[sh]||{}).label||sh):m.label)}</span>
-        <span class="onwho">${g.who.map(x=>esc(fullOf(x))).join(', ')}</span></div>`;
-    }).join('');
+  /* DATA.roles IS the layered-role registry, and membership of it is the real test — not how a
+     given day happened to store the assignment. Orientation is registered as a layered role and
+     is ALSO written as a top-level unit (the dashboard hit the same thing on 8/17), so keying
+     off the per-day flag alone dropped it out of the group and into "Other". */
+  const roleSeq=Object.keys(DATA.roles||{});
+  const isRole=sh=>!!(byShift[sh]&&byShift[sh].role)||!!(DATA.roles&&DATA.roles[sh]);
+  const placed=new Set();
+  const line=sh=>{
+    const g=byShift[sh], r=isRole(sh), m=META(sh);
+    return `<div class="onrow${r?' isrole':''}">
+      <span class="ondot" style="background:${r?'var(--line2)':m.color}"></span>
+      <span class="onshift">${esc(r?((DATA.roles[sh]||{}).label||sh):m.label)}</span>
+      <span class="onwho">${g.who.map(x=>esc(fullOf(x))).join(', ')}</span></div>`;
+  };
+  let out='';
+  GROUPS.forEach(([title,keys])=>{
+    const mine=keys
+      ? keys.filter(k=>byShift[k]&&!isRole(k))
+      : Object.keys(byShift).filter(isRole)
+          .sort((a,b)=>{const i=roleSeq.indexOf(a),j=roleSeq.indexOf(b);
+                        return (i<0?999:i)-(j<0?999:j)||String(a).localeCompare(String(b));});
+    if(!mine.length)return;                       // an empty band is noise, not information
+    mine.forEach(k=>placed.add(k));
+    out+=`<div class="ongrp">${esc(title)}</div>`+mine.map(line).join('');
+  });
+  // A unit added to the schedule but not yet to GROUPS must still appear. Silently dropping a
+  // shift from "who is on today" is the one failure this screen cannot have.
+  const rest=Object.keys(byShift).filter(k=>!placed.has(k));
+  if(rest.length)out+='<div class="ongrp">Other</div>'+rest.sort().map(line).join('');
+  return out;
 }
 function wireDayNav(){
   const lab=$('#dayLabel'), box=$('#onToday');
@@ -1754,7 +1787,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260821.2057';           // shown in the account bar so a stale app is obvious
+const BUILD='260821.2240';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 let SESSION=null, CFG=null, MYREQ=null, MYSWAPS=[];
 // The admin approvals queue. Declared up here with the rest of the state, not beside the code
