@@ -115,8 +115,10 @@ button:not(.ghost):hover{filter:brightness(1.06)}
   <!-- ============ 3. authenticator ============ -->
   <section class="card" id="p3" hidden>
     <h2>Add your authenticator app</h2>
-    <p class="sub">Scan this with Google Authenticator, Authy, 1Password, or the built-in
-      password app on iPhone.</p>
+    <!-- Examples, not a whitelist — see the note in build_portal.py. Standard TOTP: any app. -->
+    <p class="sub">Any authenticator app will do — Microsoft Authenticator, Okta Verify,
+      SecureAuth, Google Authenticator, Authy, 1Password, or the built-in password app on
+      iPhone. Scan this with whichever you already use.</p>
     <div class="qr"><img id="qr" alt="QR code for your authenticator app"></div>
     <p class="note">Can't scan? Type this key into the app instead:</p>
     <div class="secret" id="secret"></div>

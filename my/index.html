@@ -1337,15 +1337,28 @@ function whosOnHTML(iso){
     (a.r||[]).forEach(r=>rows.push({sh:r,p,role:true}));
   });
   if(!rows.length)return '<div class="empty">Nobody scheduled.</div>';
-  // Everything worked in daylight first, then the swing, then the nights. Day Jeopardy and
-  // Admin used to fall into a catch-all that sorted BELOW the night shifts, which read as though
-  // they ran overnight.
-  const ORDER={icu:0,clinic:1,proc:1,jeop:2,admin:3,swing:4,noc:5};
-  const order=sh=>{const k=(META(sh)||{}).kind;return ORDER[k]!==undefined?ORDER[k]:6;};
+  /* THE ORDER THE ADMIN VIEW USES (Aaron 8/21):
+       ICU days (SAH first) · Clinic · Noc/Swing · Backup · Layered roles · Admin
+     Two things were wrong. Nights and the swing sorted BELOW Admin and Backup, and inside a
+     band the tie was broken ALPHABETICALLY BY SHIFT KEY — which pulled SAH's four colours apart
+     and scattered them through the list: "Avista", "Blue", "Green", "Porter", "Red", "SAN",
+     "Yellow". The unit order is not alphabetical and never was; it is the order the META table
+     is written in, SAH first, and that is the same order the dashboard renders. Use it. */
+  const BAND={icu:0,clinic:1,proc:1,noc:2,swing:2,jeop:3,admin:5};
+  const UNITSEQ=Object.keys(DATA.meta);
+  // A layered role is not a shift and has no kind, so it cannot be banded by one — it sits
+  // above Admin and below Backup because that is where the client reads it.
+  const band=(sh,isRole)=>{
+    if(isRole)return 4;
+    const k=(META(sh)||{}).kind;
+    return BAND[k]!==undefined?BAND[k]:6;
+  };
+  const seq=sh=>{const i=UNITSEQ.indexOf(sh);return i<0?9999:i;};
   const byShift={};
   rows.forEach(r=>{(byShift[r.sh]=byShift[r.sh]||{role:r.role,who:[]}).who.push(r.p);});
   return Object.keys(byShift)
-    .sort((a,b)=>order(a)-order(b)||String(a).localeCompare(String(b)))
+    .sort((a,b)=>band(a,byShift[a].role)-band(b,byShift[b].role)
+                 ||seq(a)-seq(b)||String(a).localeCompare(String(b)))
     .map(sh=>{
       const m=META(sh), g=byShift[sh];
       return `<div class="onrow${g.role?' isrole':''}">
@@ -1741,7 +1754,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260821.1309';           // shown in the account bar so a stale app is obvious
+const BUILD='260821.2057';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 let SESSION=null, CFG=null, MYREQ=null, MYSWAPS=[];
 // The admin approvals queue. Declared up here with the rest of the state, not beside the code
@@ -3941,7 +3954,13 @@ function stepScan(email,pw,token,setup){
   const qrBlock=`<div class="siQr"><img src="${setup.totpQr||''}" alt="QR code"></div>`;
   siPaint(`
     <div class="siStep">${touch?'Add it to your authenticator':'Scan this'}</div>
-    <div class="siLead">Google Authenticator, Authy, 1Password, or the password app on iPhone.</div>
+    <!-- NAMING FOUR APPS READ AS A LIST OF THE ONLY FOUR THAT WORK. Aaron 8/21: his group uses
+         Microsoft Authenticator, Okta Verify and SecureAuth for the hospital systems, and he
+         could not tell from this whether those were supported. They all are — this is ordinary
+         RFC 6238 TOTP (SHA-1, 6 digits, 30 seconds) handed over as a standard otpauth:// QR, so
+         anything that reads one works. Say that first; the names are examples, not a whitelist. -->
+    <div class="siLead">Any authenticator app will do — Microsoft Authenticator, Okta Verify,
+      SecureAuth, Google Authenticator, Authy, 1Password, or the password app on iPhone.</div>
     ${touch
       ? `<a class="siB" id="siOpenAuth" href="${esc(setup.totpUri||'')}">Open my authenticator app</a>
          <div class="siHint">If nothing opens, copy the key below and paste it into the app by hand.</div>
