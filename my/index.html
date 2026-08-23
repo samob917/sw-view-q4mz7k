@@ -1934,7 +1934,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260823.1448';           // shown in the account bar so a stale app is obvious
+const BUILD='260823.1457';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 const PH_KEY='', PH_HOST='https://us.i.posthog.com';
 /* ---------- analytics ----------
@@ -2659,7 +2659,8 @@ async function paintNotify(){
 }
 
 function coverageCard(){
-  const open=COVER.filter(o=>o.status==='open'&&(o.eligible||[]).includes(ME)&&o.fromPerson!==ME);
+  const open=COVER.filter(o=>o.status==='open'&&(o.eligible||[]).includes(ME)&&o.fromPerson!==ME
+    &&!(o.declinedBy||[]).includes(ME));
   // Only requests still in play. A withdrawn or expired one is finished business; leaving it
   // here is how a list becomes a pile nobody reads.
   const mine=COVER.filter(o=>o.fromPerson===ME&&['open','claimed'].includes(o.status));
@@ -2679,7 +2680,8 @@ function coverageCard(){
   if(open.length)h+=`<h2 class="sec">Can you cover?</h2>`+open.map(o=>`
     <div class="swcard"><div class="lgh">${esc(META(o.shift).label||o.shift)} · ${esc(fmtD(o.date))}</div>
       <div class="sub">${esc(fullOf(o.fromPerson))} needs this covered${o.note?' — '+esc(o.note):''}</div>
-      <div class="btnrow"><button class="btn pri" data-claim="${esc(o.id)}">I'll take it</button></div>
+      <div class="btnrow two"><button class="btn pri" data-claim="${esc(o.id)}">I'll take it</button>
+        <button class="btn" data-pass="${esc(o.id)}">Can't</button></div>
     </div>`).join('');
   if(decided.length)h+=`<h2 class="sec">Decided</h2>`+decided.map(o=>{
     const ok=o.status==='approved';
@@ -2708,7 +2710,10 @@ function coverageCard(){
   if(mine.length)h+=`<h2 class="sec">Your coverage requests</h2>`+mine.map(o=>`
     <div class="swcard"><div class="lgh">${esc(META(o.shift).label||o.shift)} · ${esc(fmtD(o.date))}</div>
       <div class="sub">${o.status==='open'
-        ? 'Asked '+(o.eligible||[]).length+' colleague'+((o.eligible||[]).length===1?'':'s')+' — nobody has accepted yet'
+        ? 'Asked '+(o.eligible||[]).length+' colleague'+((o.eligible||[]).length===1?'':'s')
+          +((o.declinedBy||[]).length?' — '+(o.declinedBy||[]).length+' passed, '
+              +Math.max(0,(o.eligible||[]).length-(o.declinedBy||[]).length)+' still to answer'
+            :' — nobody has accepted yet')
         : o.status==='claimed' ? esc(fullOf(o.claimedBy))+' accepted — waiting on an admin'
         : esc(o.status)}</div>
       <div class="btnrow"><button class="btn" data-covcancel="${esc(o.id)}">Withdraw</button></div>
@@ -2722,7 +2727,7 @@ function coverageCard(){
 function pendingForMe(){
   if(!ME)return 0;
   const covers=(COVER||[]).filter(o=>o.status==='open'&&o.fromPerson!==ME&&
-    (o.eligible||[]).includes(ME)).length;
+    (o.eligible||[]).includes(ME)&&!(o.declinedBy||[]).includes(ME)).length;
   const swaps=(MYSWAPS||[]).filter(s=>s.status==='awaiting_partner'&&s.toPerson===ME).length;
   return covers+swaps;
 }
@@ -2833,7 +2838,21 @@ async function openOffer(id){
          <button class="btn pri" id="ofTake">I'll take it</button>
          <button class="btn" id="ofSkip">Not this time</button></div>
        <div class="msg" id="ofMsg"></div>`);
-    $('#ofSkip').onclick=closeSheet;
+    // This used to just close the sheet, so "Not this time" changed nothing and the request was
+    // back at the next glance. It records the answer now.
+    $('#ofSkip').onclick=async()=>{
+      const m=$('#ofMsg'); m.textContent='…'; m.className='msg on';
+      $('#ofTake').disabled=true; $('#ofSkip').disabled=true;
+      try{ const body={id:o.id,action:'pass'}; if(onBehalf())body.person=ME;
+           const r=await api('/coverage',{method:'POST',body:JSON.stringify(body)});
+           track('cover_passed',{remaining:r.remaining,from:'notification'});
+           closeSheet();
+           toast(r.remaining? 'Passed — the others have still been asked'
+                            : 'Passed — everyone has now passed, and they have been told');
+           await loadCoverage(); if(CUR==='swap')renderSwap(); }
+      catch(e){ m.textContent=e.message||'Could not save'; m.className='msg on bad';
+                $('#ofTake').disabled=false; $('#ofSkip').disabled=false; }
+    };
     $('#ofTake').onclick=async()=>{
       const m=$('#ofMsg'); m.textContent='…'; m.className='msg on';
       $('#ofTake').disabled=true;
@@ -2943,6 +2962,20 @@ function wireCoverage(){
          toast('Withdrawn — nobody is being asked any more');
          await loadCoverage(); renderSwap(); }
     catch(e){ toast(e.message); b.disabled=false; b.textContent='Withdraw'; }
+  });
+  /* Saying no is an answer, and it is recorded like one. It clears the request from this
+     person's list without touching anybody else's, and if everyone passes the asker is told
+     rather than left waiting on something already dead. */
+  document.querySelectorAll('[data-pass]').forEach(b=>b.onclick=async()=>{
+    b.disabled=true; b.textContent='…';
+    try{ const body={id:b.dataset.pass,action:'pass'};
+         if(onBehalf())body.person=ME;
+         const r=await api('/coverage',{method:'POST',body:JSON.stringify(body)});
+         track('cover_passed',{remaining:r.remaining});
+         toast(r.remaining? 'Passed — the others have still been asked'
+                          : 'Passed — everyone has now passed, and they have been told');
+         await loadCoverage(); renderSwap(); }
+    catch(e){ toast(e.message); b.disabled=false; b.textContent="Can't"; }
   });
   document.querySelectorAll('[data-claim]').forEach(b=>b.onclick=async()=>{
     b.disabled=true;b.textContent='…';
