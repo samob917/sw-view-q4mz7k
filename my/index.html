@@ -417,6 +417,26 @@ textarea.ta{width:100%;background:var(--panel);border:1px solid var(--line2);bor
 .addrow input::-webkit-calendar-picker-indicator{opacity:.75;cursor:pointer}
 .addrow .btn{width:auto;flex:0 0 auto;padding:12px 20px}
 .addhint{font-size:12.5px;color:var(--amber);margin:-2px 0 8px;min-height:1px}
+/* archived requests — a closed drawer, deliberately quieter than everything above it */
+.arch{margin-top:22px;border-top:1px solid var(--line);padding-top:14px}
+.arch>summary{font-size:13px;color:var(--dim);cursor:pointer;list-style:none;
+  display:flex;align-items:center;gap:8px;padding:4px 0}
+.arch>summary::-webkit-details-marker{display:none}
+.arch>summary::before{content:'▸';color:var(--faint);font-size:11px;transition:transform .15s}
+.arch[open]>summary::before{transform:rotate(90deg)}
+.arch>summary:hover{color:var(--ink)}
+.archn{font-family:var(--mono);font-size:11px;color:var(--faint);
+  background:var(--panel2);border:1px solid var(--line);border-radius:20px;padding:1px 8px}
+.archbody{margin-top:10px;display:flex;flex-direction:column;gap:1px}
+.archrow{display:grid;grid-template-columns:46px 1fr auto;gap:10px;align-items:center;
+  padding:9px 2px;border-bottom:1px solid var(--line)}
+.archrow:last-child{border-bottom:0}
+.archk{font:700 9.5px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
+.archw{min-width:0;font-size:13.5px;line-height:1.4}
+.archw b{font-weight:620;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.archwho{display:block;color:var(--dim);font-size:12.5px;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+@media (prefers-reduced-motion:reduce){.arch>summary::before{transition:none}}
 .icsmore{margin-top:9px}
 .icsmore summary{font-size:12.5px;color:var(--dim);cursor:pointer}
 .accttheme{background:transparent;border:1px solid var(--line);color:var(--dim);
@@ -1877,7 +1897,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260823.1356';           // shown in the account bar so a stale app is obvious
+const BUILD='260823.1403';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 const PH_KEY='', PH_HOST='https://us.i.posthog.com';
 /* ---------- analytics ----------
@@ -2657,6 +2677,41 @@ function coverageCard(){
     </div>`).join('');
   return h;
 }
+/* ---------- archived requests ----------
+   Anything already decided. It was in two different wrong places: a settled SWAP stayed in the
+   main list forever, so the page became a pile with the one live item somewhere in it; and a
+   settled COVER request vanished outright the moment it was acknowledged, so there was nowhere
+   to go and check what had happened last month.
+   Both land here now — closed by default, counted on the summary, newest first. */
+const SWAP_DONE=['approved','rejected','declined'];
+const COVER_DONE=['approved','declined','expired','cancelled'];
+function archivedHTML(){
+  const rows=[];
+  (MYSWAPS||[]).filter(s=>(s.fromPerson===ME||s.toPerson===ME)&&SWAP_DONE.includes(s.status))
+    .forEach(s=>rows.push({when:s.date,kind:'Swap',
+      what:esc(META(s.shift).label||s.shift)+' · '+esc(fmtD(s.date)),
+      who:esc(fullOf(s.fromPerson)||s.fromPerson)+' → '+esc(fullOf(s.toPerson)||s.toPerson),
+      status:s.status, by:s.decidedBy}));
+  (COVER||[]).filter(o=>(o.fromPerson===ME||o.claimedBy===ME)&&COVER_DONE.includes(o.status))
+    .forEach(o=>rows.push({when:o.date,kind:'Cover',
+      what:esc(META(o.shift).label||o.shift)+' · '+esc(fmtD(o.date)),
+      who:o.claimedBy?esc(fullOf(o.claimedBy)||o.claimedBy)+' for '+esc(fullOf(o.fromPerson)||o.fromPerson)
+                     :esc(fullOf(o.fromPerson)||o.fromPerson),
+      status:o.status, by:o.decidedBy}));
+  if(!rows.length)return '';
+  rows.sort((a,b)=>String(b.when).localeCompare(String(a.when)));
+  const tone={approved:'ok',declined:'bad',rejected:'bad',expired:'',cancelled:''};
+  return `<details class="arch"><summary>Archived requests <span class="archn">${rows.length}</span></summary>
+    <div class="archbody">${rows.map(r=>`
+      <div class="archrow">
+        <span class="archk">${r.kind}</span>
+        <span class="archw"><b>${r.what}</b><span class="archwho">${r.who}</span></span>
+        <span class="pill ${tone[r.status]||''}">${esc(r.status)}</span>
+      </div>`).join('')}</div>
+    <div class="note" style="margin:10px 0 0">Nothing here needs anything from you — it is what
+      was decided, kept so you can look back.</div></details>`;
+}
+
 /* Acknowledgement is per request and per person, so one being cleared cannot hide the next. */
 function coverSeen(id){
   try{ return (localStorage.getItem('ccpsa_coverseen')||'').split(',').includes((ME||'')+':'+id); }
@@ -2915,7 +2970,8 @@ function renderSwap(){
 
   const mine=myShifts(ME).sort(byTime).filter(x=>x.iso>=todayISO());
   const others=DATA.people.filter(p=>p!==ME).sort();
-  const mySw=MYSWAPS.filter(s=>s.fromPerson===ME||s.toPerson===ME);
+  // Live only. Settled ones move to the archive at the bottom rather than sitting here.
+  const mySw=MYSWAPS.filter(s=>(s.fromPerson===ME||s.toPerson===ME)&&!SWAP_DONE.includes(s.status));
 
   const badge=(s)=>{
     const m={blocked:['bad','Breaks a rule'],awaiting_partner:['warn','Waiting on them'],
@@ -2942,7 +2998,7 @@ function renderSwap(){
          What is left is everything needed to SETTLE what already exists: the list below, the
          accept/decline buttons, and the admin sign-off queue. Nothing in flight breaks. Deleting
          the machinery is a separate decision — this only stops new dead ends being created. -->
-    <h2 class="sec">My swap requests</h2>
+    ${mySw.length?'<h2 class="sec">My swap requests</h2>':''}
     <div id="swList">${mySw.length?mySw.map(s=>`
       <div class="swcard">
         <div class="swtop"><b>${fmtD(s.date)}</b> — ${esc(META(s.shift).label||s.shift)} ${badge(s)}</div>
@@ -2953,7 +3009,8 @@ function renderSwap(){
           <button class="btn" data-dec="${s.id}">Can’t</button></div>`:''}
       </div>`).join(''):'<div class="empty">Nothing yet.</div>'}</div>
 
-    ${isAdmin()?'<h2 class="sec">Awaiting your sign-off</h2><div id="swAdmin"></div>':''}`;
+    ${isAdmin()?'<h2 class="sec">Awaiting your sign-off</h2><div id="swAdmin"></div>':''}
+    ${archivedHTML()}`;
 
   const send=$('#swSend');   // the form is gone; kept null-safe for any cached page
   if(send)send.onclick=async()=>{
