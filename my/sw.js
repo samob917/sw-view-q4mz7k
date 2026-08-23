@@ -20,7 +20,7 @@
  * so the file the whole update path depends on was surviving by luck and would have vanished
  * on any clean checkout.
  */
-const CACHE = 'ccpsa-portal-260823.1920';
+const CACHE = 'ccpsa-portal-260823.1924';
 // The name every notification leads with. One constant, because it is the first thing anyone
 // reads and it must not drift between the two places a notification can be shown.
 const APP_NAME = 'Scheduling Wizard';
@@ -123,22 +123,33 @@ self.addEventListener('push', e => {
       // showed nothing at all, and the browser is entitled to post its own "this site was
       // updated in the background" card in its place. One honest line beats that.
       if (list.length) return;
-      return self.registration.showNotification(d.title || 'Schedule update', {
-        ...common, body: d.body || 'That request is closed.', renotify: false, silent: true });
+      return self.registration.showNotification(APP_NAME, {
+        ...common, body: [d.title, d.body || 'That request is closed.'].filter(Boolean).join('\n'),
+        renotify: false, silent: true });
     }));
     return;
   }
 
-  /* THE TITLE IS THE EVENT. This has been round the houses, so the reasoning is worth keeping.
-     Read in a BROWSER, the renderer appends "from Scheduling Wizard" under the message, which put
-     the sender last and read badly — so the app name was moved into the title. Read on the
-     INSTALLED app, which is how every physician will see it, iOS draws the app name in the header
-     itself, and the title said it a second time: "Scheduling Wizard / Scheduling Wizard / ...".
-     The installed app is the one that matters. The system says who it is from; we say what
-     happened. */
-  e.waitUntil(self.registration.showNotification(d.title || 'Schedule update', {
+  /* THE TITLE IS THE APP NAME. THE BODY LEADS WITH THE EVENT. SETTLED — DO NOT RE-DERIVE.
+     Sam has asked for this repeatedly and it has been changed back twice by reasoning about what
+     a renderer "should" do. It reads:
+
+         Scheduling Wizard
+         Someone accepted coverage
+         Boe accepted Littleton Night on Oct 5 — waiting on an admin.
+
+     We do not and cannot send the "from Scheduling Wizard" attribution line — the renderer adds
+     it under the body for anything from a web origin, and the Notification API has no way to
+     suppress it. Leading with the event in the TITLE is what makes that line read as a trailing
+     "…from Scheduling Wizard" after the message, which is the thing being complained about.
+     Putting the name first is the only lever we have, and it is the one the client wants.
+
+     The argument for the other way round was that an installed iOS app draws its own name in the
+     header, so the title repeats it. That is a cosmetic repetition on one platform. It is not
+     worth overriding an explicit, repeated instruction, and it is not what is being read. */
+  e.waitUntil(self.registration.showNotification(APP_NAME, {
     ...common,
-    body: d.body || '',
+    body: [d.title, d.body].filter(Boolean).join('\n'),
     renotify: !!d.tag,
   }));
 });
