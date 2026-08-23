@@ -117,8 +117,26 @@ if('serviceWorker' in navigator){
 }
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+/* THE SHELL IS A FLEX COLUMN, NOT A SCROLLING DOCUMENT.
+   The tab bar sat above the bottom of the screen on Swaps and nowhere else, and two attempts to
+   fix it as a position:fixed element failed: the bar is a direct child of body with no
+   transformed ancestor, and forcing the document to a full screen height changed nothing. What
+   the failures have in common is that both trusted iOS to resolve bottom:0 against the viewport
+   on a page shorter than the screen -- which is the one case that only ever arises on Swaps.
+
+   So the bar no longer relies on that. header / main / nav are flex items in a column exactly one
+   viewport tall; the bar is the last item, placed by layout, and the only thing that can move it
+   is the height of the box above it. There is nothing left for a viewport quirk to get wrong.
+
+   The scroll moves from the document to main. Everything overlaid -- sheets, scrim, gate, toast --
+   is still position:fixed against the viewport and is unaffected. */
 body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--sans);
-     -webkit-font-smoothing:antialiased;padding-bottom:calc(var(--tabh) + env(safe-area-inset-bottom))}
+     -webkit-font-smoothing:antialiased;
+     height:100%;display:flex;flex-direction:column}
+header.top{flex:0 0 auto}
+main.wrap{flex:1 1 auto;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;
+          overscroll-behavior-y:contain}
+nav.tabs{flex:0 0 auto}
 button,input,select,textarea{font:inherit;color:inherit}
 a{color:var(--signal)}
 
@@ -146,7 +164,7 @@ body.wide .wrap{max-width:1500px}
    area behind the status bar, and nothing here ever gave it back — so "⚡ SCHEDULING WIZARD" was
    drawn into the wifi, battery and time. env(safe-area-inset-top) is 0 in a browser tab and ~47px
    on an installed iPhone app, so this costs nothing where it is not needed. */
-header.top{position:sticky;top:0;z-index:30;background:var(--chrome);
+header.top{z-index:30;background:var(--chrome);
   backdrop-filter:saturate(1.4) blur(10px);border-bottom:1px solid var(--line);
   padding-top:env(safe-area-inset-top)}
 .topin{padding:11px 14px;display:flex;align-items:center;gap:10px;min-height:34px}
@@ -277,9 +295,7 @@ h2.sec{font-size:19px;font-weight:800;letter-spacing:-.02em;margin:22px 0 12px}
    The safe-area padding stays — it keeps the labels off the home indicator — but the background
    now runs to the physical bottom edge, so the bar reads as anchored rather than hovering. */
 html{height:100%}
-body{min-height:100%}
-nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:40;background:var(--chrome-solid);
-  border-top:1px solid var(--line);
+nav.tabs{z-index:40;background:var(--chrome-solid);border-top:1px solid var(--line);
   padding-bottom:max(env(safe-area-inset-bottom), 4px)}
 .tabsin{max-width:600px;margin:0 auto;display:grid;grid-template-columns:repeat(4,1fr)}
 .tab{background:none;border:0;padding:9px 4px 10px;display:flex;flex-direction:column;align-items:center;gap:3px;
@@ -354,7 +370,7 @@ textarea.ta{width:100%;background:var(--panel);border:1px solid var(--line2);bor
    a phone layout — cards, a hero, a bottom tab bar — and no amount of hiding turns that into
    something worth printing. */
 @media print{
-  body>*:not(#printOnly){display:none!important}
+  body{display:block!important}body>*:not(#printOnly){display:none!important}
   body{background:#fff!important;color:#000!important;padding:0!important;margin:0!important}
   body::before{display:none!important}      /* the orange TEST banner is a screen device */
   #printOnly{display:block!important;position:static!important;left:auto!important;
@@ -613,7 +629,7 @@ textarea.ta{width:100%;background:var(--panel);border:1px solid var(--line2);bor
 .lnk{background:none;border:0;color:var(--signal);font:inherit;font-size:12px;cursor:pointer;
   padding:0 0 0 8px;text-decoration:underline}
 .muted{color:var(--dim)}
-.toastbox{position:fixed;left:50%;transform:translateX(-50%) translateY(20px);bottom:calc(var(--tabh) + 18px);
+.toastbox{position:fixed;left:50%;transform:translateX(-50%) translateY(20px);bottom:calc(var(--tabh) + env(safe-area-inset-bottom) + 18px);
   background:var(--ink);color:var(--ground);padding:10px 16px;border-radius:999px;font-size:13px;font-weight:600;
   opacity:0;pointer-events:none;transition:opacity .18s,transform .18s;z-index:60;max-width:86vw;text-align:center}
 .toastbox.on{opacity:1;transform:translateX(-50%) translateY(0)}
@@ -1130,7 +1146,7 @@ function openAccountSheet(){
     ${ME?`<div class="row"><span class="sp" style="background:var(--line2)"></span>
       <span><span class="t">Viewing</span><span class="s">${esc(fullOf(ME))}’s schedule</span></span></div>`:''}
     <div class="row"><span class="sp" style="background:var(--line2)"></span>
-      <span><span class="t">App version</span><span class="s">${esc(BUILD)}${
+      <span><span class="t">App version</span><span class="s" id="acBuild">${esc(BUILD)}${
         TEST_BUILD?' · test copy':''}</span></span></div>
     <div class="row"><span class="sp" style="background:var(--line2)"></span>
       <span><span class="t">Sign-in email</span>
@@ -1145,6 +1161,13 @@ function openAccountSheet(){
   // somebody opens this sheet, rather than widening every portal load for one line of text.
   loadMyEmail().then(()=>{const e=$('#acEmail'); if(e)e.textContent=MYEMAIL||'—';});
   const sw=$('#acSwitch');if(sw)sw.onclick=()=>{closeSheet();openGate();};
+  // Five taps on the version turns the layout readout on. Deliberately undiscoverable: it is a
+  // diagnostic for one reported fault, not a feature.
+  const bv=$('#acBuild');
+  if(bv){ let taps=0, last=0;
+    bv.style.cursor='pointer';
+    bv.onclick=()=>{ const t=Date.now(); taps=(t-last<1200)?taps+1:1; last=t;
+                     if(taps>=5){ taps=0; diagToggle(); } }; }
   $('#acMail').onclick=openEmailChange;
   $('#acAuth').onclick=openAuthReset;
   $('#acOut').onclick=()=>{
@@ -2063,7 +2086,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260823.1803';           // shown in the account bar so a stale app is obvious
+const BUILD='260823.1811';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 const PH_KEY='', PH_HOST='https://us.i.posthog.com';
 /* ---------- analytics ----------
@@ -3681,19 +3704,78 @@ function renderAdmin(){
 }
 /* ---------- tabs ---------- */
 let CUR='now';
+/* ---------- layout readout (off unless asked for) ----------
+   The tab bar sitting high on Swaps could not be reproduced on any screen I have; it has only
+   ever been seen on an installed iPhone app, which is exactly where there is no inspector. Rather
+   than guess a fourth time, this reports the numbers that decide where the bar lands, live, from
+   the device showing the fault. Tap the version in Account five times to turn it on or off.
+   Nothing renders and no work is done unless it is on, so it is inert for everyone else. */
+function diagOn(){ try{ return localStorage.getItem('swdiag')==='1'; }catch(e){ return false; } }
+function diagToggle(){
+  let on=false;
+  try{ on=!diagOn(); localStorage.setItem('swdiag',on?'1':'0'); }catch(e){}
+  const el=$('#swdiag'); if(el)el.remove();
+  if(on)diagPaint(); toast(on?'Layout readout on':'Layout readout off');
+}
+function diagPaint(){
+  if(!diagOn())return;
+  let el=$('#swdiag');
+  if(!el){
+    el=document.createElement('div'); el.id='swdiag';
+    el.style.cssText='position:fixed;left:0;right:0;top:0;z-index:99;background:#111a26f2;'
+      +'color:#7CFFB2;font:11px/1.35 ui-monospace,Menlo,monospace;padding:6px 8px;'
+      +'white-space:pre;pointer-events:none;border-bottom:1px solid #2a3a4d';
+    document.body.appendChild(el);
+  }
+  const nav=$('nav.tabs'), main=$('main.wrap');
+  const r=nav?nav.getBoundingClientRect():{top:0,bottom:0,height:0};
+  const cs=nav?getComputedStyle(nav):{};
+  const vv=window.visualViewport||{};
+  // env() is not readable from JS, so measure it with a probe.
+  let inset='?';
+  try{ const q=document.createElement('div');
+       q.style.cssText='position:fixed;bottom:0;height:env(safe-area-inset-bottom);width:1px';
+       document.body.appendChild(q); inset=Math.round(q.getBoundingClientRect().height); q.remove();
+  }catch(e){}
+  const g=Math.round((vv.height||window.innerHeight)-r.bottom);
+  el.textContent=
+     'tab '+CUR+'   GAP BELOW BAR '+g+'px'
+   +'\ninner '+window.innerHeight+'  visual '+Math.round(vv.height||0)+'  vvTop '+Math.round(vv.offsetTop||0)
+   +'  client '+document.documentElement.clientHeight
+   +'\nbar top '+Math.round(r.top)+'  bottom '+Math.round(r.bottom)+'  h '+Math.round(r.height)
+   +'  pos '+(cs.position||'?')
+   +'\nmain scrollH '+(main?main.scrollHeight:0)+'  clientH '+(main?main.clientHeight:0)
+   +'  scrollTop '+(main?Math.round(main.scrollTop):0)
+   +'\nbody scrollH '+document.body.scrollHeight+'  winScrollY '+Math.round(window.scrollY)
+   +'  safeBottom '+inset
+   +'\nstandalone '+(!!navigator.standalone||matchMedia('(display-mode: standalone)').matches)
+   +'  dpr '+window.devicePixelRatio+'  build '+BUILD;
+}
+function diagWire(){
+  if(diagOn())diagPaint();
+  ['resize','scroll','orientationchange'].forEach(e=>window.addEventListener(e,diagPaint,true));
+  if(window.visualViewport){
+    window.visualViewport.addEventListener('resize',diagPaint);
+    window.visualViewport.addEventListener('scroll',diagPaint);
+  }
+  setInterval(diagPaint,700);
+}
 function go(t){
   CUR=t;
   $$('.tab').forEach(b=>{const on=b.dataset.t===t;b.classList.toggle('on',on);
     if(on)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
   $$('.pane').forEach(p=>p.classList.toggle('on',p.id==='pane-'+t));
   document.body.classList.toggle('wide',t==='admin');
-  window.scrollTo(0,0);
+  // The scroll container is main, not the document -- scrolling the window here would be a
+  // no-op and every tab would open wherever the last one was left.
+  const sc=document.querySelector('main.wrap'); if(sc)sc.scrollTop=0; window.scrollTo(0,0);
   if(t==='now')renderNow();
   if(t==='sched')renderSched();
   if(t==='req')renderReq();
   if(t==='swap')renderSwap();      // renderSwap wires its own buttons
   if(t==='edit')renderEdit();
   if(t==='admin')renderAdmin();
+  diagPaint();
 }
 function wireTabs(){$$('.tab').forEach(b=>b.onclick=()=>go(b.dataset.t));}
 if(ADMIN_HTML){
