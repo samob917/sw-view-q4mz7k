@@ -420,7 +420,10 @@ textarea.ta{width:100%;background:var(--panel);border:1px solid var(--line2);bor
 /* who to ask — one list, split by whether the rules allow it */
 .cvload,.cvnone{font-size:13px;color:var(--dim);padding:10px 2px}
 .cvhead{font:700 10px/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;
-  color:var(--faint);margin:10px 0 4px;display:flex;align-items:center;gap:7px}
+  color:var(--faint);margin:14px 0 4px;display:flex;align-items:center;gap:7px}
+.cvhead:first-child{margin-top:6px}
+.cvhead.warn{color:var(--amber)}
+.cvhead.bad{color:var(--alert)}
 .cvn{font-family:var(--mono);font-size:10.5px;color:var(--faint);background:var(--panel2);
   border:1px solid var(--line);border-radius:20px;padding:1px 7px;letter-spacing:0}
 .cvrow{display:flex;align-items:center;gap:10px;padding:9px 2px;
@@ -1928,7 +1931,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260823.1410';           // shown in the account bar so a stale app is obvious
+const BUILD='260823.1420';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 const PH_KEY='', PH_HOST='https://us.i.posthog.com';
 /* ---------- analytics ----------
@@ -2942,83 +2945,98 @@ function wireCoverage(){
 function openCoverAsk(){
   const shifts=myShifts(ME).filter(s=>s.iso>=todayISO());
   if(!shifts.length){ toast('No upcoming shifts'); return; }
-  /* ONE SCREEN, ONE LIST (Sam 2026-08-23).
-     This used to fork: "Ask everyone who can take it" or "Pick one person instead", the second
-     opening a whole other sheet. Two routes to the same request, and the second one listed
-     EVERY colleague under a note claiming only eligible ones were shown — so you could pick
-     somebody the server would then refuse.
-     Now: everyone is on one list, split by whether they can actually take it, with the eligible
-     ones ticked. Untick to narrow. The API has always intersected `to` with what the rules
-     allow, so unticking can only ever remove somebody, never smuggle one in. */
+  /* TWO STEPS: pick the shift, then pick who (Sam 2026-08-23).
+     Who can take a shift depends entirely on WHICH shift, so the list cannot exist until that is
+     chosen — and putting it on the first screen meant re-fetching it under someone every time
+     they changed their mind about the date. Choose the shift, press the button, then decide who
+     to ask on a screen that is about nothing else. */
   sheet('Request coverage',
     `<label class="lbl" for="cvShift">Which shift</label>
      <select class="inp" id="cvShift">${shifts.map(s=>
        `<option value="${s.iso}|${esc(s.shift)}">${esc(fmtD(s.iso))} — ${esc(META(s.shift).label)}</option>`).join('')}</select>
      <label class="lbl" for="cvNote">Why (optional)</label>
      <input class="inp" id="cvNote" placeholder="e.g. away at a conference">
-     <div class="lbl">Who to ask</div>
-     <div id="cvWho"><div class="cvload">Working out who can take it…</div></div>
      <div class="msg" id="cvMsg"></div>
      <div class="btnrow" style="margin-top:12px">
-       <button class="btn pri" id="cvSend">Send request</button></div>`);
-
-  const listFor=async()=>{
-    const box=$('#cvWho'); if(!box)return;
+       <button class="btn pri" id="cvNext">Send request</button></div>
+     <div class="note">You choose who to ask on the next screen.</div>`);
+  $('#cvNext').onclick=async()=>{
     const [date,shift]=$('#cvShift').value.split('|');
-    box.innerHTML='<div class="cvload">Working out who can take it…</div>';
+    const note=$('#cvNote').value;
+    const m=$('#cvMsg'); m.textContent='Working out who can take it…'; m.className='msg on';
+    $('#cvNext').disabled=true;
     try{
       const on=onBehalf();
       const q='?preview=1&date='+encodeURIComponent(date)+'&shift='+encodeURIComponent(shift)
               +(on?'&person='+encodeURIComponent(on):'');
       const j=await api('/coverage'+q);
-      const el=j.eligible||[], bad=j.ineligible||[];
-      if(!el.length&&!bad.length){ box.innerHTML='<div class="cvload">Nobody to ask.</div>'; return; }
-      box.innerHTML=
-        (el.length?`<div class="cvhead">Can take it <span class="cvn">${el.length}</span></div>`+
-          el.map(e=>`<label class="cvrow">
-            <input type="checkbox" class="cvpick" value="${esc(e.person)}" checked>
-            <span class="cvnm">${esc(fullOf(e.person)||e.person)}</span>
-            <span class="cvpush ${e.push?'on':''}">${e.push?'notified':'sees it next time'}</span>
-          </label>`).join('')
-         :'<div class="cvnone">Nobody is free and credentialed for this shift.</div>')+
-        (bad.length?`<details class="cvbad"><summary>Cannot take it <span class="cvn">${bad.length}</span></summary>`+
-          bad.map(e=>`<div class="cvrow off">
-            <span class="cvnm">${esc(fullOf(e.person)||e.person)}</span>
-            <span class="cvwhy">${esc(e.reason||'not eligible')}</span></div>`).join('')+
-          `</details>`:'');
-    }catch(e){ box.innerHTML='<div class="cvload">Could not work out who can take it — '+esc(e.message)+'</div>'; }
+      pickWhoToAsk(date,shift,note,j);
+    }catch(e){ m.textContent=e.message; m.className='msg on bad'; $('#cvNext').disabled=false; }
   };
-  $('#cvShift').onchange=listFor;
-  listFor();
+}
 
-  $('#cvSend').onclick=async()=>{
-    const [date,shift]=$('#cvShift').value.split('|');
+/* WHO TO ASK — everybody, in three groups, and every one of them selectable.
+   Free and eligible are ticked and come first, because that is the ask you almost always want.
+   Below them, colleagues who are eligible but already working that day: worth asking, since they
+   may move their own day around, and the app has no way of knowing whether they will. Below
+   that, people the rules will not put on this unit at all.
+   Nothing here is disabled. The rules inform the choice rather than making it — and an approval
+   now re-checks and records what was actually true, so asking widely cannot quietly produce a
+   schedule that claims to be clean when it is not. */
+function pickWhoToAsk(date,shift,note,j){
+  const free=j.free||[], working=j.working||[], blocked=j.blocked||[];
+  const row=(e,checked)=>`<label class="cvrow">
+      <input type="checkbox" class="cvpick" value="${esc(e.person)}"${checked?' checked':''}>
+      <span class="cvnm">${esc(fullOf(e.person)||e.person)}</span>
+      ${e.reason?`<span class="cvwhy">${esc(e.reason)}</span>`
+                :`<span class="cvpush ${e.push?'on':''}">${e.push?'notified':'sees it next time'}</span>`}
+    </label>`;
+  const group=(title,rows,checked,klass)=>rows.length
+    ? `<div class="cvhead ${klass||''}">${title} <span class="cvn">${rows.length}</span></div>`
+      +rows.map(e=>row(e,checked)).join('')
+    : '';
+  sheet('Who to ask',
+    `<div class="sub" style="margin-top:0">${esc(META(shift).label||shift)} · ${esc(fmtD(date))}</div>
+     <div id="cvWho">
+       ${group('Free and able to take it',free,true)}
+       ${group('Able, but already working that day',working,false,'warn')}
+       ${group('The rules will not allow it',blocked,false,'bad')}
+       ${(!free.length&&!working.length&&!blocked.length)?'<div class="cvload">Nobody to ask.</div>':''}
+     </div>
+     <div class="msg" id="cvMsg2"></div>
+     <div class="btnrow" style="margin-top:12px">
+       <button class="btn pri" id="cvGo">Send to <span id="cvCount">${free.length}</span></button>
+       <button class="btn" id="cvBack">Back</button></div>`);
+
+  const count=()=>{ const n=document.querySelectorAll('.cvpick:checked').length;
+    const c=$('#cvCount'); if(c)c.textContent=n; };
+  document.querySelectorAll('.cvpick').forEach(b=>b.addEventListener('change',count));
+  count();
+  $('#cvBack').onclick=openCoverAsk;
+  $('#cvGo').onclick=async()=>{
     const to=[...document.querySelectorAll('.cvpick:checked')].map(b=>b.value);
-    const m=$('#cvMsg');
+    const m=$('#cvMsg2');
     if(!to.length){ m.textContent='Tick at least one person to ask.'; m.className='msg on bad'; return; }
     m.textContent='Sending…'; m.className='msg on';
-    $('#cvSend').disabled=true;
+    $('#cvGo').disabled=true;
     try{
       const on=onBehalf();
-      const j=await api('/coverage',{method:'POST',body:JSON.stringify(
-        {date,shift,mode:'broadcast',to,note:$('#cvNote').value,
-         ...(on?{person:on}:{})})});   // an admin raising it for the physician on screen
+      const r=await api('/coverage',{method:'POST',body:JSON.stringify(
+        {date,shift,mode:'broadcast',to,note,...(on?{person:on}:{})})});
       closeSheet();
       /* SAY WHAT ACTUALLY HAPPENED. This said "Asked 11 colleagues" whether eleven phones had
          buzzed or none had — the API has always returned how many were reached, and the toast
-         threw it away. Someone who raises a request and hears nothing back has no way to tell
-         "nobody has notifications on" from "it did not send", and reasonably concludes the
-         second. The count of PEOPLE reached is the honest number; `notified` counts devices,
-         and someone with a phone and a laptop is not two colleagues. */
-      const n=j.eligibleCount||to.length;
-      track('cover_requested',{asked:n,notified:j.subscribed||0,
-        duplicate:!!j.duplicate,narrowed:to.length});
-      toast(j.duplicate ? 'Already sent — nobody was asked twice'
-        : 'Asked '+n+' colleague'+(n===1?'':'s')+' · '+(j.subscribed
-            ? j.subscribed+' notified now'
+         threw it away. The count of PEOPLE reached is the honest number; `notified` counts
+         devices, and someone with a phone and a laptop is not two colleagues. */
+      const n=r.eligibleCount||to.length;
+      track('cover_requested',{asked:n,notified:r.subscribed||0,duplicate:!!r.duplicate,
+        free_only:to.length===(j.free||[]).length});
+      toast(r.duplicate ? 'Already sent — nobody was asked twice'
+        : 'Asked '+n+' colleague'+(n===1?'':'s')+' · '+(r.subscribed
+            ? r.subscribed+' notified now'
             : 'they will see it next time they open the app'));
       await loadCoverage(); renderSwap();
-    }catch(e){ m.textContent=e.message; m.className='msg on bad'; $('#cvSend').disabled=false; }
+    }catch(e){ m.textContent=e.message; m.className='msg on bad'; $('#cvGo').disabled=false; }
   };
 }
 
