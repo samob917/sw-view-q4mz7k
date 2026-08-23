@@ -2103,7 +2103,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260823.1819';           // shown in the account bar so a stale app is obvious
+const BUILD='260823.1848';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 const PH_KEY='', PH_HOST='https://us.i.posthog.com';
 /* ---------- analytics ----------
@@ -3795,6 +3795,42 @@ function go(t){
   diagPaint();
 }
 function wireTabs(){$$('.tab').forEach(b=>b.onclick=()=>go(b.dataset.t));}
+
+/* ---------- size the shell from the MEASURED viewport ----------
+   The tab bar sat about 50px above the bottom of the screen. Three attempts to fix it in CSS
+   failed in the same way, and they had one assumption in common: that some length unit knows how
+   tall the screen is. None of them do. 100%, 100vh and 100dvh all resolve against the LAYOUT
+   viewport, which on the reporting device is shorter than the glass -- so the shell ended early
+   and the bar's own safe-area padding then pushed the labels up again, counting the inset twice.
+
+   visualViewport.height is the area actually visible, measured rather than derived, so it is
+   right whichever way the layout viewport happens to be inset. The CSS height stays as the
+   pre-JS default so there is no flash before this runs. */
+let SHELL_H = 0;
+function fitShell(){
+  const vv = window.visualViewport;
+  const h = (vv && vv.height) || window.innerHeight || 0;
+  if (!h) return;
+  // The software keyboard shrinks the visual viewport. Resizing the shell then would squash the
+  // app while somebody is typing a request, so a shrink is ignored while a field has focus.
+  const a = document.activeElement;
+  const typing = a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.isContentEditable);
+  if (typing && h < SHELL_H - 40) return;
+  if (Math.abs(h - SHELL_H) < 1) return;
+  SHELL_H = h;
+  document.body.style.height = Math.round(h) + 'px';
+  diagPaint();
+}
+function fitWire(){
+  fitShell();
+  ['resize','orientationchange','pageshow'].forEach(e => window.addEventListener(e, fitShell));
+  if (window.visualViewport){
+    window.visualViewport.addEventListener('resize', fitShell);
+    window.visualViewport.addEventListener('scroll', fitShell);
+  }
+  // Orientation changes report the old size for a frame or two on iOS.
+  window.addEventListener('orientationchange', () => setTimeout(fitShell, 350));
+}
 if(ADMIN_HTML){
   const bar=$('.tabsin');
   bar.style.gridTemplateColumns='repeat(6,1fr)';
@@ -3806,6 +3842,8 @@ if(ADMIN_HTML){
   document.querySelector('main').appendChild(el('section','pane')).id='pane-admin';
 }
 wireTabs();
+fitWire();
+diagWire();     // no-op unless the readout has been switched on
 
 /* ---------- boot ---------- */
 async function bootApi(){
