@@ -77,7 +77,11 @@ button:disabled{opacity:.55}
 .qr{background:#fff;padding:12px;border-radius:12px;display:grid;place-items:center;margin:14px 0}
 .qr img{display:block;width:210px;height:210px;image-rendering:pixelated}
 .secret{font-family:var(--mono);font-size:12.5px;word-break:break-all;background:var(--panel2);
-  border:1px dashed var(--line2);border-radius:8px;padding:9px;color:var(--dim)}
+  border:1px dashed var(--line2);border-radius:8px;padding:9px;color:var(--ink);
+  /* One press selects the whole key. If the clipboard API is unavailable — an older phone, a
+     locked-down browser — the fallback has to be "press and hold, copy", not "select 32
+     characters by dragging across a dashed box". */
+  user-select:all;-webkit-user-select:all}
 .codes{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:10px 0 0}
 .codes span{font-family:var(--mono);font-size:13.5px;background:var(--panel2);border:1px solid var(--line2);
   border-radius:7px;padding:8px;text-align:center}
@@ -123,7 +127,12 @@ button:not(.ghost):hover{filter:brightness(1.06)}
     <h2>Start with your access code</h2>
     <p class="sub">The personal code you were sent — it looks like <code>lastname-xxxx</code>.</p>
     <label for="code">Access code</label>
-    <input id="code" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="lastname-xxxx">
+    <!-- autocapitalize is not enough on iOS: AUTOCORRECT will still capitalise the first letter,
+         so "rees-j4nr…" arrives as "Rees-j4nr…" and the code is refused. Both are off, the field
+         is typed as a password-ish opaque string so predictive text leaves it alone, and what is
+         typed is lowercased as it goes in — every issued code is lowercase by construction. -->
+    <input id="code" autocomplete="off" autocapitalize="none" autocorrect="off"
+           spellcheck="false" inputmode="text" placeholder="lastname-xxxx">
     <button id="b1">Continue</button>
     <div class="msg err" id="m1"></div>
     <p class="small">Already set up? <a href="#" id="toSignin">Sign in instead</a></p>
@@ -158,8 +167,11 @@ button:not(.ghost):hover{filter:brightness(1.06)}
       SecureAuth, Google Authenticator, Authy, 1Password, or the built-in password app on
       iPhone. Scan this with whichever you already use.</p>
     <div class="qr"><img id="qr" alt="QR code for your authenticator app"></div>
-    <p class="note">Can't scan? Type this key into the app instead:</p>
+    <p class="note">Can't scan? Add it by hand with this key:</p>
     <div class="secret" id="secret"></div>
+    <!-- Typing a 32-character key off a screen, into another app, on a phone. There was no copy
+         button; this is the path somebody takes precisely because scanning already failed. -->
+    <button id="copyKey" class="ghost">Copy key</button>
     <label for="totp">Enter the 6-digit code it shows</label>
     <input id="totp" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000">
     <button id="b3">Finish setup</button>
@@ -299,6 +311,13 @@ async function api(path,body,tok){
 const busy=(b,on,label)=>{b.disabled=on;if(label)b.textContent=label;};
 
 /* ---- 1. access code ---- */
+// Lowercasing on input rather than only on submit, so what they see is what will be sent —
+// silently fixing it at the last moment leaves them staring at a capital and mistrusting it.
+$('#code').addEventListener('input',e=>{
+  const v=e.target.value, low=v.toLowerCase();
+  if(v!==low){ const at=e.target.selectionStart; e.target.value=low;
+               try{ e.target.setSelectionRange(at,at); }catch(x){} }
+});
 $('#b1').onclick=async()=>{
   say('#m1','');
   if(!$('#code').value.trim()){ say('#m1','Enter the access code you were sent.'); return; }
@@ -383,6 +402,11 @@ $('#b3').onclick=async()=>{
 };
 
 /* ---- 4. recovery codes ---- */
+$('#copyKey').onclick=async()=>{
+  try{ await navigator.clipboard.writeText($('#secret').textContent.trim());
+       $('#copyKey').textContent='Copied'; setTimeout(()=>{$('#copyKey').textContent='Copy key';},2000); }
+  catch(e){ $('#copyKey').textContent='Select and copy it manually'; }
+};
 $('#copyCodes').onclick=async()=>{
   try{ await navigator.clipboard.writeText((STATE.codes||[]).join('\n'));
        $('#copyCodes').textContent='Copied'; }
