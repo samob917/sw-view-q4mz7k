@@ -1011,17 +1011,77 @@ $('#whoami').onclick=e=>{
       <span><span class="t">${esc(who)}</span><span class="s">${ROLE==='admin'?'Administrator — full dashboard access':'Signed in'}</span></span></div>
     ${ME?`<div class="row"><span class="sp" style="background:var(--line2)"></span>
       <span><span class="t">Viewing</span><span class="s">${esc(fullOf(ME))}’s schedule</span></span></div>`:''}
+    <div class="row"><span class="sp" style="background:var(--line2)"></span>
+      <span><span class="t">Sign-in email</span>
+        <span class="s" id="acEmail">${esc(MYEMAIL||'…')}</span></span></div>
     <div class="btnrow">
       ${CAN_SWITCH?'<button class="btn" id="acSwitch">View another physician</button>':''}
+      <button class="btn" id="acMail">Use a different email</button>
       <button class="btn gho" id="acOut">Sign out</button>
     </div>`);
+  // The address lives on the account record, not in the session token — fetched only when
+  // somebody opens this sheet, rather than widening every portal load for one line of text.
+  loadMyEmail().then(()=>{const e=$('#acEmail'); if(e)e.textContent=MYEMAIL||'—';});
   const sw=$('#acSwitch');if(sw)sw.onclick=()=>{closeSheet();openGate();};
+  $('#acMail').onclick=openEmailChange;
   $('#acOut').onclick=()=>{
     try{localStorage.removeItem('__code');localStorage.removeItem('ccpsa_me');
         localStorage.removeItem('__dev');sessionStorage.clear();}catch(e){}
     location.reload();
   };
 };
+
+/* ---------- sign in with a different address ----------
+   Nobody is tied to a work address — not at setup, not after (Sam 8/22). A physician should not
+   have to go through their hospital mailbox to read their own schedule, and plenty of people read
+   a personal address far more reliably. This is where a shift swap lands, so it wants to be an
+   address they check.
+   The risk that used to be handled by forcing the work address — a forwarded access code claimed
+   by a stranger — is answered in /api/account by TELLING rather than refusing: the address on the
+   group's contact list is emailed when an account is set up from a different one.
+
+   The old address KEEPS WORKING. Nothing here can lock somebody out of the account they are
+   standing in — the worst case is that they now have two ways in. */
+let MYEMAIL=null;
+async function loadMyEmail(){
+  if(MYEMAIL||!SESSION)return MYEMAIL;
+  try{ const r=await api('/account'); MYEMAIL=(r.account&&r.account.email)||null; }catch(e){}
+  return MYEMAIL;
+}
+async function openEmailChange(){
+  await loadMyEmail();
+  const cur=MYEMAIL||'';
+  sheet('Use a different email',
+    `<div class="sub">You sign in with <b>${esc(cur||'—')}</b>.</div>
+     <div class="sub" style="margin-top:8px">Add any address you prefer — a personal one is fine.
+       <b>${esc(cur||'Your current address')}</b> will still work, so you cannot lock yourself out.</div>
+     <label class="lbl" for="emNew">New email</label>
+     <input class="inp" id="emNew" type="email" inputmode="email" autocomplete="email"
+            autocapitalize="none" spellcheck="false" placeholder="you@example.com">
+     <div class="msg" id="emMsg"></div>
+     <div class="btnrow"><button class="btn pri" id="emGo">Save</button>
+       <button class="btn" id="emNo">Cancel</button></div>`);
+  const m=$('#emMsg');
+  const save=async()=>{
+    const v=($('#emNew').value||'').trim();
+    if(!v){ m.textContent='Enter an address.'; m.className='msg on bad'; return; }
+    m.textContent='Saving…'; m.className='msg on';
+    $('#emGo').disabled=true;
+    try{
+      const r=await api('/account',{method:'POST',
+        body:JSON.stringify({action:'email',email:v})});
+      MYEMAIL=r.email;
+      closeSheet();
+      toast(r.previousStillWorks?'Saved — both addresses now sign you in':'Saved');
+    }catch(e){ m.textContent=e.message||'Could not save'; m.className='msg on bad';
+               $('#emGo').disabled=false; }
+  };
+  $('#emGo').onclick=save;
+  $('#emNo').onclick=closeSheet;
+  const i=$('#emNew');
+  i.addEventListener('keydown',ev=>{if(ev.key==='Enter'){ev.preventDefault();save();}});
+  setTimeout(()=>i.focus(),60);
+}
 
 /* ---------- my data ---------- */
 const dayOf=(n,iso)=>(DATA.day[n]||{})[iso]||null;
@@ -1799,7 +1859,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260821.2308';           // shown in the account bar so a stale app is obvious
+const BUILD='260822.2233';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 let SESSION=null, CFG=null, MYREQ=null, MYSWAPS=[];
 // The admin approvals queue. Declared up here with the rest of the state, not beside the code
