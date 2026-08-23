@@ -2103,7 +2103,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260823.1848';           // shown in the account bar so a stale app is obvious
+const BUILD='260823.1859';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 const PH_KEY='', PH_HOST='https://us.i.posthog.com';
 /* ---------- analytics ----------
@@ -3763,8 +3763,8 @@ function diagPaint(){
    +'  pos '+(cs.position||'?')
    +'\nmain scrollH '+(main?main.scrollHeight:0)+'  clientH '+(main?main.clientHeight:0)
    +'  scrollTop '+(main?Math.round(main.scrollTop):0)
-   +'\nbody scrollH '+document.body.scrollHeight+'  winScrollY '+Math.round(window.scrollY)
-   +'  safeBottom '+inset
+   +'\nbody scrollH '+document.body.scrollHeight+'  shell '+Math.round(SHELL_H)
+   +'\nfixed bottom:0 lands at '+Math.round(fixedBottom())+'   safeBottom '+inset
    +'\nstandalone '+(!!navigator.standalone||matchMedia('(display-mode: standalone)').matches)
    +'  dpr '+window.devicePixelRatio+'  build '+BUILD;
 }
@@ -3806,10 +3806,32 @@ function wireTabs(){$$('.tab').forEach(b=>b.onclick=()=>go(b.dataset.t));}
    visualViewport.height is the area actually visible, measured rather than derived, so it is
    right whichever way the layout viewport happens to be inset. The CSS height stays as the
    pre-JS default so there is no flash before this runs. */
-let SHELL_H = 0;
+let SHELL_H = 0, PROBE = null;
+/* WHERE DOES bottom:0 ACTUALLY LAND? Nothing will tell us, so measure it. A 1px element pinned
+   with position:fixed;bottom:0 is put by the engine at the bottom of the viewport it believes in,
+   and getBoundingClientRect reads that back in the same coordinates the tab bar is laid out in.
+   That number is the answer to the only question that matters, and it is a measurement rather
+   than a guess about which of innerHeight / clientHeight / visualViewport / 100dvh is truthful
+   on this device -- on the phone showing the fault they disagree, and the ones JS can read are
+   the short ones. The original bar looked right on three tabs precisely BECAUSE it was
+   positioned this way; this puts the shell back on that number. */
+function fixedBottom(){
+  if (!PROBE){
+    PROBE = document.createElement('div');
+    PROBE.setAttribute('aria-hidden','true');
+    PROBE.style.cssText = 'position:fixed;left:0;bottom:0;width:1px;height:1px;'
+                        + 'visibility:hidden;pointer-events:none';
+    document.body.appendChild(PROBE);
+  }
+  return PROBE.getBoundingClientRect().bottom || 0;
+}
 function fitShell(){
   const vv = window.visualViewport;
-  const h = (vv && vv.height) || window.innerHeight || 0;
+  // The largest of the four is the one that reaches the bottom of the glass. Taking the max means
+  // a device where they all agree is unaffected, and a device where they disagree gets the honest
+  // one instead of whichever happens to be shortest.
+  const h = Math.max(fixedBottom(), (vv && vv.height) || 0, window.innerHeight || 0,
+                     document.documentElement.clientHeight || 0);
   if (!h) return;
   // The software keyboard shrinks the visual viewport. Resizing the shell then would squash the
   // app while somebody is typing a request, so a shrink is ignored while a field has focus.
