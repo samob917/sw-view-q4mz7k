@@ -142,11 +142,19 @@ body.wide .wrap{max-width:1500px}
   place-items:center;font-size:10px;font-weight:700;color:var(--dim);flex:0 0 auto}
 .pdrow.on .av{background:var(--signal);color:#06231A}
 .pdnone{padding:14px 12px;font-size:13px;color:var(--dim)}
+/* THE PAGE STARTS UNDER THE CLOCK. viewport-fit=cover hands us the whole screen including the
+   area behind the status bar, and nothing here ever gave it back — so "⚡ SCHEDULING WIZARD" was
+   drawn into the wifi, battery and time. env(safe-area-inset-top) is 0 in a browser tab and ~47px
+   on an installed iPhone app, so this costs nothing where it is not needed. */
 header.top{position:sticky;top:0;z-index:30;background:var(--chrome);
-  backdrop-filter:saturate(1.4) blur(10px);border-bottom:1px solid var(--line)}
-.topin{padding:11px 14px;display:flex;align-items:center;gap:10px}
-.brand{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);font-weight:700}
-.brand b{color:var(--ink)}
+  backdrop-filter:saturate(1.4) blur(10px);border-bottom:1px solid var(--line);
+  padding-top:env(safe-area-inset-top)}
+.topin{padding:11px 14px;display:flex;align-items:center;gap:10px;min-height:34px}
+/* The brand is a wordmark, not a headline. It was competing with the account chip for a 390px
+   row; the lightning bolt alone carries it and the row stops being crowded. */
+.brand{font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:var(--faint);
+  font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.brand b{color:var(--dim);font-weight:700}
 .whoami{margin-left:auto;display:flex;align-items:center;gap:7px;background:var(--panel);
   border:1px solid var(--line);border-radius:999px;padding:5px 6px 5px 12px;cursor:pointer}
 .whoami .nm{font-size:13.5px;font-weight:700}
@@ -1102,6 +1110,9 @@ function openAccountSheet(){
     ${ME?`<div class="row"><span class="sp" style="background:var(--line2)"></span>
       <span><span class="t">Viewing</span><span class="s">${esc(fullOf(ME))}’s schedule</span></span></div>`:''}
     <div class="row"><span class="sp" style="background:var(--line2)"></span>
+      <span><span class="t">App version</span><span class="s">${esc(BUILD)}${
+        TEST_BUILD?' · test copy':''}</span></span></div>
+    <div class="row"><span class="sp" style="background:var(--line2)"></span>
       <span><span class="t">Sign-in email</span>
         <span class="s" id="acEmail">${esc(MYEMAIL||'…')}</span></span></div>
     <div class="btnrow">
@@ -2032,7 +2043,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260823.1727';           // shown in the account bar so a stale app is obvious
+const BUILD='260823.1736';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 const PH_KEY='', PH_HOST='https://us.i.posthog.com';
 /* ---------- analytics ----------
@@ -2552,6 +2563,7 @@ async function enablePush(){
    them. So say which state they are in and what to do about it, rather than offering a button
    that quietly fails. */
 const PUSH_SUPPORTED = ('serviceWorker' in navigator) && ('PushManager' in window);
+const pushGranted=()=>typeof Notification!=='undefined'&&Notification.permission==='granted';
 const IOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
 async function pushState(){
   if(!PUSH_SUPPORTED) return IOS && !STANDALONE ? 'needs-install' : 'unsupported';
@@ -2643,6 +2655,13 @@ async function paintSignIn(){
 }
 
 function notifyCard(){
+  /* ONCE IT IS ON, THERE IS NOTHING TO SAY. This was a paragraph explaining what notifications
+     are, sitting at the top of the Swaps tab forever — including for people who had already
+     turned them on and did not need persuading. It renders only while there is still something
+     to do about it. The test tools stay reachable from the Account sheet.
+     Checked live rather than captured at load, so it disappears the moment they allow it.
+     An admin keeps the card, because the test tools inside it are how we reproduce a report. */
+  if(pushGranted()&&ROLE!=='admin')return '';
   return `<div class="swcard" id="notifyCard">
     <div class="lgh">Notifications</div>
     <div class="sub" id="notifyWhat">A message on your phone when someone asks you to cover a
@@ -3765,8 +3784,9 @@ function accountBar(){
       (ROLE==='admin'?' · admin':'')+'</span>'+
     '<button class="accttheme" id="themeBtn" aria-label="Switch between light and dark" '+
       'title="Light or dark. Follows your phone until you choose."></button>'+
-    '<span class="acctbuild" title="Which version of the app you are running. '+
-      'If this is older than the one you were told about, pull down to refresh.">'+esc(BUILD)+'</span>'+
+    /* The build number was on screen for every physician, all the time. It is a support tool —
+       it matters when somebody says "it still looks wrong" and we need to know what they are
+       running. Kept, but behind the Account sheet rather than in front of everybody. */
     '<button class="acctout" id="acctBtn">Account</button>'+
     '<button class="acctout" id="signOutBtn">Sign out</button>';
   paintThemeBtn();

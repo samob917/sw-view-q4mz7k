@@ -20,7 +20,7 @@
  * so the file the whole update path depends on was surviving by luck and would have vanished
  * on any clean checkout.
  */
-const CACHE = 'ccpsa-portal-260823.1727';
+const CACHE = 'ccpsa-portal-260823.1736';
 // The name every notification leads with. One constant, because it is the first thing anyone
 // reads and it must not drift between the two places a notification can be shown.
 const APP_NAME = 'Scheduling Wizard';
@@ -107,8 +107,6 @@ self.addEventListener('push', e => {
   let d = {};
   try { d = e.data ? e.data.json() : {}; } catch (err) { d = { title: 'CCPSA', body: e.data ? e.data.text() : '' }; }
 
-  // The event and its detail, as one line. See the note on the title below.
-  const line = [d.title, d.body].filter(Boolean).join(' — ');
   const common = { icon: 'icon-192.png', badge: 'icon-192.png',
                    tag: d.tag || 'ccpsa', data: { url: d.url || '/my/' } };
 
@@ -125,22 +123,22 @@ self.addEventListener('push', e => {
       // showed nothing at all, and the browser is entitled to post its own "this site was
       // updated in the background" card in its place. One honest line beats that.
       if (list.length) return;
-      return self.registration.showNotification(APP_NAME, {
-        ...common, body: line || 'That request is closed.', renotify: false, silent: true });
+      return self.registration.showNotification(d.title || 'Schedule update', {
+        ...common, body: d.body || 'That request is closed.', renotify: false, silent: true });
     }));
     return;
   }
 
-  // THE APP NAME COMES FIRST. Where the system draws it is not consistent: an installed iOS app
-  // puts it in the header above the title, while other renderers append "from Scheduling Wizard"
-  // underneath — which reads as the news first and the sender last, and is the thing Sam asked
-  // to be rid of (8/21). The only way to be certain it reads "Scheduling Wizard" and THEN the
-  // event on every renderer is to make the app name the title and lead the body with the event.
-  // (An earlier note here argued the opposite, on the assumption that the OS always draws the
-  // name above. On the phone this is actually read on, it does not.)
-  e.waitUntil(self.registration.showNotification(APP_NAME, {
+  /* THE TITLE IS THE EVENT. This has been round the houses, so the reasoning is worth keeping.
+     Read in a BROWSER, the renderer appends "from Scheduling Wizard" under the message, which put
+     the sender last and read badly — so the app name was moved into the title. Read on the
+     INSTALLED app, which is how every physician will see it, iOS draws the app name in the header
+     itself, and the title said it a second time: "Scheduling Wizard / Scheduling Wizard / ...".
+     The installed app is the one that matters. The system says who it is from; we say what
+     happened. */
+  e.waitUntil(self.registration.showNotification(d.title || 'Schedule update', {
     ...common,
-    body: line || 'Open your schedule',
+    body: d.body || '',
     renotify: !!d.tag,
   }));
 });
