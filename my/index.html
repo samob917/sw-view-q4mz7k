@@ -1877,7 +1877,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260823.1349';           // shown in the account bar so a stale app is obvious
+const BUILD='260823.1356';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 const PH_KEY='', PH_HOST='https://us.i.posthog.com';
 /* ---------- analytics ----------
@@ -2926,23 +2926,22 @@ function renderSwap(){
 
   pane.innerHTML=`<div class="btnrow"><button class="btn pri" id="reqCover">Request coverage</button></div>
     ${notifyCard()}${coverageCard()}
-    <h2 class="sec">Ask someone to cover a shift</h2>
-    ${mine.length?`
-    <div class="swapform">
-      <label class="l" for="swShift">Which shift of mine</label>
-      <select id="swShift">${mine.slice(0,60).map(x=>`<option value="${x.iso}|${x.shift}">${fmtD(x.iso)} — ${esc(META(x.shift).label||x.shift)}</option>`).join('')}</select>
-      <label class="l" for="swWho">Ask who</label>
-      <!-- NO REAL PERSON AS THE DEFAULT. A select opens on its first option, so this sat on
-           whoever came first alphabetically — Ahn — and a mis-tap sent a shift request to a
-           colleague nobody had chosen. The first entry is now a prompt, not a name. -->
-      <select id="swWho"><option value="" selected disabled>Choose a colleague…</option>${
-        others.map(p=>`<option value="${esc(p)}">${esc(fullOf(p)||p)}</option>`).join('')}</select>
-      <label class="l" for="swNote">Note (optional)</label>
-      <input id="swNote" placeholder="e.g. away at a conference — happy to return the favour">
-      <button class="btn primary" id="swSend">Send request</button>
-      <div id="swMsg" class="muted"></div>
-    </div>`:'<div class="empty">No upcoming shifts to trade.</div>'}
+    <!-- THE PERSON-TO-PERSON SWAP FORM IS GONE (Sam 2026-08-23).
+         It never did anything "Request coverage" cannot, and it did it worse:
 
+           · coverage already has a DIRECT mode — ask one named person — so the only thing this
+             form offered was already there
+           · the two-way trade this was built for was never reachable from the UI: backDate and
+             backShift appear only in code that DISPLAYS a trade, never in a form that makes one
+           · coverage picks its candidates by the rule check, so you are only offered colleagues
+             who can legally take the shift. This form let you pick anyone, created the request,
+             marked it blocked — and then neither person could do anything with it. Berger sent
+             one to Sullivan for a night Sullivan already works; it sat on both their pages with
+             no button on it, and no way to withdraw it, because swaps have no withdraw.
+
+         What is left is everything needed to SETTLE what already exists: the list below, the
+         accept/decline buttons, and the admin sign-off queue. Nothing in flight breaks. Deleting
+         the machinery is a separate decision — this only stops new dead ends being created. -->
     <h2 class="sec">My swap requests</h2>
     <div id="swList">${mySw.length?mySw.map(s=>`
       <div class="swcard">
@@ -2956,7 +2955,7 @@ function renderSwap(){
 
     ${isAdmin()?'<h2 class="sec">Awaiting your sign-off</h2><div id="swAdmin"></div>':''}`;
 
-  const send=$('#swSend');
+  const send=$('#swSend');   // the form is gone; kept null-safe for any cached page
   if(send)send.onclick=async()=>{
     const [date,shift]=$('#swShift').value.split('|');
     const who=$('#swWho').value;
