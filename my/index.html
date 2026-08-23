@@ -423,6 +423,19 @@ textarea.ta{width:100%;background:var(--panel);border:1px solid var(--line2);bor
 .addrow input::-webkit-calendar-picker-indicator{opacity:.75;cursor:pointer}
 .addrow .btn{width:auto;flex:0 0 auto;padding:12px 20px}
 .addhint{font-size:12.5px;color:var(--amber);margin:-2px 0 8px;min-height:1px}
+/* WHO TO ASK — the names scroll, the button does not.
+   The sheet itself scrolls, so a list of fifty-eight colleagues pushed "Send to 2" below the
+   fold and you had to scroll past everybody to find out how to send. The list gets its own
+   scroll and a ceiling; the actions sit under it and stay put. */
+#cvWho{max-height:44vh;overflow-y:auto;-webkit-overflow-scrolling:touch;
+  border:1px solid var(--line);border-radius:12px;padding:2px 12px 6px;margin-top:6px}
+/* the group a name belongs to should still be visible once you have scrolled into it */
+#cvWho .cvhead{position:sticky;top:0;z-index:1;background:var(--panel);
+  margin:0;padding:11px 0 5px}
+.cvactions{position:sticky;bottom:0;background:var(--panel);padding-top:12px;margin-top:0;
+  border-top:1px solid var(--line)}
+.cvactions .btnrow{margin-top:10px}
+
 /* who to ask — one list, split by whether the rules allow it */
 .cvload,.cvnone{font-size:13px;color:var(--dim);padding:10px 2px}
 .cvhead{font:700 10px/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;
@@ -1934,7 +1947,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260823.1505';           // shown in the account bar so a stale app is obvious
+const BUILD='260823.1512';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 const PH_KEY='', PH_HOST='https://us.i.posthog.com';
 /* ---------- analytics ----------
@@ -3086,10 +3099,12 @@ function pickWhoToAsk(date,shift,note,j){
        ${group('Unable',blocked,false,'bad')}
        ${(!free.length&&!working.length&&!blocked.length)?'<div class="cvload">Nobody to ask.</div>':''}
      </div>
-     <div class="msg" id="cvMsg2"></div>
-     <div class="btnrow" style="margin-top:12px">
-       <button class="btn pri" id="cvGo">Send to <span id="cvCount">${free.length}</span></button>
-       <button class="btn" id="cvBack">Back</button></div>`);
+     <div class="cvactions">
+       <div class="msg" id="cvMsg2"></div>
+       <div class="btnrow">
+         <button class="btn pri" id="cvGo">Send to <span id="cvCount">${free.length}</span></button>
+         <button class="btn" id="cvBack">Back</button></div>
+     </div>`);
 
   const count=()=>{ const n=document.querySelectorAll('.cvpick:checked').length;
     const c=$('#cvCount'); if(c)c.textContent=n; };
