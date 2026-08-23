@@ -1232,9 +1232,9 @@ function showNewAuth(setup){
        shows to finish.</div>
      ${touch?`<div class="btnrow" style="margin-top:10px">
         <a class="btn pri" href="${esc(setup.totpUri||'')}">Open my authenticator app</a></div>`:''}
-     <div class="siQr" style="margin-top:10px"><img src="${esc(setup.totpQr||'')}" alt="QR code"></div>
+     <div class="siQr ph-no-capture" style="margin-top:10px"><img class="ph-no-capture" src="${esc(setup.totpQr||'')}" alt="QR code"></div>
      <div class="sub" style="margin-top:8px">Or add it by hand with this key:</div>
-     <button class="siKey" id="arKey" type="button" title="Tap to copy">${esc(setup.totpSecret||'')}</button>
+     <button class="siKey ph-no-capture" id="arKey" type="button" title="Tap to copy">${esc(setup.totpSecret||'')}</button>
      <label class="lbl" for="arCode">The 6-digit code it shows</label>
      <input class="inp siCode" id="arCode" inputmode="numeric" autocomplete="one-time-code"
             maxlength="6" placeholder="000000">
@@ -2099,9 +2099,9 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260823.1940';           // shown in the account bar so a stale app is obvious
+const BUILD='260823.1956';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
-const PH_KEY='', PH_HOST='https://us.i.posthog.com';
+const PH_KEY='phc_pr4QepiHtyMUqSymFZFyH2s2jKesJJEi4sWDjhaKttDN', PH_HOST='https://us.i.posthog.com';
 /* ---------- analytics ----------
    There was NO error reporting in this app at all — no window.onerror, nothing. Every bug found
    so far was found by somebody noticing. That is what this is for first; the funnels are second.
@@ -2138,18 +2138,70 @@ function analyticsInit(){
     window.posthog.init(PH_KEY,{
       api_host:PH_HOST,
       persistence:'localStorage+cookie',
-      // MASK-HERE: set autocapture:false and disable_session_recording:true to stop DOM text and
-      // recordings leaving the device. Deliberately on — see the note above.
+      // MASK-HERE: set autocapture:false to stop DOM text leaving the device entirely.
       autocapture:true,
       capture_pageview:true,
+      /* REPLAY STARTS OFF AND IS TURNED ON ONLY WHEN NOTHING SECRET IS ON SCREEN.
+         Recording is genuinely wanted -- the tab-bar bug took five attempts and the sliding sheet
+         is still unreproduced, both because there is no way to see the phone it happens on. What
+         cannot be recorded is enrolment: the TOTP secret, its QR code and the eight recovery
+         codes are drawn as DOM TEXT, not as input values, so maskAllInputs does not touch them.
+         Starting disabled means the failure mode is "no recording", never "recorded the secret".
+         replayGate() below turns it on and off as screens come and go. */
+      disable_session_recording:true,
       // A stale service worker is a real failure mode here, so the build is on EVERY event.
       loaded:function(ph){ PH=ph;
         try{ ph.register({build:BUILD, env:TEST_BUILD?'test':'production',
                standalone:!!(window.matchMedia('(display-mode: standalone)').matches
                              ||window.navigator.standalone)}); }catch(e){}
+        replayGate();
       },
     });
   }catch(e){ PH=null; }
+}
+/* ---------- when may we record? ----------
+   Anything that puts a credential on the glass closes the recorder. Checked from the DOM rather
+   than tracked with a flag, because a flag left set by an early return is a recording that never
+   restarts, and a flag left CLEAR by one is a recording of a secret. The DOM cannot disagree with
+   what is on screen.
+
+     .signin    the sign-in card — access code and password
+     #gate      identity chooser, shown before anything is authenticated
+     body.locked  pre-auth, nothing has been unlocked yet
+     .ph-no-capture visible  a TOTP secret, its QR, or a recovery code is on screen right now
+
+   Called on every sheet open and close, on sign-in, and after boot. */
+function replaySensitive(){
+  try{
+    if(document.body.classList.contains('locked'))return true;
+    if(document.querySelector('.signin'))return true;
+    const g=document.querySelector('#gate');
+    if(g&&getComputedStyle(g).display!=='none')return true;
+    /* ON SCREEN, not merely in the document. A closed sheet keeps its markup and is moved out of
+       sight with transform:translateY(102%) -- its box is still full size, so a plain
+       width/height test called it visible forever and the recorder, once stopped by an auth
+       sheet, never started again. Fail-safe in the right direction, but it threw away the whole
+       point. So: must have a box, must not be hidden, and must actually intersect the viewport. */
+    const vw=window.innerWidth, vh=window.innerHeight;
+    for(const el of document.querySelectorAll('.ph-no-capture')){
+      const r=el.getBoundingClientRect();
+      if(r.width<=0||r.height<=0)continue;
+      if(r.bottom<=0||r.right<=0||r.top>=vh||r.left>=vw)continue;   // parked off-screen
+      const cs=getComputedStyle(el);
+      if(cs.visibility==='hidden'||cs.display==='none'||parseFloat(cs.opacity||'1')===0)continue;
+      return true;
+    }
+  }catch(e){ return true; }                        // cannot tell → do not record
+  return false;
+}
+let REPLAY_ON=false;
+function replayGate(){
+  if(!PH)return;
+  const bad=replaySensitive();
+  try{
+    if(bad&&REPLAY_ON){ PH.stopSessionRecording&&PH.stopSessionRecording(); REPLAY_ON=false; }
+    else if(!bad&&!REPLAY_ON){ PH.startSessionRecording&&PH.startSessionRecording(); REPLAY_ON=true; }
+  }catch(e){}
 }
 analyticsInit();
 
@@ -3500,6 +3552,7 @@ function sheet(title,body){
   $('#sheetBd').innerHTML=body;
   $('#sheet').classList.add('on');$('#scrim').classList.add('on');
   _sheetOpenedAt=Date.now();
+  if(typeof replayGate==='function')replayGate();     // a sheet may be showing a secret
   $('#shX').onclick=closeSheet;
   $('#shX').focus({preventScroll:true});
 }
@@ -3513,6 +3566,7 @@ function closeSheet(){
   const fn=_sheetOnClose; _sheetOnClose=null; if(fn)try{fn();}catch(e){}
   $('#sheet').classList.remove('on');$('#scrim').classList.remove('on');
   $$('.cell.sel').forEach(c=>c.classList.remove('sel'));
+  if(typeof replayGate==='function')setTimeout(replayGate,0);   // ...and may have stopped
   if(_sheetReturnFocus&&_sheetReturnFocus.focus){_sheetReturnFocus.focus({preventScroll:true});_sheetReturnFocus=null;}}
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('#sheet').classList.contains('on'))closeSheet();});
 /* THE SCRIM APPEARS UNDER THE FINGER THAT OPENED THE SHEET. Reported after withdrawing a request
@@ -4544,6 +4598,7 @@ async function loadPortal(token){
          has_schedule:!!(j.data&&j.data.people&&j.data.people.includes(j.person))}); }catch(e){}
   track('portal_opened',{role:j.role});
   document.body.classList.remove('locked');
+  replayGate();                                       // signed in: the sign-in card has gone
   const g=document.querySelector('.signin'); if(g)g.remove();
   LAST_EDIT_SIG=editSig(j.edits);
   applyEdits(j.edits||[]);
@@ -4695,7 +4750,7 @@ function stepScan(email,pw,token,setup){
      The key stays visible and copyable either way: it is the route that works when the app is
      one the link does not reach. */
   const touch=matchMedia('(pointer:coarse)').matches||/iPhone|iPad|Android/i.test(navigator.userAgent);
-  const qrBlock=`<div class="siQr"><img src="${setup.totpQr||''}" alt="QR code"></div>`;
+  const qrBlock=`<div class="siQr ph-no-capture"><img class="ph-no-capture" src="${setup.totpQr||''}" alt="QR code"></div>`;
   siPaint(`
     <div class="siStep">${touch?'Add it to your authenticator':'Scan this'}</div>
     <!-- NAMING FOUR APPS READ AS A LIST OF THE ONLY FOUR THAT WORK. Aaron 8/21: his group uses
@@ -4711,7 +4766,7 @@ function stepScan(email,pw,token,setup){
          <details class="icsmore" style="margin-top:10px"><summary>Setting this up from a computer?</summary>
            ${qrBlock}</details>`
       : qrBlock}
-    <button class="siKey" id="siCopyKey" type="button" title="Tap to copy">${setup.totpSecret||''}</button>
+    <button class="siKey ph-no-capture" id="siCopyKey" type="button" title="Tap to copy">${setup.totpSecret||''}</button>
     <label class="siL" for="siNew">Then enter the 6-digit code</label>
     <input class="siI siCode" id="siNew" inputmode="numeric" autocomplete="one-time-code"
            maxlength="6" placeholder="000000">

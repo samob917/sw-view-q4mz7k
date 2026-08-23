@@ -13,7 +13,7 @@
    phone, or not at all. Every step reports whether it worked and how long it took — the same
    snippet as the portal, same project, so a person's enrolment and their first sign-in sit on
    one timeline. Inert without a key; can never block the page. */
-const PH_KEY='', PH_HOST='https://us.i.posthog.com';
+const PH_KEY='phc_pr4QepiHtyMUqSymFZFyH2s2jKesJJEi4sWDjhaKttDN', PH_HOST='https://us.i.posthog.com';
 let PH=null;
 function track(e,p){ try{ if(PH&&PH.capture)PH.capture(e,p||{}); }catch(x){} }
 (function(){ if(!PH_KEY)return; try{
@@ -28,9 +28,27 @@ function track(e,p){ try{ if(PH&&PH.capture)PH.capture(e,p||{}); }catch(x){} }
     u.people.toString=function(){return u.toString(1)+".people (stub)"},
     o="init capture identify alias people.set people.set_once set_config register register_once unregister opt_out_capturing has_opted_out_capturing opt_in_capturing reset isFeatureEnabled onFeatureFlags getFeatureFlag getFeatureFlagPayload reload_feature_flags group updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures getActiveMatchingSurveys getSurveys getNextSurveyStep".split(" "),
     n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
+  /* THIS WHOLE PAGE IS THE ENROLMENT PATH, SO IT IS NEVER RECORDED.
+     It draws, as ordinary DOM text rather than as input values: the TOTP secret, a QR code
+     encoding that same secret, and the eight recovery codes. Input masking does not touch any of
+     them -- maskAllInputs masks <input> values, and none of these are inputs. A replay of this
+     page is a copy of someone's second factor and every one of their bypass codes, sitting where
+     anyone with dashboard access can read it, and unrotatable without asking a physician to
+     enrol again.
+
+     Autocapture is a live risk here too, independently of replay: it records the text of clicked
+     elements, and the user is TOLD to tap the key to copy it. The credential elements carry
+     ph-no-capture, which blocks them from autocapture and masks them in any recording. Belt and
+     braces -- the recording is off, and the secrets are marked anyway. */
   window.posthog.init(PH_KEY,{api_host:PH_HOST,autocapture:true,capture_pageview:true,
     persistence:'localStorage+cookie',
-    loaded:function(ph){ PH=ph; try{ ph.register({surface:'account'}); }catch(e){} }});
+    disable_session_recording:true,
+    mask_all_element_attributes:true,
+    loaded:function(ph){ PH=ph;
+      try{ ph.register({surface:'account'}); }catch(e){}
+      // Belt and braces: if replay is ever enabled at the project end, stop it here too.
+      try{ if(ph.stopSessionRecording)ph.stopSessionRecording(); }catch(e){}
+    }});
 }catch(e){ PH=null; } })();
 window.addEventListener('error',ev=>track('js_error',
   {message:String((ev&&ev.message)||'').slice(0,300),where:'account'}));
@@ -166,12 +184,12 @@ button:not(.ghost):hover{filter:brightness(1.06)}
     <p class="sub">Any authenticator app will do — Microsoft Authenticator, Okta Verify,
       SecureAuth, Google Authenticator, Authy, 1Password, or the built-in password app on
       iPhone. Scan this with whichever you already use.</p>
-    <div class="qr"><img id="qr" alt="QR code for your authenticator app"></div>
+    <div class="qr ph-no-capture"><img id="qr" class="ph-no-capture" alt="QR code for your authenticator app"></div>
     <p class="note">Can't scan? Add it by hand with this key:</p>
-    <div class="secret" id="secret"></div>
+    <div class="secret ph-no-capture" id="secret"></div>
     <!-- Typing a 32-character key off a screen, into another app, on a phone. There was no copy
          button; this is the path somebody takes precisely because scanning already failed. -->
-    <button id="copyKey" class="ghost">Copy key</button>
+    <button id="copyKey" class="ghost ph-no-capture">Copy key</button>
     <label for="totp">Enter the 6-digit code it shows</label>
     <input id="totp" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000">
     <button id="b3">Finish setup</button>
@@ -183,8 +201,8 @@ button:not(.ghost):hover{filter:brightness(1.06)}
     <h2>Save your recovery codes</h2>
     <p class="sub">If you lose your phone, one of these gets you in. Each works once.
       <b>They are not shown again.</b></p>
-    <div class="codes" id="codes"></div>
-    <button id="copyCodes" class="ghost">Copy all</button>
+    <div class="codes ph-no-capture" id="codes"></div>
+    <button id="copyCodes" class="ghost ph-no-capture">Copy all</button>
     <button id="b4">I've saved them — take me in</button>
   </section>
 
