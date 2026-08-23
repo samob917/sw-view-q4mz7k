@@ -1934,7 +1934,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260823.1457';           // shown in the account bar so a stale app is obvious
+const BUILD='260823.1505';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 const PH_KEY='', PH_HOST='https://us.i.posthog.com';
 /* ---------- analytics ----------
@@ -2680,8 +2680,8 @@ function coverageCard(){
   if(open.length)h+=`<h2 class="sec">Can you cover?</h2>`+open.map(o=>`
     <div class="swcard"><div class="lgh">${esc(META(o.shift).label||o.shift)} · ${esc(fmtD(o.date))}</div>
       <div class="sub">${esc(fullOf(o.fromPerson))} needs this covered${o.note?' — '+esc(o.note):''}</div>
-      <div class="btnrow two"><button class="btn pri" data-claim="${esc(o.id)}">I'll take it</button>
-        <button class="btn" data-pass="${esc(o.id)}">Can't</button></div>
+      <div class="btnrow two"><button class="btn pri" data-claim="${esc(o.id)}">Accept Shift</button>
+        <button class="btn" data-pass="${esc(o.id)}">Decline Shift</button></div>
     </div>`).join('');
   if(decided.length)h+=`<h2 class="sec">Decided</h2>`+decided.map(o=>{
     const ok=o.status==='approved';
@@ -2835,8 +2835,8 @@ async function openOffer(id){
          o.note?' — '+esc(o.note):''}</div>
        <div class="sub" style="margin-top:8px">An admin still has to confirm it afterwards.</div>
        <div class="btnrow" style="margin-top:12px">
-         <button class="btn pri" id="ofTake">I'll take it</button>
-         <button class="btn" id="ofSkip">Not this time</button></div>
+         <button class="btn pri" id="ofTake">Accept Shift</button>
+         <button class="btn" id="ofSkip">Decline Shift</button></div>
        <div class="msg" id="ofMsg"></div>`);
     // This used to just close the sheet, so "Not this time" changed nothing and the request was
     // back at the next glance. It records the answer now.
@@ -2975,7 +2975,7 @@ function wireCoverage(){
          toast(r.remaining? 'Passed — the others have still been asked'
                           : 'Passed — everyone has now passed, and they have been told');
          await loadCoverage(); renderSwap(); }
-    catch(e){ toast(e.message); b.disabled=false; b.textContent="Can't"; }
+    catch(e){ toast(e.message); b.disabled=false; b.textContent='Decline Shift'; }
   });
   document.querySelectorAll('[data-claim]').forEach(b=>b.onclick=async()=>{
     b.disabled=true;b.textContent='…';
@@ -2983,7 +2983,7 @@ function wireCoverage(){
          if(onBehalf())body.person=ME;      // accepting FOR the physician being viewed
          await api('/coverage',{method:'POST',body:JSON.stringify(body)});
          toast('Accepted — waiting for final approval'); await loadCoverage(); renderSwap(); }
-    catch(e){ toast(e.message); b.disabled=false; b.textContent="I'll take it"; }
+    catch(e){ toast(e.message); b.disabled=false; b.textContent='Accept Shift'; }
   });
   document.querySelectorAll('[data-ok],[data-no]').forEach(b=>b.onclick=async()=>{
     const id=b.dataset.ok||b.dataset.no, act=b.dataset.ok?'approve':'decline';
@@ -3886,6 +3886,13 @@ function onAdminHome(){ return !!document.querySelector('#homeWrap.on'); }
 let LOADED_FOR=null;
 async function loadPersonData(){
   if(!SESSION)return;
+  /* THE COUNT ON THE TAB WAS LAST IN A QUEUE OF FOUR. This ran /requests, then /portal, then
+     swaps, then coverage — each awaiting the one before, though none of them needs anything from
+     the others — and only then painted the badge. Somebody with a request waiting sat looking at
+     a bare tab for the length of all four round trips.
+     Swaps and coverage start first and run alongside the rest now, and each paints the badge as
+     it lands, so the count appears after ONE round trip rather than four. */
+  const swapsP=loadSwaps(), coverP=loadCoverage();
   const viewing=onBehalf()?('?person='+encodeURIComponent(ME)):'';
   try{const r=await api('/requests'+viewing);MYREQ=r.requests||{};
       CFG={...(CFG||{}),deadline:r.deadline,locked:r.locked,allowance:r.allowance};}catch(e){MYREQ={};}
@@ -3899,8 +3906,8 @@ async function loadPersonData(){
        const pr=await api('/portal'+q);
        if(ME!==forWho)return;            // switched again while this was in flight
        CFG={...(CFG||{}),icsUrl:pr.icsUrl||null,icsFor:forWho}; }catch(e){}
-  await loadSwaps();
-  await loadCoverage();
+  await Promise.all([swapsP,coverP]);
+  if(ME!==forWho)return;            // switched physician while those were in flight
   if(onBehalf())MYSWAPS=(MYSWAPS||[]).filter(w=>w.fromPerson===ME||w.toPerson===ME);
   paintSwapDot();   // the list just changed under it — an admin switching physician sees theirs
   REQSAVED=null;                  // a confirmation from the previous person would be a lie
