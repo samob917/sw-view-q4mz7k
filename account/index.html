@@ -208,6 +208,21 @@ const API='https://elig-api.vercel.app/api';      // set at deploy time — prod
 const PORTAL='/my/';
 const $=s=>document.querySelector(s);
 const PAGES=['p1','p2','p3','p4','pDone','pPw','pSignin','pSignin2'];
+
+/* FAIL FAST ON WHAT WE ALREADY KNOW IS WRONG.
+   An empty box was being posted to the API and the answer waited on — and the first call of the
+   morning wakes a cold serverless function, so "I pressed enter before typing an email" cost
+   several seconds to be told the field was empty. The rule below is the SAME one the server
+   applies (account.js), kept deliberately loose: it rejects blank and obviously-malformed
+   addresses and leaves every real judgement to the server, which is the only thing that should
+   be deciding whether an address is acceptable. */
+const EMAILISH=/^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+function badEmail(v){
+  if(!v) return 'Enter your email address.';
+  if(!EMAILISH.test(v)) return 'That does not look like an email address.';
+  return null;
+}
+
 let STATE={person:null,email:null,password:null,token:null,device:null,grant:null};
 
 
@@ -259,6 +274,7 @@ const busy=(b,on,label)=>{b.disabled=on;if(label)b.textContent=label;};
 /* ---- 1. access code ---- */
 $('#b1').onclick=async()=>{
   say('#m1','');
+  if(!$('#code').value.trim()){ say('#m1','Enter the access code you were sent.'); return; }
   const b=$('#b1'); busy(b,true,'Checking…');
   try{
     const j=await api('/account',{action:'identify',code:$('#code').value.trim()});
@@ -295,6 +311,9 @@ $('#pw2').addEventListener('input',()=>{
 });
 $('#b2').onclick=async()=>{
   say('#m2','');
+  const emProblem=badEmail($('#email').value.trim());
+  if(emProblem){ say('#m2',emProblem); $('#email').focus(); return; }
+  if(!$('#pw').value){ say('#m2','Choose a password.'); $('#pw').focus(); return; }
   if($('#pw').value!==$('#pw2').value){ say('#m2','The two passwords do not match.'); return; }
   const b=$('#b2'); busy(b,true,'Creating…');
   try{
@@ -341,6 +360,9 @@ function signedIn(msg){
 /* ---- sign in ---- */
 async function doSignin(totp,msgSel,btn){
   say(msgSel,'');
+  const emProblem=badEmail($('#liEmail').value.trim());
+  if(emProblem){ say(msgSel,emProblem); $('#liEmail').focus(); return; }
+  if(!$('#liPw').value){ say(msgSel,'Enter your password.'); $('#liPw').focus(); return; }
   busy(btn,true,'Signing in…');
   try{
     const j=await api('/session',{email:$('#liEmail').value.trim(),

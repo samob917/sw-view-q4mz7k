@@ -1864,7 +1864,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260823.1034';           // shown in the account bar so a stale app is obvious
+const BUILD='260823.1046';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 let SESSION=null, CFG=null, MYREQ=null, MYSWAPS=[];
 // The admin approvals queue. Declared up here with the rest of the state, not beside the code
@@ -2832,7 +2832,11 @@ function renderSwap(){
       <label class="l" for="swShift">Which shift of mine</label>
       <select id="swShift">${mine.slice(0,60).map(x=>`<option value="${x.iso}|${x.shift}">${fmtD(x.iso)} — ${esc(META(x.shift).label||x.shift)}</option>`).join('')}</select>
       <label class="l" for="swWho">Ask who</label>
-      <select id="swWho">${others.map(p=>`<option>${esc(p)}</option>`).join('')}</select>
+      <!-- NO REAL PERSON AS THE DEFAULT. A select opens on its first option, so this sat on
+           whoever came first alphabetically — Ahn — and a mis-tap sent a shift request to a
+           colleague nobody had chosen. The first entry is now a prompt, not a name. -->
+      <select id="swWho"><option value="" selected disabled>Choose a colleague…</option>${
+        others.map(p=>`<option value="${esc(p)}">${esc(fullOf(p)||p)}</option>`).join('')}</select>
       <label class="l" for="swNote">Note (optional)</label>
       <input id="swNote" placeholder="e.g. away at a conference — happy to return the favour">
       <button class="btn primary" id="swSend">Send request</button>
@@ -2855,9 +2859,11 @@ function renderSwap(){
   const send=$('#swSend');
   if(send)send.onclick=async()=>{
     const [date,shift]=$('#swShift').value.split('|');
+    const who=$('#swWho').value;
+    if(!who){ $('#swMsg').textContent='Choose who to ask first.'; $('#swWho').focus(); return; }
     $('#swMsg').textContent='sending…';
     try{
-      const r=await api('/swaps',{method:'POST',body:JSON.stringify({toPerson:$('#swWho').value,date,shift,note:$('#swNote').value})});
+      const r=await api('/swaps',{method:'POST',body:JSON.stringify({toPerson:who,date,shift,note:$('#swNote').value})});
       $('#swMsg').textContent=r.swap.ruleCheck==='CLEAN'
         ? 'Sent — waiting on '+r.swap.toPerson
         : 'Blocked: '+(r.swap.problems[0]||'breaks a rule');
