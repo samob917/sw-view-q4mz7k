@@ -258,9 +258,29 @@ h2.sec{font-size:19px;font-weight:800;letter-spacing:-.02em;margin:22px 0 12px}
   font-size:13.5px;margin-top:10px}
 
 /* ---------- tab bar ---------- */
-nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:40;background:var(--chrome);
-  backdrop-filter:blur(10px);border-top:1px solid var(--line);
-  padding-bottom:env(safe-area-inset-bottom)}
+/* THE BAR MUST SIT ON THE BOTTOM EDGE, ALWAYS.
+   Reported floating above the bottom on the Swaps tab — the one tab whose content is often
+   shorter than the screen. It could not be reproduced in a simulator, where it measures flush on
+   all four, so this removes the two things that plausibly differ on a real iPhone:
+
+   · backdrop-filter on a position:fixed element. On iOS this promotes the bar to its own
+     compositing layer and is a known source of it being mispositioned or left behind during
+     scroll. The background is 92% opaque over an almost identical ground, so the blur was
+     costing a rendering quirk for an effect nobody can see. Solid now.
+   · A PAGE SHORTER THAN THE SCREEN, which is the likely one. Swaps is the only tab whose content
+     does not fill a phone — 844px against 844px of viewport, where Now/Schedule/Requests run
+     1057-2144px. iOS in standalone resolves bottom:0 against the DOCUMENT when the document is
+     shorter than the viewport, so the bar sits at the end of the content with dead space beneath
+     it. min-height makes every page at least a screen tall, which removes the case entirely;
+     min- rather than height, so a long page still grows instead of being clipped at one screen.
+
+   The safe-area padding stays — it keeps the labels off the home indicator — but the background
+   now runs to the physical bottom edge, so the bar reads as anchored rather than hovering. */
+html{height:100%}
+body{min-height:100%}
+nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:40;background:var(--chrome-solid);
+  border-top:1px solid var(--line);
+  padding-bottom:max(env(safe-area-inset-bottom), 4px)}
 .tabsin{max-width:600px;margin:0 auto;display:grid;grid-template-columns:repeat(4,1fr)}
 .tab{background:none;border:0;padding:9px 4px 10px;display:flex;flex-direction:column;align-items:center;gap:3px;
   color:var(--dim);cursor:pointer;font-size:10.5px;font-weight:700;letter-spacing:.03em}
@@ -2043,7 +2063,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260823.1743';           // shown in the account bar so a stale app is obvious
+const BUILD='260823.1803';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 const PH_KEY='', PH_HOST='https://us.i.posthog.com';
 /* ---------- analytics ----------
