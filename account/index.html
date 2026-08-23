@@ -8,6 +8,33 @@
 <link rel="icon" type="image/png" sizes="32x32" href="/icon-32.png">
 <link rel="icon" href="/favicon.ico" sizes="any">
 <link rel="apple-touch-icon" href="/icon-180.png">
+<script>
+/* Sixty people walk this page once, on Monday, unattended. If a step goes wrong we find out by
+   phone, or not at all. Every step reports whether it worked and how long it took — the same
+   snippet as the portal, same project, so a person's enrolment and their first sign-in sit on
+   one timeline. Inert without a key; can never block the page. */
+const PH_KEY='', PH_HOST='https://us.i.posthog.com';
+let PH=null;
+function track(e,p){ try{ if(PH&&PH.capture)PH.capture(e,p||{}); }catch(x){} }
+(function(){ if(!PH_KEY)return; try{
+  !function(t,e){var o,n,p,r;e.__SV||(window.posthog=e,e._i=[],e.init=function(i,s,a){
+    function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]);
+      t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}
+    (p=t.createElement("script")).type="text/javascript",p.crossOrigin="anonymous",p.async=!0,
+    p.src=s.api_host+"/static/array.js",
+    (r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r);
+    var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],
+    u.toString=function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e},
+    u.people.toString=function(){return u.toString(1)+".people (stub)"},
+    o="init capture identify alias people.set people.set_once set_config register register_once unregister opt_out_capturing has_opted_out_capturing opt_in_capturing reset isFeatureEnabled onFeatureFlags getFeatureFlag getFeatureFlagPayload reload_feature_flags group updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures getActiveMatchingSurveys getSurveys getNextSurveyStep".split(" "),
+    n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
+  window.posthog.init(PH_KEY,{api_host:PH_HOST,autocapture:true,capture_pageview:true,
+    persistence:'localStorage+cookie',
+    loaded:function(ph){ PH=ph; try{ ph.register({surface:'account'}); }catch(e){} }});
+}catch(e){ PH=null; } })();
+window.addEventListener('error',ev=>track('js_error',
+  {message:String((ev&&ev.message)||'').slice(0,300),where:'account'}));
+</script>
 <style>
 :root{
   --ground:#0E1621; --panel:#16212E; --panel2:#1D2A39;
@@ -277,8 +304,12 @@ $('#b1').onclick=async()=>{
   if(!$('#code').value.trim()){ say('#m1','Enter the access code you were sent.'); return; }
   const b=$('#b1'); busy(b,true,'Checking…');
   try{
+    const t0=Date.now();
     const j=await api('/account',{action:'identify',code:$('#code').value.trim()});
     STATE.person=j.person;
+    // Identify at the FIRST step, so a person who abandons halfway is still findable.
+    try{ if(PH&&PH.identify)PH.identify(j.person,{role:j.role}); }catch(e){}
+    track('enrol_step',{step:'code',ok:true,already:!!j.alreadyEnrolled,ms:Date.now()-t0});
     if(j.alreadyEnrolled){
       say('#m1','This account is already set up. Sign in with your email and password.');
       go('pSignin',null,'Sign in');
@@ -290,10 +321,12 @@ $('#b1').onclick=async()=>{
       // select it rather than just filling it, so one keystroke replaces the whole thing for
       // anyone who would rather use a personal address.
       const em=$('#email');
+      STATE.suggested=j.suggestedEmail||'';
       if(j.suggestedEmail && !em.value) em.value=j.suggestedEmail;
       setTimeout(()=>{ em.focus(); if(em.value) em.select(); },60);
     }
-  }catch(e){ say('#m1',e.message); }
+  }catch(e){ say('#m1',e.message);
+    track('enrol_step',{step:'code',ok:false,reason:String(e.message).slice(0,120)}); }
   busy(b,false,'Continue');
 };
 $('#toSignin').onclick=e=>{e.preventDefault();go('pSignin',null,'Sign in');};
@@ -323,9 +356,12 @@ $('#b2').onclick=async()=>{
     $('#qr').src=j.totpQr||''; $('#secret').textContent=j.totpSecret;
     $('#codes').innerHTML=j.recoveryCodes.map(c=>'<span>'+c+'</span>').join('');
     STATE.codes=j.recoveryCodes;
+    track('enrol_step',{step:'account',ok:true,
+      used_suggested:$('#email').value.trim()===(STATE.suggested||'')});
     go('p3',2,'Add two-factor');
     setTimeout(()=>$('#totp').focus(),60);
-  }catch(e){ say('#m2',e.message); }
+  }catch(e){ say('#m2',e.message);
+    track('enrol_step',{step:'account',ok:false,reason:String(e.message).slice(0,120)}); }
   busy(b,false,'Continue');
 };
 
@@ -339,8 +375,10 @@ $('#b3').onclick=async()=>{
     // Keep the device token and any admin grant too: they are what stop the portal asking
     // again, both now and on the next visit. See handOverSession().
     STATE.token=j.token||null; STATE.device=j.device||null; STATE.grant=j.grant||null;
+    track('enrol_step',{step:'two_factor',ok:true});
     go('p4',3,'Save your recovery codes');
-  }catch(e){ say('#m3',e.message); }
+  }catch(e){ say('#m3',e.message);
+    track('enrol_step',{step:'two_factor',ok:false,reason:String(e.message).slice(0,120)}); }
   busy(b,false,'Finish setup');
 };
 
@@ -350,7 +388,10 @@ $('#copyCodes').onclick=async()=>{
        $('#copyCodes').textContent='Copied'; }
   catch(e){ $('#copyCodes').textContent='Select and copy them manually'; }
 };
-$('#b4').onclick=()=>{ signedIn('Signed in as '+STATE.person+'. Two-factor is on.'); };
+$('#b4').onclick=()=>{ track('enrol_step',{step:'recovery_codes',ok:true,
+  copied:$('#copyCodes').textContent==='Copied'});
+  track('enrol_complete',{});
+  signedIn('Signed in as '+STATE.person+'. Two-factor is on.'); };
 
 function signedIn(msg){
   say('#doneMsg',msg,'ok');
@@ -405,7 +446,7 @@ function handOverSession(){
     if(STATE.grant)  sessionStorage.setItem('__grant', STATE.grant);
   }catch(e){ /* private mode: the portal will ask, which is the old behaviour, not a new fault */ }
 }
-$('#goSched').onclick=()=>{ handOverSession(); location.href=PORTAL; };
+$('#goSched').onclick=()=>{ track('went_to_schedule',{}); handOverSession(); location.href=PORTAL; };
 $('#goOut').onclick=()=>{
   STATE={person:null,email:null,password:null,token:null,device:null,grant:null};
   // Whatever was handed to the portal has to go too, or "sign out" leaves a working session

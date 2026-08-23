@@ -405,9 +405,16 @@ textarea.ta{width:100%;background:var(--panel);border:1px solid var(--line2);bor
 .addrow{display:flex;gap:8px;margin:6px 0 8px;align-items:stretch}
 .addrow input{flex:1 1 auto;min-width:150px;padding:12px;border:1px solid var(--line2);
   border-radius:10px;font-size:15px;background:var(--panel2);color:var(--ink);
-  color-scheme:dark;font-family:inherit}
+  font-family:inherit}
 .addrow input:focus{outline:2px solid var(--signal);outline-offset:-1px;border-color:var(--signal)}
-.addrow input::-webkit-calendar-picker-indicator{filter:invert(1);opacity:.75;cursor:pointer}
+/* TWO FIXES FOR THE SAME PROBLEM, CANCELLING EACH OTHER OUT. The date field carried
+   `color-scheme:dark`, which is what makes the browser draw its own calendar icon light — and
+   then inverted that icon back to black. On a dark ground the result was a black icon nobody
+   could see. The invert dated from before color-scheme was set on :root.
+   Nothing here now: :root already declares color-scheme and switches it with the theme, so the
+   icon, the picker popup and the spinners all follow along in BOTH directions. Hard-coding it
+   per element was also why these fields stayed dark in light mode. */
+.addrow input::-webkit-calendar-picker-indicator{opacity:.75;cursor:pointer}
 .addrow .btn{width:auto;flex:0 0 auto;padding:12px 20px}
 .addhint{font-size:12.5px;color:var(--amber);margin:-2px 0 8px;min-height:1px}
 .icsmore{margin-top:9px}
@@ -421,7 +428,7 @@ textarea.ta{width:100%;background:var(--panel);border:1px solid var(--line2);bor
   border-top:1px solid var(--line);background:var(--test)}
 .testdate .tdl{font-size:12px;color:var(--test-ink);font-weight:700}
 .testdate .tdi{padding:5px 8px;border:1px solid var(--line2);border-radius:8px;
-  background:var(--panel2);color:var(--ink);font:inherit;color-scheme:dark;
+  background:var(--panel2);color:var(--ink);font:inherit;
   font-size:16px}   /* the test-site date picker zoomed the page like any other small field */
 .testdate .tdb{font:inherit;font-size:12px;padding:5px 10px;border-radius:8px;
   border:1px solid var(--line2);background:var(--panel2);color:var(--ink);cursor:pointer}
@@ -466,7 +473,7 @@ textarea.ta{width:100%;background:var(--panel);border:1px solid var(--line2);bor
   border-radius:14px;padding:14px;margin-bottom:8px}
 .swapform .l{font-size:12px;color:var(--muted);margin-top:4px}
 .swapform select,.swapform input,.inp{padding:11px;border:1px solid var(--line2);border-radius:10px;
-  font-size:15px;background:var(--panel2);color:var(--ink);font-family:inherit;color-scheme:dark;
+  font-size:15px;background:var(--panel2);color:var(--ink);font-family:inherit;
   width:100%}
 .swapform select:focus,.swapform input:focus,.inp:focus{outline:2px solid var(--signal);
   outline-offset:-1px;border-color:var(--signal)}
@@ -1870,8 +1877,72 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260823.1059';           // shown in the account bar so a stale app is obvious
+const BUILD='260823.1349';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
+const PH_KEY='', PH_HOST='https://us.i.posthog.com';
+/* ---------- analytics ----------
+   There was NO error reporting in this app at all — no window.onerror, nothing. Every bug found
+   so far was found by somebody noticing. That is what this is for first; the funnels are second.
+
+   Two rules it must obey:
+     1. It can never break the portal. The script is loaded async and every call is wrapped, so a
+        PostHog outage, an ad blocker, or a typo'd key costs nothing. If PH_KEY is empty the whole
+        thing is inert — which is how a build without a key behaves.
+     2. Test traffic must not pollute production numbers, so `env` is a super-property on every
+        event and the test site reports itself as test.
+
+   Capture level is deliberate and was Sam's call (2026-08-23): full defaults, autocapture and
+   session replay included. That means physicians' names, their schedules, and the free text they
+   type into swap and request notes are recorded. If that is ever revisited, the masking hooks are
+   marked MASK-HERE below. */
+let PH=null;
+function track(event,props){
+  try{ if(PH&&PH.capture)PH.capture(event,props||{}); }catch(e){}
+}
+function analyticsInit(){
+  if(!PH_KEY)return;
+  try{
+    !function(t,e){var o,n,p,r;e.__SV||(window.posthog=e,e._i=[],e.init=function(i,s,a){
+      function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]);
+        t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}
+      (p=t.createElement("script")).type="text/javascript",p.crossOrigin="anonymous",p.async=!0,
+      p.src=s.api_host+"/static/array.js",
+      (r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r);
+      var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],
+      u.toString=function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),
+        t||(e+=" (stub)"),e},u.people.toString=function(){return u.toString(1)+".people (stub)"},
+      o="init capture identify alias people.set people.set_once set_config register register_once unregister opt_out_capturing has_opted_out_capturing opt_in_capturing reset isFeatureEnabled onFeatureFlags getFeatureFlag getFeatureFlagPayload reload_feature_flags group updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures getActiveMatchingSurveys getSurveys getNextSurveyStep".split(" "),
+      n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
+    window.posthog.init(PH_KEY,{
+      api_host:PH_HOST,
+      persistence:'localStorage+cookie',
+      // MASK-HERE: set autocapture:false and disable_session_recording:true to stop DOM text and
+      // recordings leaving the device. Deliberately on — see the note above.
+      autocapture:true,
+      capture_pageview:true,
+      // A stale service worker is a real failure mode here, so the build is on EVERY event.
+      loaded:function(ph){ PH=ph;
+        try{ ph.register({build:BUILD, env:TEST_BUILD?'test':'production',
+               standalone:!!(window.matchMedia('(display-mode: standalone)').matches
+                             ||window.navigator.standalone)}); }catch(e){}
+      },
+    });
+  }catch(e){ PH=null; }
+}
+analyticsInit();
+
+/* NOTHING WAS WATCHING FOR ERRORS. These two are the reason this went in at all. */
+window.addEventListener('error',ev=>{
+  track('js_error',{message:String((ev&&ev.message)||'').slice(0,300),
+    source:String((ev&&ev.filename)||'').slice(-80),
+    line:(ev&&ev.lineno)||0, where:location.pathname});
+});
+window.addEventListener('unhandledrejection',ev=>{
+  const r=ev&&ev.reason;
+  track('js_error',{message:'unhandled: '+String((r&&r.message)||r||'').slice(0,300),
+    where:location.pathname});
+});
+
 let SESSION=null, CFG=null, MYREQ=null, MYSWAPS=[];
 // The admin approvals queue. Declared up here with the rest of the state, not beside the code
 // that fills it — adminBar() reads the count to paint its badge and runs early.
@@ -1882,9 +1953,30 @@ const api=async(path,opts={})=>{
   // Tell the API which day we are pretending it is. It only honours this on the test
   // deployment, so the same header sent at production is ignored.
   const td=testToday(); if(td)h['x-test-today']=td;
-  const r=await fetch(API+path,{...opts,headers:h});
+  // The endpoint WITHOUT its query string: '/requests?person=Stramel' is the same call as
+  // '/requests?person=Horn' and should group as one. A query string here would also be the
+  // easiest accidental route for a physician's name into analytics.
+  const ep=String(path).split('?')[0];
+  const t0=Date.now();
+  let r;
+  try{ r=await fetch(API+path,{...opts,headers:h}); }
+  catch(err){
+    // Offline, DNS, CORS, a dead deployment — none of which produce a status code, and all of
+    // which look identical to the person holding the phone.
+    track('api_error',{endpoint:ep,status:0,ms:Date.now()-t0,
+      method:(opts.method||'GET'),reason:String(err&&err.message||err).slice(0,120)});
+    throw err;
+  }
+  const ms=Date.now()-t0;
   let j={}; try{j=await r.json();}catch(e){}
-  if(!r.ok)throw Object.assign(new Error(j.error||('HTTP '+r.status)),{payload:j,status:r.status});
+  if(!r.ok){
+    track('api_error',{endpoint:ep,status:r.status,ms,method:(opts.method||'GET'),
+      reason:String(j.error||'').slice(0,120)});
+    throw Object.assign(new Error(j.error||('HTTP '+r.status)),{payload:j,status:r.status});
+  }
+  // Cold starts are the thing that makes this app feel broken, so slow SUCCESSES matter as much
+  // as failures. Only the slow ones, or every tap becomes an event.
+  if(ms>2000)track('api_slow',{endpoint:ep,ms,method:(opts.method||'GET')});
   return j;
 };
 /* ---------- Face ID / Touch ID ----------
@@ -2794,6 +2886,8 @@ function openCoverAsk(){
          second. The count of PEOPLE reached is the honest number; `notified` counts devices,
          and someone with a phone and a laptop is not two colleagues. */
       const who=mode==='direct'?toPerson:(j.eligibleCount+' colleague'+(j.eligibleCount===1?'':'s'));
+      track('cover_requested',{mode:mode,asked:j.eligibleCount||0,
+        notified:j.subscribed||0,duplicate:!!j.duplicate});
       toast(j.duplicate ? 'Already sent — nobody was asked twice'
         : 'Asked '+who+' · '+(j.subscribed
             ? j.subscribed+' notified now'
@@ -2870,6 +2964,8 @@ function renderSwap(){
     $('#swMsg').textContent='sending…';
     try{
       const r=await api('/swaps',{method:'POST',body:JSON.stringify({toPerson:who,date,shift,note:$('#swNote').value})});
+      track('swap_requested',{rule_check:r.swap.ruleCheck,
+        blocked:r.swap.ruleCheck!=='CLEAN',trade:!!r.swap.backDate});
       $('#swMsg').textContent=r.swap.ruleCheck==='CLEAN'
         ? 'Sent — waiting on '+r.swap.toPerson
         : 'Blocked: '+(r.swap.problems[0]||'breaks a rule');
@@ -3584,6 +3680,7 @@ function renderAdminHome(){
   // A decision is one round trip, then the whole queue is re-read: approving a cover can settle
   // a swap on the same shift, and a stale card is an invitation to decide something twice.
   const after=async(msg)=>{ toast(msg); await loadAdminQueue(); renderAdminHome();
+    /* eslint-disable-line */
                             adminBar(); await refreshLive(true).catch(()=>{}); };
   const wire=(sel,run)=>$$(sel,w).forEach(b=>b.onclick=async()=>{
     $$('button',w).forEach(x=>x.disabled=true);
@@ -3593,17 +3690,18 @@ function renderAdminHome(){
               $$('button',w).forEach(x=>x.disabled=false); }
   });
   wire('[data-qc]',async b=>{
-    const act=b.dataset.act;
+    const act=b.dataset.act; track('decision',{kind:'cover',action:act,from:'desk'});
     await api('/coverage',{method:'PATCH',body:JSON.stringify({id:b.dataset.qc,action:act})});
     await after(act==='approve'?'Approved — the schedule is updated':'Declined');
   });
   wire('[data-qs]',async b=>{
-    const act=b.dataset.act;
+    const act=b.dataset.act; track('decision',{kind:'swap',action:act,from:'desk'});
     await api('/swaps',{method:'PATCH',body:JSON.stringify({id:b.dataset.qs,
       action:act==='reject'?'reject':'approve', override:act==='override'})});
     await after(act==='reject'?'Rejected':'Approved — the schedule is updated');
   });
   wire('[data-qh]',async b=>{
+    track('decision',{kind:'holiday',action:b.dataset.act,from:'desk'});
     await api('/requests',{method:'PATCH',
       body:JSON.stringify({person:b.dataset.qh,decision:b.dataset.act})});
     await after(b.dataset.act==='approved'?'Holiday approved':'Holiday declined');
@@ -3921,6 +4019,11 @@ async function loadPortal(token){
     return;
   }
   setIdentity(j.person,j.role,j.label);
+  /* Identified by the PERSON KEY — "Stramel", the same key the schedule and the accounts table
+     use. When Aaron says "Dr Stramel cannot sign in", that is the string to search for. */
+  try{ if(PH&&PH.identify)PH.identify(j.person,{role:j.role,
+         has_schedule:!!(j.data&&j.data.people&&j.data.people.includes(j.person))}); }catch(e){}
+  track('portal_opened',{role:j.role});
   document.body.classList.remove('locked');
   const g=document.querySelector('.signin'); if(g)g.remove();
   LAST_EDIT_SIG=editSig(j.edits);
@@ -4306,14 +4409,23 @@ function goFromUrl(u){
          clean.searchParams.delete('swap');
          history.replaceState(null,'',clean.pathname+clean.search+clean.hash); }catch(e){}
   };
+  const tGo=Date.now();
   const t0=Date.now();
   (function ready(){
     // BOOTED alone is not enough — boot() can run before the API has answered. openOffer needs
     // a session to load the offer, and go() needs DATA to render anything at all.
-    if(BOOTED&&DATA&&SESSION){ land(); clearUrl(); return; }
+    if(BOOTED&&DATA&&SESSION){
+      track('notification_opened',{kind:offer?'cover':(swapId?'swap':'tab'),
+        as:as||'',tab:tab,ms_to_ready:Date.now()-tGo,timed_out:false});
+      land(); clearUrl(); return; }
     // Give up after 20s and land anyway: offline, the app should still go somewhere sensible
     // rather than sit on the last screen forever with the notification unanswered.
-    if(Date.now()-t0>20000){ land(); clearUrl(); return; }
+    if(Date.now()-t0>20000){
+      // Landed anyway after giving up waiting. If this ever appears in the data, the 20s cap is
+      // the thing to look at.
+      track('notification_opened',{kind:offer?'cover':(swapId?'swap':'tab'),
+        as:as||'',tab:tab,ms_to_ready:Date.now()-tGo,timed_out:true});
+      land(); clearUrl(); return; }
     setTimeout(ready,120);
   })();
   return true;
