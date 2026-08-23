@@ -1364,7 +1364,7 @@ function groupGrid(people){
       const sh=a&&a.s&&a.s.length?a.s[0]:null;
       const m=sh?META(sh):null;
       return `<td class="gc${dowOf(d)>=5?' we':''}"${sh?` style="background:${m.color}22;border-left:2px solid ${m.color}"`:''}
-        title="${sh?esc(a.s.map(x=>META(x).label).join(' + ')):''}">${sh?esc(m.short||m.label):''}</td>`;
+        title="${sh?esc(a.s.filter(x=>isRealShift(ME,d,x)).map(x=>shiftLabel(ME,d,x,false)).join(' + ')):''}">${sh?esc(m.short||m.label):''}</td>`;
     }).join('')}</tr>`).join('');
   return `<div class="gwrap"><table class="gtab"><thead><tr><th class="gn"></th>${head}</tr></thead>
     <tbody>${rows}</tbody></table></div>`;
@@ -1530,13 +1530,15 @@ function renderNow(){
     const kindTxt=m.kind==='noc'?'Overnight · 7pm–7am':m.kind==='icu'?'Day shift · 7am–7pm':
                   m.kind==='swing'?'Swing · 1pm–11pm':m.kind==='clinic'?'Clinic · 8am–5pm':
                   m.kind==='admin'?'Protected time':m.kind==='jeop'?'Backup':'';
-    const a=dayOf(ME,next.iso), also=a.s.filter(s=>s!==next.shift), roles=a.r||[];
+    const a=dayOf(ME,next.iso),
+          also=a.s.filter(s=>s!==next.shift&&isRealShift(ME,next.iso,s)), roles=a.r||[];
     html+=`<div class="hero"><div class="spine" style="background:${m.color}"></div><div class="in">
       <div class="when">${esc(when)}</div>
       <div class="unit"><span class="dotU" style="background:${m.color};width:15px;height:15px"></span>${
         esc(shiftLabel(ME,next.iso,next.shift,false))}</div>
       <div class="sub">${esc(m.sub)}</div>
-      ${also.length?`<div class="sub" style="margin-top:7px">Also that day: ${also.map(s=>esc(META(s).label)).join(' · ')}</div>`:''}
+      ${also.length?`<div class="sub" style="margin-top:7px">Also that day: ${
+        also.map(s=>esc(shiftLabel(ME,next.iso,s,false))).join(' · ')}</div>`:''}
       ${roles.length?`<div class="sub" style="margin-top:5px;color:#F0ABFC">◆ ${roles.map(r=>esc((DATA.roles[r]||{label:r}).label)).join(' · ')}</div>`:''}
       <div class="date mono"><span>${esc(fmtLong(next.iso))}</span><span class="t">${esc(kindTxt)}</span></div>
     </div></div>`;
@@ -1808,7 +1810,10 @@ function downloadICS(){
   let n=0;
   DATA.dates.forEach(iso=>{
     const a=dayOf(ME,iso);if(!a)return;
-    a.s.forEach(s=>{
+    // Same rule as every other view: protected time is not an appointment and does not belong in
+    // anyone's calendar app. The SERVER feed has always filtered it; this one-off download did
+    // not, so the file you tapped "download" on disagreed with the feed you subscribed to.
+    a.s.filter(s=>isRealShift(ME,iso,s)).forEach(s=>{
       const m=META(s),hrs=DATA.kindHours[m.kind];
       const uid=`${iso}-${s.replace(/[^A-Za-z0-9]/g,'')}-${ME}@schedulingwiz`;
       L.push('BEGIN:VEVENT','UID:'+uid,'DTSTAMP:'+icsStamp(DATA.generated,0,0)+'Z');
@@ -1819,7 +1824,7 @@ function downloadICS(){
         const endH=h+dur, endIso=endH>=24?isoAdd(iso,1):iso;
         L.push('DTSTART:'+icsStamp(iso,h,mi),'DTEND:'+icsStamp(endIso,endH%24,mi));
       }
-      L.push('SUMMARY:'+m.label,'LOCATION:'+m.sub.replace(/,/g,''),
+      L.push('SUMMARY:'+shiftLabel(ME,iso,s,false),'LOCATION:'+m.sub.replace(/,/g,''),
              'DESCRIPTION:'+(m.sub+((a.r&&a.r.length)?' — also '+a.r.join(', '):'')).replace(/,/g,'\\,'),
              'END:VEVENT');
       n++;
@@ -1840,9 +1845,10 @@ function downloadCSV(){
   const rows=[];
   DATA.dates.forEach(iso=>{
     const a=dayOf(ME,iso);if(!a)return;
-    a.s.forEach(s=>{const m=META(s);
-      rows.push([iso,DOW[dowOf(iso)],m.label,m.sub,m.kind,(a.r||[]).join(' / ')]);});
-    if(!a.s.length&&a.r&&a.r.length)rows.push([iso,DOW[dowOf(iso)],'—','','role',a.r.join(' / ')]);
+    const shown=a.s.filter(s=>isRealShift(ME,iso,s));
+    shown.forEach(s=>{const m=META(s);
+      rows.push([iso,DOW[dowOf(iso)],shiftLabel(ME,iso,s,false),m.sub,m.kind,(a.r||[]).join(' / ')]);});
+    if(!shown.length&&a.r&&a.r.length)rows.push([iso,DOW[dowOf(iso)],'—','','role',a.r.join(' / ')]);
   });
   // A column nobody has anything in is a column to leave out. Most physicians hold no layered
   // role, so Roles arrived as a header over 39 empty cells — and an empty column in a
@@ -1864,7 +1870,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260823.1046';           // shown in the account bar so a stale app is obvious
+const BUILD='260823.1059';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 let SESSION=null, CFG=null, MYREQ=null, MYSWAPS=[];
 // The admin approvals queue. Declared up here with the rest of the state, not beside the code
