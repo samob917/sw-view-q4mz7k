@@ -1947,7 +1947,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260823.1512';           // shown in the account bar so a stale app is obvious
+const BUILD='260823.1523';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 const PH_KEY='', PH_HOST='https://us.i.posthog.com';
 /* ---------- analytics ----------
@@ -2687,8 +2687,12 @@ function coverageCard(){
      whether it had gone through. The outcome is the whole point of having asked, so it stays
      until somebody says they have seen it, with the name of whoever decided: "approved" with
      no author is a fact with nobody behind it. */
+  /* ONLY APPROVALS WAIT TO BE ACKNOWLEDGED (Sam 8/23). An approval MOVED a shift — somebody is
+     now working a day they were not, or is off one they were — and that has to be seen. A
+     decline changed nothing, so holding it here with an OK button asks for a tap that confirms
+     nothing happened. Declines go straight to the archive. */
   const decided=COVER.filter(o=>(o.fromPerson===ME||o.claimedBy===ME)&&
-    (o.status==='approved'||o.status==='declined')&&!coverSeen(o.id));
+    o.status==='approved'&&!coverSeen(o.id));
   let h='';
   if(open.length)h+=`<h2 class="sec">Can you cover?</h2>`+open.map(o=>`
     <div class="swcard"><div class="lgh">${esc(META(o.shift).label||o.shift)} · ${esc(fmtD(o.date))}</div>
@@ -2697,15 +2701,12 @@ function coverageCard(){
         <button class="btn" data-pass="${esc(o.id)}">Decline Shift</button></div>
     </div>`).join('');
   if(decided.length)h+=`<h2 class="sec">Decided</h2>`+decided.map(o=>{
-    const ok=o.status==='approved';
     const who=o.decidedBy?fullOf(o.decidedBy)||o.decidedBy:'an admin';
     const mine=o.fromPerson===ME;
     return `<div class="swcard"><div class="lgh">${esc(META(o.shift).label||o.shift)} · ${esc(fmtD(o.date))}</div>
-      <div class="sub"><b style="color:var(--${ok?'signal':'alert'})">${ok?'Approved':'Declined'} by ${esc(who)}</b> —
-        ${ok ? (mine ? esc(fullOf(o.claimedBy)||o.claimedBy)+' is covering this for you; it is off your schedule.'
-                     : 'you are covering this for '+esc(fullOf(o.fromPerson)||o.fromPerson)+'. It is on your schedule now.')
-             : (mine ? 'your shift is unchanged — you are still on it.'
-                     : 'you are not covering this after all.')}</div>
+      <div class="sub"><b style="color:var(--signal)">Approved by ${esc(who)}</b> —
+        ${mine ? esc(fullOf(o.claimedBy)||o.claimedBy)+' is covering this for you; it is off your schedule.'
+               : 'you are covering this for '+esc(fullOf(o.fromPerson)||o.fromPerson)+'. It is on your schedule now.'}</div>
       <div class="btnrow"><button class="btn" data-covok="${esc(o.id)}">OK</button></div>
     </div>`;}).join('');
   if(took.length)h+=`<h2 class="sec">You accepted</h2>`+took.map(o=>`
@@ -2766,7 +2767,10 @@ function archivedHTML(){
       what:esc(META(s.shift).label||s.shift)+' · '+esc(fmtD(s.date)),
       who:esc(fullOf(s.fromPerson)||s.fromPerson)+' → '+esc(fullOf(s.toPerson)||s.toPerson),
       status:s.status, by:s.decidedBy}));
-  (COVER||[]).filter(o=>(o.fromPerson===ME||o.claimedBy===ME)&&COVER_DONE.includes(o.status))
+  // Not the one still sitting in "Decided" waiting to be acknowledged — it would be on the page
+  // twice, once as news and once as history. It files itself the moment they tap OK.
+  (COVER||[]).filter(o=>(o.fromPerson===ME||o.claimedBy===ME)&&COVER_DONE.includes(o.status)
+    &&!(o.status==='approved'&&!coverSeen(o.id)))
     .forEach(o=>rows.push({when:o.date,kind:'Cover',
       what:esc(META(o.shift).label||o.shift)+' · '+esc(fmtD(o.date)),
       who:o.claimedBy?esc(fullOf(o.claimedBy)||o.claimedBy)+' for '+esc(fullOf(o.fromPerson)||o.fromPerson)
@@ -2774,13 +2778,18 @@ function archivedHTML(){
       status:o.status, by:o.decidedBy}));
   if(!rows.length)return '';
   rows.sort((a,b)=>String(b.when).localeCompare(String(a.when)));
+  // One word, the same word for both kinds. "Rejected" and "declined" are the same outcome
+  // wearing two names, and neither says who — a decision that changed nothing does not need
+  // somebody's name attached to it.
   const tone={approved:'ok',declined:'bad',rejected:'bad',expired:'',cancelled:''};
+  const say={approved:'Approved',declined:'Declined',rejected:'Declined',
+             expired:'Expired',cancelled:'Withdrawn'};
   return `<details class="arch"><summary>Archived requests <span class="archn">${rows.length}</span></summary>
     <div class="archbody">${rows.map(r=>`
       <div class="archrow">
         <span class="archk">${r.kind}</span>
         <span class="archw"><b>${r.what}</b><span class="archwho">${r.who}</span></span>
-        <span class="pill ${tone[r.status]||''}">${esc(r.status)}</span>
+        <span class="pill ${tone[r.status]||''}">${esc(say[r.status]||r.status)}</span>
       </div>`).join('')}</div>
     <div class="note" style="margin:10px 0 0">Nothing here needs anything from you — it is what
       was decided, kept so you can look back.</div></details>`;
