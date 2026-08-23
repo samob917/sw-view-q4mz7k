@@ -2099,7 +2099,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260823.1910';           // shown in the account bar so a stale app is obvious
+const BUILD='260823.1920';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 const PH_KEY='', PH_HOST='https://us.i.posthog.com';
 /* ---------- analytics ----------
@@ -3494,6 +3494,7 @@ function sheet(title,body){
     <button class="x" id="shX" aria-label="Close">✕</button>`;
   $('#sheetBd').innerHTML=body;
   $('#sheet').classList.add('on');$('#scrim').classList.add('on');
+  _sheetOpenedAt=Date.now();
   $('#shX').onclick=closeSheet;
   $('#shX').focus({preventScroll:true});
 }
@@ -3509,7 +3510,15 @@ function closeSheet(){
   $$('.cell.sel').forEach(c=>c.classList.remove('sel'));
   if(_sheetReturnFocus&&_sheetReturnFocus.focus){_sheetReturnFocus.focus({preventScroll:true});_sheetReturnFocus=null;}}
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('#sheet').classList.contains('on'))closeSheet();});
-$('#scrim').onclick=closeSheet;
+/* THE SCRIM APPEARS UNDER THE FINGER THAT OPENED THE SHEET. Reported after withdrawing a request
+   and pressing Request coverage straight afterwards: the sheet opened and then slid back down on
+   its own. That is what a tap-through looks like -- the scrim is full-screen with a close
+   handler, it is laid over the exact spot being touched, and on a touchscreen the tail of that
+   same gesture can land on it. It could not be reproduced in a desktop browser, where a
+   synthetic click does not linger; the guard is cheap and costs a real dismissal nothing, since
+   nobody opens a sheet and deliberately dismisses it inside a third of a second. */
+let _sheetOpenedAt=0;
+$('#scrim').onclick=()=>{ if(Date.now()-_sheetOpenedAt<350)return; closeSheet(); };
 
 
 /* ---------- live schedule changes (admin edits, applied on top of the build) ----------
@@ -4159,7 +4168,11 @@ function renderAdminHome(){
     try{ await run(b); }
     catch(e){ toast((e.payload&&e.payload.problems)?e.payload.problems.join(' · ')
                     :(e.message||'Could not save'));
-              $$('button',w).forEach(x=>x.disabled=false); }
+              /* A REFUSAL USUALLY MEANS THIS CARD IS OUT OF DATE. The commonest is a coverage
+                 request the asker withdrew while the desk was open: the server refuses it, and
+                 without this the card stayed, re-armed, inviting the same dead press again.
+                 Re-reading turns a confusing refusal into the card simply going away. */
+              await loadAdminQueue().catch(()=>{}); renderAdminHome(); adminBar(); }
   });
   wire('[data-qc]',async b=>{
     const act=b.dataset.act; track('decision',{kind:'cover',action:act,from:'desk'});
@@ -4384,6 +4397,22 @@ let LAST_EDIT_SIG=null, REFRESH_TIMER=null;
 function editSig(list){
   return (list||[]).map(o=>o.id+':'+(o.at||'')).sort().join('|');
 }
+/* THE APPROVALS DESK HAS TO BE RE-READ ON ITS OWN. refreshLive polls the SCHEDULE and returns
+   early when the edit signature has not moved -- and withdrawing a coverage request does not
+   change the schedule, so it never moved. An admin left on the desk therefore kept a card for a
+   request the asker had already taken back, indefinitely, with a live Approve button on it.
+   Pressing it was safe (the server refuses anything that is no longer claimed) but it read as
+   the app being broken, and the refusal said "nobody has accepted yet" when somebody had.
+   The queue is a different question from the schedule and now gets asked separately. */
+async function pollAdminQueue(){
+  if(ROLE!=='admin'||!SESSION||!SESSION.token)return;
+  const before=adminQCount();
+  await loadAdminQueue().catch(()=>{});
+  adminBar();
+  // Only repaint when something actually changed: renderAdminHome rebuilds the cards, and doing
+  // that every 90 seconds under somebody reading one is its own small bug.
+  if(onAdminHome()&&adminQCount()!==before)renderAdminHome();
+}
 async function refreshLive(force){
   if(!SESSION||!SESSION.token)return;
   try{
@@ -4457,9 +4486,10 @@ async function checkVersion(){
 
 function startLiveRefresh(){
   if(REFRESH_TIMER)clearInterval(REFRESH_TIMER);
-  REFRESH_TIMER=setInterval(()=>{if(!document.hidden)refreshLive(false);},90000);
-  document.addEventListener('visibilitychange',()=>{if(!document.hidden){refreshLive(false);checkVersion();}});
-  window.addEventListener('focus',()=>refreshLive(false));
+  REFRESH_TIMER=setInterval(()=>{if(!document.hidden){refreshLive(false);pollAdminQueue();}},90000);
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden){
+    refreshLive(false);pollAdminQueue();checkVersion();}});
+  window.addEventListener('focus',()=>{refreshLive(false);pollAdminQueue();});
   if(VERCHECK)clearInterval(VERCHECK);
   VERCHECK=setInterval(()=>{if(!document.hidden)checkVersion();},600000);
   checkVersion();
