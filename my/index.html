@@ -258,6 +258,12 @@ nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:40;background:var(--chro
   color:var(--dim);cursor:pointer;font-size:10.5px;font-weight:700;letter-spacing:.03em}
 .tab svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
 .tab.on{color:var(--signal)}
+/* A count on the tab, because an ask that nobody notices is an ask that goes unanswered. It sits
+   on the icon rather than the label so it reads the same however long the word is. */
+.tabic{position:relative;display:inline-flex}
+.tabdot{position:absolute;top:-5px;right:-9px;min-width:16px;height:16px;padding:0 4px;
+  border-radius:9px;background:var(--alert);color:#fff;font:700 10px/16px var(--sans);
+  text-align:center;box-shadow:0 0 0 2px var(--chrome-solid)}
 .pane{display:none}.pane.on{display:block}
 
 /* ---------- sheet ---------- */
@@ -827,7 +833,7 @@ body.adminmode main{padding:0}
     <button class="tab on" data-t="now"><svg viewBox="0 0 24 24"><path d="M12 7v5l3 2"/><circle cx="12" cy="12" r="9"/></svg>Now</button>
     <button class="tab" data-t="sched"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>Schedule</button>
     <button class="tab" data-t="req"><svg viewBox="0 0 24 24"><path d="M5 4h14v16l-7-3-7 3z"/></svg>Requests</button>
-    <button class="tab" data-t="swap"><svg viewBox="0 0 24 24"><path d="M4 8h13l-3-3M20 16H7l3 3"/></svg>Swaps</button>
+    <button class="tab" data-t="swap"><span class="tabic"><svg viewBox="0 0 24 24"><path d="M4 8h13l-3-3M20 16H7l3 3"/></svg><span class="tabdot" id="swapDot" hidden></span></span>Swaps</button>
   </div>
 </nav>
 
@@ -1928,7 +1934,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260823.1432';           // shown in the account bar so a stale app is obvious
+const BUILD='260823.1448';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 const PH_KEY='', PH_HOST='https://us.i.posthog.com';
 /* ---------- analytics ----------
@@ -2425,6 +2431,7 @@ let COVER=[];
 async function loadCoverage(){
   if(!SESSION)return;
   try{ COVER=(await api('/coverage')).offers||[]; }catch(e){ COVER=[]; }
+  paintSwapDot();
 }
 async function enablePush(){
   if(!('serviceWorker' in navigator)||!('PushManager' in window))return {ok:false,why:'This browser cannot do notifications.'};
@@ -2708,6 +2715,24 @@ function coverageCard(){
     </div>`).join('');
   return h;
 }
+/* WHAT IS WAITING ON THIS PERSON, and therefore what the tab should be shouting about.
+   Only things that need a decision FROM THEM: a cover request they have been asked to take, and
+   a swap where they are the one being asked. Not their own outstanding asks — those are waiting
+   on somebody else — and not anything already decided, which belongs in the archive. */
+function pendingForMe(){
+  if(!ME)return 0;
+  const covers=(COVER||[]).filter(o=>o.status==='open'&&o.fromPerson!==ME&&
+    (o.eligible||[]).includes(ME)).length;
+  const swaps=(MYSWAPS||[]).filter(s=>s.status==='awaiting_partner'&&s.toPerson===ME).length;
+  return covers+swaps;
+}
+function paintSwapDot(){
+  const d=document.querySelector('#swapDot'); if(!d)return;
+  const n=pendingForMe();
+  d.textContent=n>9?'9+':String(n);
+  d.hidden=!n;
+}
+
 /* ---------- archived requests ----------
    Anything already decided. It was in two different wrong places: a settled SWAP stayed in the
    main list forever, so the page became a pile with the one live item somewhere in it; and a
@@ -3175,6 +3200,7 @@ function renderSwap(){
 async function loadSwaps(){
   if(!SESSION)return;
   try{const r=await api('/swaps');MYSWAPS=r.swaps||[];}catch(e){MYSWAPS=[];}
+  paintSwapDot();
 }
 
 function candRow(p,cta,mode,back){
@@ -3843,6 +3869,7 @@ async function loadPersonData(){
   await loadSwaps();
   await loadCoverage();
   if(onBehalf())MYSWAPS=(MYSWAPS||[]).filter(w=>w.fromPerson===ME||w.toPerson===ME);
+  paintSwapDot();   // the list just changed under it — an admin switching physician sees theirs
   REQSAVED=null;                  // a confirmation from the previous person would be a lie
   LOADED_FOR=ME;
   if(CUR==='req')renderReq();
