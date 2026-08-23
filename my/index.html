@@ -442,7 +442,6 @@ textarea.ta{width:100%;background:var(--panel);border:1px solid var(--line2);bor
 /* not selectable — shown so nobody wonders where a colleague went, with the reason */
 .cvrow.off{cursor:default;padding-left:30px}
 .cvrow.off .cvnm{color:var(--dim)}
-.cvwhy{font-size:11.5px;color:var(--amber);text-align:right;max-width:52%;line-height:1.35}
 .cvbad{margin-top:12px;border-top:1px solid var(--line);padding-top:8px}
 .cvbad>summary{font:700 10px/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;
   color:var(--faint);cursor:pointer;list-style:none;display:flex;align-items:center;gap:7px;
@@ -1931,7 +1930,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260823.1420';           // shown in the account bar so a stale app is obvious
+const BUILD='260823.1426';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 const PH_KEY='', PH_HOST='https://us.i.posthog.com';
 /* ---------- analytics ----------
@@ -2942,14 +2941,28 @@ function wireCoverage(){
   paintNotify();
   wireNotifyTest();
 }
+/* Who could take a shift is worked out server-side across every colleague, and it depends
+   entirely on WHICH shift — so it cannot be computed until one is chosen, and it is too slow to
+   compute while somebody waits with a finger on the button. It is fetched the moment the sheet
+   opens, and again whenever the shift changes, so by the time anyone presses Send request the
+   answer is already sitting here. Keyed by shift, because people change their minds and going
+   back to a shift they already looked at should cost nothing. */
+const WHOCACHE=new Map();
+function whoKey(date,shift){ return date+'|'+shift; }
+function prefetchWho(date,shift){
+  const k=whoKey(date,shift);
+  if(WHOCACHE.has(k))return WHOCACHE.get(k);
+  const on=onBehalf();
+  const q='?preview=1&date='+encodeURIComponent(date)+'&shift='+encodeURIComponent(shift)
+          +(on?'&person='+encodeURIComponent(on):'');
+  const pr=api('/coverage'+q).catch(e=>{ WHOCACHE.delete(k); throw e; });
+  WHOCACHE.set(k,pr);
+  return pr;
+}
+
 function openCoverAsk(){
   const shifts=myShifts(ME).filter(s=>s.iso>=todayISO());
   if(!shifts.length){ toast('No upcoming shifts'); return; }
-  /* TWO STEPS: pick the shift, then pick who (Sam 2026-08-23).
-     Who can take a shift depends entirely on WHICH shift, so the list cannot exist until that is
-     chosen — and putting it on the first screen meant re-fetching it under someone every time
-     they changed their mind about the date. Choose the shift, press the button, then decide who
-     to ask on a screen that is about nothing else. */
   sheet('Request coverage',
     `<label class="lbl" for="cvShift">Which shift</label>
      <select class="inp" id="cvShift">${shifts.map(s=>
@@ -2960,36 +2973,40 @@ function openCoverAsk(){
      <div class="btnrow" style="margin-top:12px">
        <button class="btn pri" id="cvNext">Send request</button></div>
      <div class="note">You choose who to ask on the next screen.</div>`);
+
+  const warm=()=>{ const [d,sh]=$('#cvShift').value.split('|'); prefetchWho(d,sh).catch(()=>{}); };
+  warm();                       // start before they have decided anything else
+  $('#cvShift').onchange=warm;  // and again if they change their mind
+
   $('#cvNext').onclick=async()=>{
     const [date,shift]=$('#cvShift').value.split('|');
     const note=$('#cvNote').value;
-    const m=$('#cvMsg'); m.textContent='Working out who can take it…'; m.className='msg on';
+    const m=$('#cvMsg');
     $('#cvNext').disabled=true;
+    // Almost always already resolved, so this shows nothing and the next screen appears at once.
+    const slow=setTimeout(()=>{ m.textContent='One moment…'; m.className='msg on'; },250);
     try{
-      const on=onBehalf();
-      const q='?preview=1&date='+encodeURIComponent(date)+'&shift='+encodeURIComponent(shift)
-              +(on?'&person='+encodeURIComponent(on):'');
-      const j=await api('/coverage'+q);
+      const j=await prefetchWho(date,shift);
+      clearTimeout(slow);
       pickWhoToAsk(date,shift,note,j);
-    }catch(e){ m.textContent=e.message; m.className='msg on bad'; $('#cvNext').disabled=false; }
+    }catch(e){ clearTimeout(slow);
+      m.textContent=e.message; m.className='msg on bad'; $('#cvNext').disabled=false; }
   };
 }
 
 /* WHO TO ASK — everybody, in three groups, and every one of them selectable.
-   Free and eligible are ticked and come first, because that is the ask you almost always want.
-   Below them, colleagues who are eligible but already working that day: worth asking, since they
-   may move their own day around, and the app has no way of knowing whether they will. Below
-   that, people the rules will not put on this unit at all.
-   Nothing here is disabled. The rules inform the choice rather than making it — and an approval
-   now re-checks and records what was actually true, so asking widely cannot quietly produce a
-   schedule that claims to be clean when it is not. */
+   Available are ticked and come first, because that is the ask you almost always want. Nothing
+   is disabled: the rules order the list rather than deciding it, and an approval re-checks and
+   records what was actually true, so asking widely cannot quietly produce a schedule that
+   claims to be clean when it is not.
+   No reason is printed against a name. The grouping already says as much as anyone needs to
+   choose, and a column of rule citations made the screen read like a rejection notice. */
 function pickWhoToAsk(date,shift,note,j){
   const free=j.free||[], working=j.working||[], blocked=j.blocked||[];
   const row=(e,checked)=>`<label class="cvrow">
       <input type="checkbox" class="cvpick" value="${esc(e.person)}"${checked?' checked':''}>
       <span class="cvnm">${esc(fullOf(e.person)||e.person)}</span>
-      ${e.reason?`<span class="cvwhy">${esc(e.reason)}</span>`
-                :`<span class="cvpush ${e.push?'on':''}">${e.push?'notified':'sees it next time'}</span>`}
+      <span class="cvpush ${e.push?'on':''}">${e.push?'notified':'sees it next time'}</span>
     </label>`;
   const group=(title,rows,checked,klass)=>rows.length
     ? `<div class="cvhead ${klass||''}">${title} <span class="cvn">${rows.length}</span></div>`
@@ -2998,9 +3015,9 @@ function pickWhoToAsk(date,shift,note,j){
   sheet('Who to ask',
     `<div class="sub" style="margin-top:0">${esc(META(shift).label||shift)} · ${esc(fmtD(date))}</div>
      <div id="cvWho">
-       ${group('Free and able to take it',free,true)}
-       ${group('Able, but already working that day',working,false,'warn')}
-       ${group('The rules will not allow it',blocked,false,'bad')}
+       ${group('Available',free,true)}
+       ${group('Able but unavailable',working,false,'warn')}
+       ${group('Unable',blocked,false,'bad')}
        ${(!free.length&&!working.length&&!blocked.length)?'<div class="cvload">Nobody to ask.</div>':''}
      </div>
      <div class="msg" id="cvMsg2"></div>
@@ -3023,6 +3040,8 @@ function pickWhoToAsk(date,shift,note,j){
       const on=onBehalf();
       const r=await api('/coverage',{method:'POST',body:JSON.stringify(
         {date,shift,mode:'broadcast',to,note,...(on?{person:on}:{})})});
+      // The ask has changed the picture for this shift, so the cached answer is now wrong.
+      WHOCACHE.delete(whoKey(date,shift));
       closeSheet();
       /* SAY WHAT ACTUALLY HAPPENED. This said "Asked 11 colleagues" whether eleven phones had
          buzzed or none had — the API has always returned how many were reached, and the toast
