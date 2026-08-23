@@ -437,8 +437,6 @@ textarea.ta{width:100%;background:var(--panel);border:1px solid var(--line2);bor
   border-top:0;border-right:0;transform:rotate(-45deg) translateY(-1px)}
 .cvrow input:focus-visible{outline:2px solid var(--signal);outline-offset:2px}
 .cvnm{flex:1;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.cvpush{font:600 10px/1 var(--mono);letter-spacing:.06em;color:var(--faint);white-space:nowrap}
-.cvpush.on{color:var(--signal)}
 /* not selectable — shown so nobody wonders where a colleague went, with the reason */
 .cvrow.off{cursor:default;padding-left:30px}
 .cvrow.off .cvnm{color:var(--dim)}
@@ -1930,7 +1928,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260823.1426';           // shown in the account bar so a stale app is obvious
+const BUILD='260823.1432';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 const PH_KEY='', PH_HOST='https://us.i.posthog.com';
 /* ---------- analytics ----------
@@ -2960,7 +2958,7 @@ function prefetchWho(date,shift){
   return pr;
 }
 
-function openCoverAsk(){
+function openCoverAsk(preIso,preShift){
   const shifts=myShifts(ME).filter(s=>s.iso>=todayISO());
   if(!shifts.length){ toast('No upcoming shifts'); return; }
   sheet('Request coverage',
@@ -2974,6 +2972,12 @@ function openCoverAsk(){
        <button class="btn pri" id="cvNext">Send request</button></div>
      <div class="note">You choose who to ask on the next screen.</div>`);
 
+  // Arriving from a particular day, that shift is the one being asked about. It may be in the
+  // past, in which case there is nothing to preselect and the list opens on the next shift.
+  if(preIso&&preShift){
+    const want=preIso+'|'+preShift, sel=$('#cvShift');
+    if([...sel.options].some(o=>o.value===want))sel.value=want;
+  }
   const warm=()=>{ const [d,sh]=$('#cvShift').value.split('|'); prefetchWho(d,sh).catch(()=>{}); };
   warm();                       // start before they have decided anything else
   $('#cvShift').onchange=warm;  // and again if they change their mind
@@ -3003,10 +3007,14 @@ function openCoverAsk(){
    choose, and a column of rule citations made the screen read like a rejection notice. */
 function pickWhoToAsk(date,shift,note,j){
   const free=j.free||[], working=j.working||[], blocked=j.blocked||[];
+  // A name and a checkbox. There was a "notified" / "sees it next time" tag against every row,
+  // which answered a question nobody was asking at that moment — you are choosing colleagues,
+  // not auditing their notification settings — and it put a second column of grey text beside
+  // every name. Whether anyone was actually reached is reported once, in the toast, after
+  // sending, which is when it matters.
   const row=(e,checked)=>`<label class="cvrow">
       <input type="checkbox" class="cvpick" value="${esc(e.person)}"${checked?' checked':''}>
       <span class="cvnm">${esc(fullOf(e.person)||e.person)}</span>
-      <span class="cvpush ${e.push?'on':''}">${e.push?'notified':'sees it next time'}</span>
     </label>`;
   const group=(title,rows,checked,klass)=>rows.length
     ? `<div class="cvhead ${klass||''}">${title} <span class="cvn">${rows.length}</span></div>`
@@ -3029,7 +3037,7 @@ function pickWhoToAsk(date,shift,note,j){
     const c=$('#cvCount'); if(c)c.textContent=n; };
   document.querySelectorAll('.cvpick').forEach(b=>b.addEventListener('change',count));
   count();
-  $('#cvBack').onclick=openCoverAsk;
+  $('#cvBack').onclick=()=>openCoverAsk(date,shift);   // back to the shift they chose
   $('#cvGo').onclick=async()=>{
     const to=[...document.querySelectorAll('.cvpick:checked')].map(b=>b.value);
     const m=$('#cvMsg2');
@@ -3226,82 +3234,13 @@ function openDay(iso){
   // Used to close this sheet and jump to the Swaps tab — a different page, arrived at with no
   // explanation, which for an admin also lit up the admin view. Asking someone to cover a shift
   // is one decision; it belongs in one sheet, on the shift you were already looking at.
-  if(sw)sw.onclick=()=>openCoverFor(iso,(a.s||[])[0],a.s||[]);
+  // One cover flow, entered with this shift already chosen. There used to be a SECOND
+  // implementation behind this button — its own sheet, its own candidate list, its own copy of
+  // the rules text — and it silently broke the moment the preview endpoint changed shape,
+  // because nothing else used it. Two ways to do one thing is how that happens.
+  if(sw)sw.onclick=()=>openCoverAsk(iso,(a.s||[])[0]);
 }
 
-/* ---------- ask for cover, on the shift you are looking at ----------
-   The list of who will be asked is shown BEFORE anything is sent, with a tick against each
-   name. Broadcasting to everyone eligible without saying who that is means pushing a
-   notification to a dozen colleagues sight unseen — which is exactly why somebody would think
-   twice about using this at all. Unticking a name takes them off; the server intersects the
-   list with what the rules allow, so a tick can never add somebody who cannot legally take it. */
-async function openCoverFor(iso,shift,allShifts){
-  const list=(allShifts&&allShifts.length?allShifts:[shift]).filter(Boolean);
-  sheet('Ask someone to cover',
-    `${list.length>1?`<label class="lbl" for="cvWhich">Which shift</label>
-       <select class="inp" id="cvWhich">${list.map(sh=>
-         `<option value="${esc(sh)}">${esc(META(sh).label||sh)}</option>`).join('')}</select>`:''}
-     <div class="sub" style="margin-top:8px">${esc(fmtLong(iso))} · <b>${esc(META(shift).label||shift)}</b></div>
-     <div id="cvWho" class="sub" style="margin-top:10px">Working out who can take this…</div>
-     <label class="lbl" for="cvNote" style="margin-top:10px">Anything they should know (optional)</label>
-     <input class="inp" id="cvNote" maxlength="200" placeholder="e.g. away at a conference">
-     <div class="btnrow" style="margin-top:12px">
-       <button class="btn pri" id="cvSend" disabled>Offer to available providers</button>
-     </div>
-     <div class="msg" id="cvMsg"></div>`);
-  const sel=$('#cvWhich');
-  if(sel)sel.onchange=()=>loadCoverCandidates(iso,sel.value);
-  await loadCoverCandidates(iso,shift);
-}
-
-async function loadCoverCandidates(iso,shift){
-  const box=$('#cvWho'), go=$('#cvSend');
-  if(!box)return;
-  box.innerHTML='Working out who can take this…';
-  if(go)go.disabled=true;
-  try{
-    const q='?preview=1&date='+encodeURIComponent(iso)+'&shift='+encodeURIComponent(shift)+
-            (onBehalf()?'&person='+encodeURIComponent(ME):'');
-    const r=await api('/coverage'+q);
-    const el=r.eligible||[];
-    if(!el.length){
-      box.innerHTML='<b>Nobody is eligible for this shift right now.</b> Everyone else is either '+
-        'working, off, or not credentialed for it. Ask Dr. Nadon.';
-      return;
-    }
-    const push=el.filter(x=>x.push).length;
-    box.innerHTML='<b>'+el.length+' '+(el.length===1?'person':'people')+' can take this.</b> '+
-      (push?push+' will get it on their phone; the rest see it next time they open the app.'
-          :'None of them have phone notifications on, so they will see it next time they open the app.')+
-      '<div class="cvlist">'+el.map(x=>
-        `<label class="cvrow"><input type="checkbox" checked value="${esc(x.person)}">
-           <span class="cvnm">${esc(fullOf(x.person)||x.person)}</span>
-           <span class="cvpush">${x.push?'📱':'<span class="muted">in app</span>'}</span></label>`).join('')+
-      '</div>';
-    const upd=()=>{
-      const n=$$('#cvWho input:checked').length;
-      go.disabled=!n;
-      go.textContent=n?('Offer to '+n+' provider'+(n===1?'':'s')):'Nobody selected';
-    };
-    $$('#cvWho input').forEach(c=>c.onchange=upd);
-    upd();
-    go.onclick=async()=>{
-      const to=$$('#cvWho input:checked').map(c=>c.value);
-      const m=$('#cvMsg'); m.textContent='Sending…'; m.className='msg on';
-      go.disabled=true;
-      try{
-        const body={date:iso,shift,mode:'broadcast',to,note:($('#cvNote')||{}).value||''};
-        if(onBehalf())body.person=ME;
-        const j=await api('/coverage',{method:'POST',body:JSON.stringify(body)});
-        closeSheet();
-        toast('Asked '+(j.eligibleCount||to.length)+' — you will be told when someone takes it');
-        await loadCoverage(); if(CUR==='swap')renderSwap();
-      }catch(e){ m.textContent=e.message||'Could not send'; m.className='msg on bad'; go.disabled=false; }
-    };
-  }catch(e){
-    box.innerHTML='<span class="bad">'+esc(e.message||'Could not work out who is available')+'</span>';
-  }
-}
 let _sheetReturnFocus=null;
 function sheet(title,body){
   _sheetReturnFocus=document.activeElement;
