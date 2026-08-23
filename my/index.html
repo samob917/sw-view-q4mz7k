@@ -2099,7 +2099,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260823.1929';           // shown in the account bar so a stale app is obvious
+const BUILD='260823.1940';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 const PH_KEY='', PH_HOST='https://us.i.posthog.com';
 /* ---------- analytics ----------
@@ -2885,12 +2885,17 @@ function coverageCard(){
       <div class="btnrow"><button class="btn pri" data-ok="${esc(o.id)}">Approve</button>
         <button class="btn" data-no="${esc(o.id)}">Decline</button></div>
     </div>`).join('');
+  // Older payloads carried the full list; fall back to it so an app that has not refreshed yet
+  // still counts correctly.
+  const covPassed=(o)=>(typeof o.declinedCount==='number')?o.declinedCount:(o.declinedBy||[]).length;
   if(mine.length)h+=`<h2 class="sec">Your coverage requests</h2>`+mine.map(o=>`
     <div class="swcard"><div class="lgh">${esc(META(o.shift).label||o.shift)} · ${esc(fmtD(o.date))}</div>
       <div class="sub">${o.status==='open'
         ? 'Asked '+(o.eligible||[]).length+' colleague'+((o.eligible||[]).length===1?'':'s')
-          +((o.declinedBy||[]).length?' — '+(o.declinedBy||[]).length+' passed, '
-              +Math.max(0,(o.eligible||[]).length-(o.declinedBy||[]).length)+' still to answer'
+          /* declinedCount, not declinedBy.length: the server no longer sends other people's
+             names, only your own pass and the total. A count is all this ever displayed. */
+          +(covPassed(o)?' — '+covPassed(o)+' passed, '
+              +Math.max(0,(o.eligible||[]).length-covPassed(o))+' still to answer'
             :' — nobody has accepted yet')
         : o.status==='claimed' ? esc(fullOf(o.claimedBy))+' accepted — waiting on an admin'
         : esc(o.status)}</div>
