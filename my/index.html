@@ -139,11 +139,7 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
    In an installed app the two are equal; there is no browser chrome to shrink one of them. */
 body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--sans);
      -webkit-font-smoothing:antialiased;
-     height:100vh;height:100dvh;display:flex;flex-direction:column}
-header.top{flex:0 0 auto}
-main.wrap{flex:1 1 auto;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;
-          overscroll-behavior-y:contain}
-nav.tabs{flex:0 0 auto}
+     padding-bottom:calc(var(--tabh) + env(safe-area-inset-bottom))}
 button,input,select,textarea{font:inherit;color:inherit}
 a{color:var(--signal)}
 
@@ -171,7 +167,7 @@ body.wide .wrap{max-width:1500px}
    area behind the status bar, and nothing here ever gave it back — so "⚡ SCHEDULING WIZARD" was
    drawn into the wifi, battery and time. env(safe-area-inset-top) is 0 in a browser tab and ~47px
    on an installed iPhone app, so this costs nothing where it is not needed. */
-header.top{z-index:30;background:var(--chrome);
+header.top{position:sticky;top:0;z-index:30;background:var(--chrome);
   backdrop-filter:saturate(1.4) blur(10px);border-bottom:1px solid var(--line);
   padding-top:env(safe-area-inset-top)}
 .topin{padding:11px 14px;display:flex;align-items:center;gap:10px;min-height:34px}
@@ -311,8 +307,8 @@ h2.sec{font-size:19px;font-weight:800;letter-spacing:-.02em;margin:22px 0 12px}
 
    The safe-area padding stays — it keeps the labels off the home indicator — but the background
    now runs to the physical bottom edge, so the bar reads as anchored rather than hovering. */
-html{height:100%}
-nav.tabs{z-index:40;background:var(--chrome-solid);border-top:1px solid var(--line);
+nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:40;
+  background:var(--chrome-solid);border-top:1px solid var(--line);
   padding-bottom:max(env(safe-area-inset-bottom), 4px)}
 .tabsin{max-width:600px;margin:0 auto;display:grid;grid-template-columns:repeat(4,1fr)}
 .tab{background:none;border:0;padding:9px 4px 10px;display:flex;flex-direction:column;align-items:center;gap:3px;
@@ -2103,7 +2099,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260823.1859';           // shown in the account bar so a stale app is obvious
+const BUILD='260823.1910';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 const PH_KEY='', PH_HOST='https://us.i.posthog.com';
 /* ---------- analytics ----------
@@ -3763,7 +3759,8 @@ function diagPaint(){
    +'  pos '+(cs.position||'?')
    +'\nmain scrollH '+(main?main.scrollHeight:0)+'  clientH '+(main?main.clientHeight:0)
    +'  scrollTop '+(main?Math.round(main.scrollTop):0)
-   +'\nbody scrollH '+document.body.scrollHeight+'  shell '+Math.round(SHELL_H)
+   +'\ndoc scrollH '+document.documentElement.scrollHeight
+   +'  pad '+(SPACER?SPACER.style.height:'-')
    +'\nfixed bottom:0 lands at '+Math.round(fixedBottom())+'   safeBottom '+inset
    +'\nstandalone '+(!!navigator.standalone||matchMedia('(display-mode: standalone)').matches)
    +'  dpr '+window.devicePixelRatio+'  build '+BUILD;
@@ -3783,38 +3780,38 @@ function go(t){
     if(on)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
   $$('.pane').forEach(p=>p.classList.toggle('on',p.id==='pane-'+t));
   document.body.classList.toggle('wide',t==='admin');
-  // The scroll container is main, not the document -- scrolling the window here would be a
-  // no-op and every tab would open wherever the last one was left.
-  const sc=document.querySelector('main.wrap'); if(sc)sc.scrollTop=0; window.scrollTo(0,0);
+  window.scrollTo(0,0);
   if(t==='now')renderNow();
   if(t==='sched')renderSched();
   if(t==='req')renderReq();
   if(t==='swap')renderSwap();      // renderSwap wires its own buttons
   if(t==='edit')renderEdit();
   if(t==='admin')renderAdmin();
-  diagPaint();
+  // Twice: several of those renders finish after a fetch, so the first call measures a page that
+  // has not finished growing. The second catches up, and a re-measure is nearly free.
+  padShort(); setTimeout(padShort, 400);
 }
 function wireTabs(){$$('.tab').forEach(b=>b.onclick=()=>go(b.dataset.t));}
 
-/* ---------- size the shell from the MEASURED viewport ----------
-   The tab bar sat about 50px above the bottom of the screen. Three attempts to fix it in CSS
-   failed in the same way, and they had one assumption in common: that some length unit knows how
-   tall the screen is. None of them do. 100%, 100vh and 100dvh all resolve against the LAYOUT
-   viewport, which on the reporting device is shorter than the glass -- so the shell ended early
-   and the bar's own safe-area padding then pushed the labels up again, counting the inset twice.
+/* ---------- never let a page be shorter than the screen ----------
+   The bar is position:fixed;bottom:0 again, which is where it belongs: iOS puts that on the
+   bottom of the glass, and it was right on Now, Schedule and Requests from the beginning. Swaps
+   was the only tab that broke, and it is the only tab whose content does not fill a phone --
+   when the document is shorter than the viewport, bottom:0 gets resolved against the DOCUMENT
+   and the bar rides up with it.
 
-   visualViewport.height is the area actually visible, measured rather than derived, so it is
-   right whichever way the layout viewport happens to be inset. The CSS height stays as the
-   pre-JS default so there is no flash before this runs. */
-let SHELL_H = 0, PROBE = null;
-/* WHERE DOES bottom:0 ACTUALLY LAND? Nothing will tell us, so measure it. A 1px element pinned
-   with position:fixed;bottom:0 is put by the engine at the bottom of the viewport it believes in,
-   and getBoundingClientRect reads that back in the same coordinates the tab bar is laid out in.
-   That number is the answer to the only question that matters, and it is a measurement rather
-   than a guess about which of innerHeight / clientHeight / visualViewport / 100dvh is truthful
-   on this device -- on the phone showing the fault they disagree, and the ones JS can read are
-   the short ones. The original bar looked right on three tabs precisely BECAUSE it was
-   positioned this way; this puts the shell back on that number. */
+   So the document is padded instead. Nothing else moves.
+
+   Padding it to 100% was tried and failed, for a reason worth recording: on the phone showing
+   this, every height JS can read -- innerHeight, clientHeight, visualViewport, 100dvh -- reports
+   the viewport WITHOUT the home-indicator strip, about 34px short. A page padded to 100% is
+   still shorter than the glass, so bottom:0 still had somewhere to ride up to.
+
+   fixedBottom() is the honest number: a 1px element pinned at bottom:0, read back with
+   getBoundingClientRect. Whatever the engine believes the bottom of the viewport is, that probe
+   is sitting on it, in the same coordinate space the bar is laid out in. Pad past that and the
+   short-document case cannot arise on any of the four tabs. */
+let PROBE = null;
 function fixedBottom(){
   if (!PROBE){
     PROBE = document.createElement('div');
@@ -3825,35 +3822,46 @@ function fixedBottom(){
   }
   return PROBE.getBoundingClientRect().bottom || 0;
 }
-function fitShell(){
-  const vv = window.visualViewport;
-  // The largest of the four is the one that reaches the bottom of the glass. Taking the max means
-  // a device where they all agree is unaffected, and a device where they disagree gets the honest
-  // one instead of whichever happens to be shortest.
-  const h = Math.max(fixedBottom(), (vv && vv.height) || 0, window.innerHeight || 0,
-                     document.documentElement.clientHeight || 0);
-  if (!h) return;
-  // The software keyboard shrinks the visual viewport. Resizing the shell then would squash the
-  // app while somebody is typing a request, so a shrink is ignored while a field has focus.
-  const a = document.activeElement;
-  const typing = a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.isContentEditable);
-  if (typing && h < SHELL_H - 40) return;
-  if (Math.abs(h - SHELL_H) < 1) return;
-  SHELL_H = h;
-  document.body.style.height = Math.round(h) + 'px';
+let SPACER = null;
+function padShort(){
+  if (!SPACER){
+    SPACER = document.createElement('div');
+    SPACER.id = 'pad';
+    SPACER.setAttribute('aria-hidden','true');
+    SPACER.style.cssText = 'width:1px;pointer-events:none';
+    document.body.appendChild(SPACER);
+  }
+  SPACER.style.height = '0px';                 // measure the page without our own padding first
+  // One past the bottom, so the document is strictly taller than the viewport rather than equal
+  // to it -- equal is the boundary case and not worth trusting.
+  const want = Math.ceil(Math.max(fixedBottom(), window.innerHeight || 0,
+                                  document.documentElement.clientHeight || 0)) + 1;
+  /* HOW TALL IS THE PAGE, REALLY? Neither obvious answer survives contact:
+       scrollHeight  is clamped to at least the viewport on both html and body, so a half-screen
+                     page reports a full screen and the short case is invisible to it;
+       body's box    reported 852 on a Swaps tab whose content ended at 585, so it is not
+                     content-driven here either.
+     The in-flow children are, so they are measured directly -- the lowest bottom edge of
+     anything actually laid out in the document, in page coordinates, plus whatever padding the
+     body adds under it. */
+  let have = 0;
+  for (const el of document.body.children){
+    if (el === SPACER || el === PROBE) continue;
+    const cs = getComputedStyle(el);
+    if (cs.display === 'none' || cs.position === 'fixed' || cs.position === 'absolute') continue;
+    have = Math.max(have, el.getBoundingClientRect().bottom + window.scrollY);
+  }
+  have = Math.round(have + parseFloat(getComputedStyle(document.body).paddingBottom || 0));
+  if (have < want) SPACER.style.height = (want - have) + 'px';
   diagPaint();
 }
 function fitWire(){
-  fitShell();
-  ['resize','orientationchange','pageshow'].forEach(e => window.addEventListener(e, fitShell));
-  if (window.visualViewport){
-    window.visualViewport.addEventListener('resize', fitShell);
-    window.visualViewport.addEventListener('scroll', fitShell);
-  }
+  padShort();
+  ['resize','orientationchange','pageshow'].forEach(e => window.addEventListener(e, padShort));
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', padShort);
   // Orientation changes report the old size for a frame or two on iOS.
-  window.addEventListener('orientationchange', () => setTimeout(fitShell, 350));
-}
-if(ADMIN_HTML){
+  window.addEventListener('orientationchange', () => setTimeout(padShort, 350));
+}if(ADMIN_HTML){
   const bar=$('.tabsin');
   bar.style.gridTemplateColumns='repeat(6,1fr)';
   bar.appendChild(el('button','tab',
