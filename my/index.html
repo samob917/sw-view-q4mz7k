@@ -1947,7 +1947,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260823.1523';           // shown in the account bar so a stale app is obvious
+const BUILD='260823.1532';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 const PH_KEY='', PH_HOST='https://us.i.posthog.com';
 /* ---------- analytics ----------
@@ -2700,11 +2700,15 @@ function coverageCard(){
       <div class="btnrow two"><button class="btn pri" data-claim="${esc(o.id)}">Accept Shift</button>
         <button class="btn" data-pass="${esc(o.id)}">Decline Shift</button></div>
     </div>`).join('');
+  /* NO NAME ON A DECISION, EITHER WAY (Sam 8/23). Approved or declined, an outcome is the
+     group's answer and not one person's — putting an admin's name on it makes a scheduling
+     decision look like an individual's verdict on you.
+     The name that DOES stay is whoever is now working the shift, because that is the substance
+     of the approval rather than a note about who signed it. */
   if(decided.length)h+=`<h2 class="sec">Decided</h2>`+decided.map(o=>{
-    const who=o.decidedBy?fullOf(o.decidedBy)||o.decidedBy:'an admin';
     const mine=o.fromPerson===ME;
     return `<div class="swcard"><div class="lgh">${esc(META(o.shift).label||o.shift)} · ${esc(fmtD(o.date))}</div>
-      <div class="sub"><b style="color:var(--signal)">Approved by ${esc(who)}</b> —
+      <div class="sub"><b style="color:var(--signal)">Approved</b> —
         ${mine ? esc(fullOf(o.claimedBy)||o.claimedBy)+' is covering this for you; it is off your schedule.'
                : 'you are covering this for '+esc(fullOf(o.fromPerson)||o.fromPerson)+'. It is on your schedule now.'}</div>
       <div class="btnrow"><button class="btn" data-covok="${esc(o.id)}">OK</button></div>
@@ -2894,8 +2898,7 @@ async function openOffer(id){
   sheet('Cover request',
     `<div class="sub"><b>${label}</b></div>
      <div class="sub" style="margin-top:8px">This one is <b>${esc(done)}</b>${
-       o.claimedBy?' — '+who(o.claimedBy)+' covering for '+who(o.fromPerson):''}.${
-       o.decidedBy?' Decided by '+who(o.decidedBy)+'.':''}</div>
+       o.claimedBy?' — '+who(o.claimedBy)+' covering for '+who(o.fromPerson):''}.</div>
      <div class="btnrow" style="margin-top:12px"><button class="btn" id="ofClose">OK</button></div>`);
   $('#ofClose').onclick=closeSheet;
 }
@@ -2965,11 +2968,10 @@ async function openSwap(id){
   }
   const state={awaiting_partner:'waiting on '+(fullOf(s.toPerson)||s.toPerson),
                awaiting_admin:'waiting on an admin', approved:'approved',
-               rejected:'rejected', declined:'declined', blocked:'blocked by the rule check'};
+               rejected:'declined', declined:'declined', blocked:'blocked by the rule check'};
   sheet('Shift swap',
     `<div class="sub"><b>${label}</b></div>${line}
-     <div class="sub" style="margin-top:8px">This one is <b>${esc(state[s.status]||s.status)}</b>${
-       s.decidedBy?' — decided by '+who(s.decidedBy):''}.</div>
+     <div class="sub" style="margin-top:8px">This one is <b>${esc(state[s.status]||s.status)}</b>.</div>
      <div class="btnrow" style="margin-top:12px"><button class="btn" id="swClose">OK</button></div>`);
   $('#swClose').onclick=closeSheet;
 }
