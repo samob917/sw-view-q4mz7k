@@ -230,11 +230,16 @@ button:not(.ghost):hover{filter:brightness(1.06)}
     <div class="step">Step 2 of 2</div>
     <h2>Enter your code</h2>
     <p class="sub">The 6-digit code from your authenticator app.</p>
-    <input id="liTotp" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000">
+    <!-- A RECOVERY CODE COULD NOT BE TYPED HERE. The note below says to use one, and they are
+         11 characters like a1b2c-3d4e5 — into a box capped at 6 with a numeric keypad. Aaron hit
+         exactly this: "I wasn't allowed to enter all of the characters". -->
+    <input id="liTotp" inputmode="text" autocomplete="one-time-code" maxlength="14"
+           autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="000000">
     <button id="bSignin2">Verify and sign in</button>
     <button class="ghost" id="liBack">Back</button>
     <div class="msg err" id="mSignin2"></div>
-    <p class="note">Lost your phone? Enter one of your recovery codes above instead.</p>
+    <p class="note">Lost your phone? Type one of your recovery codes above instead — they look
+      like <code>a1b2c-3d4e5</code>.</p>
   </section>
 
   <p class="small">Trouble? Contact Dr. Nadon. Your code and password are personal — don't share them.</p>
@@ -448,7 +453,9 @@ $('#bSignin').onclick=()=>doSignin('', '#mSignin', $('#bSignin'));
 $('#bSignin2').onclick=()=>doSignin($('#liTotp').value.trim(), '#mSignin2', $('#bSignin2'));
 $('#liBack').onclick=()=>go('pSignin',null,'Sign in');
 $('#liTotp').addEventListener('input',()=>{
-  if($('#liTotp').value.replace(/\D/g,'').length===6)$('#bSignin2').click();
+  // Only when it IS a six-digit code. Counting digits fired halfway through a recovery code,
+  // which contains digits of its own.
+  if(/^\d{6}$/.test($('#liTotp').value.trim()))$('#bSignin2').click();
 });
 
 /* ---- done page ---- */

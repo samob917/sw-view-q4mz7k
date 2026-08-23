@@ -1087,6 +1087,14 @@ $('#whoami').onclick=e=>{
   // Switching physician is picking from a list, not going somewhere. It used to open a
   // full-screen page that replaced everything on screen and had to carry its own way back.
   if(CAN_SWITCH){ e.stopPropagation(); togglePicker(); return; }
+  openAccountSheet();
+};
+/* AN ADMIN COULD NOT REACH THEIR OWN ACCOUNT. CAN_SWITCH is true for admins, so tapping their
+   name opened the physician picker and this sheet — sign-out, email, and now the way to replace
+   a broken authenticator — was unreachable for the only people who can open the admin view.
+   Aaron needed precisely this and there was no door. It has its own button in the account bar
+   now, for every role. */
+function openAccountSheet(){
   const who=(ACCT&&ACCT.label)||fullOf(ME)||'—';
   sheet('Your account',`
     <div class="row" style="margin-top:0"><span class="sp" style="background:var(--signal)"></span>
@@ -1099,6 +1107,7 @@ $('#whoami').onclick=e=>{
     <div class="btnrow">
       ${CAN_SWITCH?'<button class="btn" id="acSwitch">View another physician</button>':''}
       <button class="btn" id="acMail">Use a different email</button>
+      <button class="btn" id="acAuth">Authenticator not working?</button>
       <button class="btn gho" id="acOut">Sign out</button>
     </div>`);
   // The address lives on the account record, not in the session token — fetched only when
@@ -1106,12 +1115,88 @@ $('#whoami').onclick=e=>{
   loadMyEmail().then(()=>{const e=$('#acEmail'); if(e)e.textContent=MYEMAIL||'—';});
   const sw=$('#acSwitch');if(sw)sw.onclick=()=>{closeSheet();openGate();};
   $('#acMail').onclick=openEmailChange;
+  $('#acAuth').onclick=openAuthReset;
   $('#acOut').onclick=()=>{
     try{localStorage.removeItem('__code');localStorage.removeItem('ccpsa_me');
         localStorage.removeItem('__dev');sessionStorage.clear();}catch(e){}
     location.reload();
   };
-};
+}
+
+/* ---------- replace a broken authenticator ----------
+   reset2fa has existed since the beginning and could only be reached from ONE screen: the one
+   shown to somebody who has no authenticator yet. Anybody whose authenticator stopped working —
+   new phone, app deleted, codes simply not generating — had no route to a new one at all, and
+   the recovery codes they were told to keep did not open the admin view either.
+   Aaron hit both, the day before launch, and the only remaining path was asking us to do it for
+   him — which we cannot, because it needs his password, and should not want to. */
+function openAuthReset(){
+  sheet('Authenticator not working?',
+    `<div class="sub">If your authenticator app is gone, or has stopped generating codes, set up
+       a new one here. Your password and your schedule are untouched.</div>
+     <div class="sub" style="margin-top:8px">Confirm your password to continue.</div>
+     <label class="lbl" for="arPw">Password</label>
+     <input class="inp" id="arPw" type="password" autocomplete="current-password">
+     <div class="msg" id="arMsg"></div>
+     <div class="btnrow"><button class="btn pri" id="arGo">Set up a new authenticator</button>
+       <button class="btn" id="arNo">Cancel</button></div>`);
+  const m=$('#arMsg');
+  const go=async()=>{
+    const pw=$('#arPw').value;
+    if(!pw){ m.textContent='Enter your password.'; m.className='msg on bad'; return; }
+    m.textContent='Preparing…'; m.className='msg on'; $('#arGo').disabled=true;
+    try{
+      const j=await api('/account',{method:'POST',
+        body:JSON.stringify({action:'reset2fa',password:pw})});
+      showNewAuth(j);
+    }catch(e){ m.textContent=e.message||'Could not start setup'; m.className='msg on bad';
+               $('#arGo').disabled=false; }
+  };
+  $('#arGo').onclick=go;
+  $('#arNo').onclick=closeSheet;
+  const i=$('#arPw');
+  i.addEventListener('keydown',ev=>{if(ev.key==='Enter'){ev.preventDefault();go();}});
+  setTimeout(()=>i.focus(),60);
+}
+function showNewAuth(setup){
+  const touch=matchMedia('(pointer:coarse)').matches||/iPhone|iPad|Android/i.test(navigator.userAgent);
+  sheet('Add it to your authenticator',
+    `<div class="sub">Any authenticator app will do. Add this, then enter the 6-digit code it
+       shows to finish.</div>
+     ${touch?`<div class="btnrow" style="margin-top:10px">
+        <a class="btn pri" href="${esc(setup.totpUri||'')}">Open my authenticator app</a></div>`:''}
+     <div class="siQr" style="margin-top:10px"><img src="${esc(setup.totpQr||'')}" alt="QR code"></div>
+     <div class="sub" style="margin-top:8px">Or add it by hand with this key:</div>
+     <button class="siKey" id="arKey" type="button" title="Tap to copy">${esc(setup.totpSecret||'')}</button>
+     <label class="lbl" for="arCode">The 6-digit code it shows</label>
+     <input class="inp siCode" id="arCode" inputmode="numeric" autocomplete="one-time-code"
+            maxlength="6" placeholder="000000">
+     <div class="msg" id="arMsg2"></div>
+     <div class="btnrow"><button class="btn pri" id="arDone">Finish</button></div>`);
+  $('#arKey').onclick=async()=>{
+    try{ await navigator.clipboard.writeText(setup.totpSecret||'');
+         $('#arKey').textContent='Copied'; setTimeout(()=>{$('#arKey').textContent=setup.totpSecret;},1500); }
+    catch(e){}
+  };
+  const m=$('#arMsg2');
+  const finish=async()=>{
+    m.textContent='Checking…'; m.className='msg on'; $('#arDone').disabled=true;
+    try{
+      const j=await api('/account',{method:'POST',body:JSON.stringify(
+        {action:'confirm2fa',person:(ACCT&&ACCT.person)||(SESSION&&SESSION.person),
+         totp:$('#arCode').value.trim()})});
+      if(j.grant)keepGrant(j.grant);
+      if(j.device)keepDevice(j.device);
+      closeSheet();
+      toast('Two-factor is set up again');
+    }catch(e){ m.textContent=e.message||'That code is not right.'; m.className='msg on bad';
+               $('#arDone').disabled=false; }
+  };
+  $('#arDone').onclick=finish;
+  const c=$('#arCode');
+  c.addEventListener('input',()=>{ if(/^\d{6}$/.test(c.value.trim()))finish(); });
+  setTimeout(()=>c.focus(),60);
+}
 
 /* ---------- sign in with a different address ----------
    Nobody is tied to a work address — not at setup, not after (Sam 8/22). A physician should not
@@ -1947,7 +2032,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260823.1713';           // shown in the account bar so a stale app is obvious
+const BUILD='260823.1727';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 const PH_KEY='', PH_HOST='https://us.i.posthog.com';
 /* ---------- analytics ----------
@@ -3682,12 +3767,15 @@ function accountBar(){
       'title="Light or dark. Follows your phone until you choose."></button>'+
     '<span class="acctbuild" title="Which version of the app you are running. '+
       'If this is older than the one you were told about, pull down to refresh.">'+esc(BUILD)+'</span>'+
+    '<button class="acctout" id="acctBtn">Account</button>'+
     '<button class="acctout" id="signOutBtn">Sign out</button>';
   paintThemeBtn();
   const tb=document.querySelector('#themeBtn');
   if(tb)tb.onclick=()=>{ setTheme(currentTheme()==='light'?'dark':'light'); };
   const pb=document.querySelector('#profileBtn');
   if(pb)pb.onclick=()=>ME?openBlockStats():null;
+  const ab=document.querySelector('#acctBtn');
+  if(ab)ab.onclick=openAccountSheet;
   document.querySelector('#signOutBtn').onclick=()=>{
     // Drop the device token too. Without this, signing out and reloading signed you straight
     // back in — which is not signing out.
@@ -3996,10 +4084,14 @@ try{ADMIN_GRANT=sessionStorage.getItem('__grant')||null;}catch(e){}
 /* Entering the admin view asks for a fresh code: that is where the schedule can be changed. */
 function askStepUp(then){
   sheet('Admin view',
-    `<div class="sub">Enter the 6-digit code from your authenticator app to open the admin view.</div>
+    `<div class="sub">Enter the 6-digit code from your authenticator app to open the admin view —
+       or one of your recovery codes.</div>
      <label class="lbl" for="suCode">Code</label>
-     <input class="inp siCode" id="suCode" inputmode="numeric" autocomplete="one-time-code"
-            maxlength="6" placeholder="000000">
+     <!-- Accepts a recovery code as well now, so a broken authenticator does not lock an admin
+          out of the admin view. They are 11 characters, hence the room. -->
+     <input class="inp siCode" id="suCode" inputmode="text" autocomplete="one-time-code"
+            maxlength="14" autocapitalize="none" autocorrect="off" spellcheck="false"
+            placeholder="000000">
      <div class="msg" id="suMsg"></div>
      <div class="btnrow"><button class="btn pri" id="suGo">Unlock</button>
        <button class="btn" id="suCancel">Cancel</button></div>`);
@@ -4030,7 +4122,7 @@ function askStepUp(then){
   $('#suCancel').onclick=()=>closeSheet();
   const c=$('#suCode');
   c.addEventListener('keydown',ev=>{if(ev.key==='Enter'){ev.preventDefault();go();}});
-  c.addEventListener('input',()=>{if(c.value.replace(/\D/g,'').length===6)go();});
+  c.addEventListener('input',()=>{if(/^\d{6}$/.test(c.value.trim()))go();});
   setTimeout(()=>c.focus(),60);
 }
 
