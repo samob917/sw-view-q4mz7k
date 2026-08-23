@@ -1,6 +1,13 @@
 <title>Your account · Scheduling Wizard</title>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#0E1621">
+<!-- This page declared no icon at all and relied on the browser guessing /favicon.ico at the
+     ROOT — which is a different directory, and not something every browser does before it has
+     rendered a tab. Setting up an account is the first page a physician ever sees, so it should
+     not be the one with a blank tab. Paths are absolute: /account/ is a directory of its own. -->
+<link rel="icon" type="image/png" sizes="32x32" href="/icon-32.png">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="apple-touch-icon" href="/icon-180.png">
 <style>
 :root{
   --ground:#0E1621; --panel:#16212E; --panel2:#1D2A39;
@@ -201,7 +208,7 @@ const API='https://elig-api.vercel.app/api';      // set at deploy time — prod
 const PORTAL='/my/';
 const $=s=>document.querySelector(s);
 const PAGES=['p1','p2','p3','p4','pDone','pPw','pSignin','pSignin2'];
-let STATE={person:null,email:null,password:null,token:null};
+let STATE={person:null,email:null,password:null,token:null,device:null,grant:null};
 
 
 /* Show/hide on every password box. Typing a 12+ character passphrase blind on a phone keyboard
@@ -263,7 +270,12 @@ $('#b1').onclick=async()=>{
     }else{
       $('#who2').textContent=j.person+(j.role==='admin'?' · admin':'');
       go('p2',1,'Set up your account');
-      setTimeout(()=>$('#email').focus(),60);
+      // Start from the address the group's contact sheet has for them. It is a suggestion:
+      // select it rather than just filling it, so one keystroke replaces the whole thing for
+      // anyone who would rather use a personal address.
+      const em=$('#email');
+      if(j.suggestedEmail && !em.value) em.value=j.suggestedEmail;
+      setTimeout(()=>{ em.focus(); if(em.value) em.select(); },60);
     }
   }catch(e){ say('#m1',e.message); }
   busy(b,false,'Continue');
@@ -305,7 +317,9 @@ $('#b3').onclick=async()=>{
   try{
     const j=await api('/account',{action:'confirm2fa',person:STATE.person,totp:$('#totp').value.trim()});
     // Finishing setup signs you in — no second login with the details you just chose.
-    STATE.token=j.token||null;
+    // Keep the device token and any admin grant too: they are what stop the portal asking
+    // again, both now and on the next visit. See handOverSession().
+    STATE.token=j.token||null; STATE.device=j.device||null; STATE.grant=j.grant||null;
     go('p4',3,'Save your recovery codes');
   }catch(e){ say('#m3',e.message); }
   busy(b,false,'Finish setup');
@@ -332,6 +346,7 @@ async function doSignin(totp,msgSel,btn){
     const j=await api('/session',{email:$('#liEmail').value.trim(),
       password:$('#liPw').value, totp:totp||''});
     STATE.token=j.token; STATE.person=j.person; STATE.email=$('#liEmail').value.trim();
+    STATE.device=j.device||null; STATE.grant=j.grant||null;
     signedIn('Signed in as '+j.person+(j.twoFactor?'. Two-factor is on.':'.'));
   }catch(e){
     // The code is asked for on its own screen, and only once the password is known good.
@@ -350,9 +365,33 @@ $('#liTotp').addEventListener('input',()=>{
 });
 
 /* ---- done page ---- */
-$('#goSched').onclick=()=>{ location.href=PORTAL; };
-$('#goOut').onclick=()=>{ STATE={person:null,email:null,password:null,token:null};
-                          location.reload(); };
+/* HAND THE SESSION OVER. "Go to my schedule" set location.href and nothing else, so the portal
+   started from scratch, found no token, and put up its sign-in gate — asking for the password
+   somebody had chosen forty seconds earlier, on the same origin, in the same tab. Finishing
+   setup signs you in; walking through a door should not undo that.
+
+   The portal reads exactly these three on boot, so these are what have to be there:
+     sessionStorage __tok    the session — what makes it not ask
+     localStorage   __dev    the 90-day device token, so it does not ask again next week either
+     sessionStorage __grant  an admin's step-up, valid for this session (admins only)
+   All three come back from confirm2fa and from /session; they were being read into a variable
+   and dropped on the floor. */
+function handOverSession(){
+  try{
+    if(STATE.token)  sessionStorage.setItem('__tok', STATE.token);
+    if(STATE.device) localStorage.setItem('__dev', STATE.device);
+    if(STATE.grant)  sessionStorage.setItem('__grant', STATE.grant);
+  }catch(e){ /* private mode: the portal will ask, which is the old behaviour, not a new fault */ }
+}
+$('#goSched').onclick=()=>{ handOverSession(); location.href=PORTAL; };
+$('#goOut').onclick=()=>{
+  STATE={person:null,email:null,password:null,token:null,device:null,grant:null};
+  // Whatever was handed to the portal has to go too, or "sign out" leaves a working session
+  // behind for whoever picks the device up next.
+  try{ sessionStorage.removeItem('__tok'); sessionStorage.removeItem('__grant');
+       localStorage.removeItem('__dev'); }catch(e){}
+  location.reload();
+};
 $('#goPwChange').onclick=()=>go('pPw',null,'Change your password');
 $('#pwBack').onclick=()=>signedIn('Signed in as '+STATE.person+'.');
 $('#bPw').onclick=async()=>{

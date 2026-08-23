@@ -5,6 +5,11 @@
 <meta name="robots" content="noindex,nofollow">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-180.png">
+<!-- A PNG the browser will definitely decode, listed FIRST. The .ico shipped for weeks holding a
+     single 64x64 PNG-compressed entry: no 16 or 32 for the tab to use, and PNG-inside-ICO is not
+     something every browser decodes — Safari in particular. It is now real BMP 16/32/48, and this
+     32px PNG is what a modern browser picks anyway. -->
+<link rel="icon" type="image/png" sizes="32x32" href="icon-32.png">
 <link rel="icon" href="favicon.ico" sizes="any">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -1859,7 +1864,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260822.2233';           // shown in the account bar so a stale app is obvious
+const BUILD='260823.1034';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 let SESSION=null, CFG=null, MYREQ=null, MYSWAPS=[];
 // The admin approvals queue. Declared up here with the rest of the state, not beside the code
