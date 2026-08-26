@@ -167,9 +167,15 @@ body.wide .wrap{max-width:1500px}
    area behind the status bar, and nothing here ever gave it back — so "⚡ SCHEDULING WIZARD" was
    drawn into the wifi, battery and time. env(safe-area-inset-top) is 0 in a browser tab and ~47px
    on an installed iPhone app, so this costs nothing where it is not needed. */
-header.top{position:sticky;top:0;z-index:30;background:var(--chrome);
+/* Sticks BELOW the test banner, not underneath it. On the test copy body::before is also
+   sticky at top:0 with z-index 9999, so both pinned to the same line and the banner won.
+   In portrait its text wraps to two lines (33px) and swallowed the header completely,
+   which read as the header not being fixed at all; in landscape it is one line (17px) and
+   the header showed, which is why it looked like an orientation bug. --bannerh is 0 in
+   production, where there is no banner, so this costs nothing there. */
+header.top{position:sticky;top:var(--bannerh, 0px);z-index:30;background:var(--chrome);
   backdrop-filter:saturate(1.4) blur(10px);border-bottom:1px solid var(--line);
-  padding-top:env(safe-area-inset-top)}
+  padding-top:var(--hdrsafe, env(safe-area-inset-top))}
 .topin{padding:11px 14px;display:flex;align-items:center;gap:10px;min-height:34px}
 /* The brand is a wordmark, not a headline. It was competing with the account chip for a 390px
    row; the lightning bolt alone carries it and the row stops being crowded. */
@@ -236,20 +242,136 @@ h2.sec{font-size:19px;font-weight:800;letter-spacing:-.02em;margin:22px 0 12px}
   border-bottom:1px solid var(--line);color:var(--dim);font-family:var(--mono);font-weight:600;
   display:flex;justify-content:space-between}
 .month h4 b{color:var(--ink);font-weight:700}
+/* Manage access. One row per person, and the row is the unit that matters — the chips have to be
+   readable at a glance next to the name, because the question is always "who is stuck". */
+/* THE ACCESS SCREEN. 65 rows, read on a phone at the moment somebody cannot sign in — so it
+   filters, it puts the people who need attention at the top, and the row lays itself out
+   sideways when there is room and stacks when there is not. The three actions are NOT equal:
+   Unlock gives access back and is the common one; Close account takes it away and is styled to
+   be harder to hit by accident. */
+/* A REAL FIELD STYLE. There was none: `class="in"` is the hero/gate container, not an input, so
+   every box on this screen and in its confirm sheet was a raw browser control. .fld is the form
+   primitive the rest of these screens should use too. */
+.fld{display:flex;flex-direction:column;gap:6px;margin-top:14px}
+.fld > label{font-size:12px;font-weight:600;letter-spacing:.02em;color:var(--dim)}
+.fld input{width:100%;padding:12px 13px;border:1px solid var(--line2);border-radius:11px;
+  background:var(--panel2);color:var(--ink);font-size:16px;font-family:inherit;
+  transition:border-color .12s,box-shadow .12s}
+.fld input::placeholder{color:var(--faint)}
+.fld input:focus{outline:none;border-color:var(--signal);
+  box-shadow:0 0 0 3px color-mix(in srgb,var(--signal) 22%,transparent)}
+.fld .hint{font-size:12px;color:var(--faint);line-height:1.5}
+.fld.bad input{border-color:var(--alert)}
+
+/* Search: the icon sits inside the box, and a clear button appears once there is something to
+   clear — at 65 names you retype this more than once. */
+.accsearch{position:relative;margin:12px 0 10px}
+.accsearch input{width:100%;padding:12px 38px 12px 40px;border:1px solid var(--line2);
+  border-radius:12px;background:var(--panel2);color:var(--ink);font-size:16px;font-family:inherit;
+  transition:border-color .12s,box-shadow .12s}
+.accsearch input::placeholder{color:var(--faint)}
+.accsearch input:focus{outline:none;border-color:var(--signal);
+  box-shadow:0 0 0 3px color-mix(in srgb,var(--signal) 22%,transparent)}
+.accsearch .mag{position:absolute;left:13px;top:50%;transform:translateY(-50%);width:17px;
+  height:17px;color:var(--faint);pointer-events:none}
+.accsearch .clr{position:absolute;right:8px;top:50%;transform:translateY(-50%);border:0;
+  background:transparent;color:var(--faint);font-size:17px;cursor:pointer;padding:5px 8px;
+  border-radius:8px;line-height:1}
+.accsearch .clr:hover{color:var(--ink);background:var(--panel)}
+
+/* Filters as one segmented control rather than four loose pills. */
+.acctabs{display:flex;gap:3px;padding:3px;background:var(--panel2);border:1px solid var(--line);
+  border-radius:12px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.acctabs::-webkit-scrollbar{display:none}
+.acctab{flex:1 1 auto;border:0;background:transparent;color:var(--dim);border-radius:9px;
+  padding:8px 10px;font-size:12.5px;font-weight:600;cursor:pointer;white-space:nowrap;
+  font-family:inherit;transition:background .12s,color .12s}
+.acctab .n{font-weight:500;opacity:.65;margin-left:5px;font-variant-numeric:tabular-nums}
+.acctab:hover:not(:disabled):not(.on){color:var(--ink)}
+.acctab.on{background:var(--chip);color:var(--chip-ink)}
+.acctab.on .n{opacity:.8}
+.acctab:disabled{opacity:.35;cursor:default}
+.acclist{display:flex;flex-direction:column;gap:7px;margin-top:10px}
+.accrow{border:1px solid var(--line);border-radius:11px;padding:11px 13px;
+  display:flex;flex-direction:column;gap:9px;border-left:3px solid transparent}
+.accrow.needs{border-left-color:#F87171;background:#F871710A}
+.accrow.pending{border-left-color:#FBBF24}
+.accrow.off{opacity:.6;border-left-color:var(--line)}
+.accmain{display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap}
+.accwho{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1 1 190px}
+.accwho b{font-size:15px;letter-spacing:-.01em}
+.accsub{font-size:12px;color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.accchips{display:flex;flex-wrap:wrap;gap:5px;align-items:center}
+.achip{font-family:var(--mono);font-size:10.5px;letter-spacing:.04em;text-transform:uppercase;
+  border:1px solid var(--line);border-radius:999px;padding:2px 7px;color:var(--dim);
+  white-space:nowrap}
+.achip.bad{border-color:#F8717155;color:#F87171;background:#F871711A}
+.achip.warn{border-color:#FBBF2455;color:#FBBF24;background:#FBBF241A}
+.accact{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+/* .btn is width:100% everywhere else in this app, which is right for a stacked sheet and wrong
+   for a row of three. Sized to their own text here, and only here. */
+.accact .btn.sm{width:auto;flex:0 0 auto;white-space:nowrap}
+.accact .quiet{border-color:transparent;color:var(--dim)}
+.accact .quiet:hover{border-color:#F8717155;color:#F87171}
+.accnote{font-size:12px;color:var(--dim);font-style:italic}
+.accnone{padding:18px 4px;color:var(--dim);font-size:13px;text-align:center}
+/* On a phone the chips always take their own line. Left to wrap naturally they sat beside a
+   short name and under a long one, so the same list looked like two different designs. */
+@media(max-width:559px){ .accchips{flex-basis:100%} }
+/* Wide enough to read it on a laptop: identity left, state and actions right. */
+@media(min-width:560px){
+  .accrow{flex-direction:row;align-items:center;gap:14px}
+  .accmain{flex:1 1 auto;align-items:center;flex-wrap:nowrap}
+  .accact{flex:0 0 auto;justify-content:flex-end}
+}
+/* THE CONFIRM SHEET. It asks for a password and a typed name, and it used to do that with two
+   unstyled boxes under a paragraph — the same weight whether you were giving access back or
+   taking it away. Who it is about goes first, what will happen to them second, and the
+   destructive one is coloured all the way through rather than only on its button. */
+.cabox{border:1px solid var(--line);border-radius:13px;padding:14px;background:var(--panel2)}
+.cabox.danger{border-color:rgba(255,107,107,.4);background:var(--bad)}
+.cawho{display:flex;gap:11px;align-items:center}
+.caav{width:38px;height:38px;border-radius:50%;flex:0 0 auto;display:flex;align-items:center;
+  justify-content:center;font-weight:700;font-size:15px;background:var(--panel);color:var(--dim);
+  border:1px solid var(--line2)}
+.cabox.danger .caav{background:rgba(255,107,107,.16);color:var(--bad-ink);
+  border-color:rgba(255,107,107,.4)}
+.cawho b{font-size:15.5px;display:block;line-height:1.25}
+.cawhat{font-size:12px;color:var(--dim);letter-spacing:.01em}
+.cabox.danger .cawhat{color:var(--bad-ink)}
+.cadesc{margin:11px 0 0;font-size:13px;line-height:1.6;color:var(--dim)}
+.cabox.danger .cadesc{color:var(--bad-ink)}
+
+/* WHAT TO TELL THEM. A toast disappears; the instruction an admin has to relay should not. */
+.accsay{border:1px solid var(--line);border-radius:11px;padding:12px 14px;margin-top:4px}
+.accsay h4{margin:0 0 6px;font-size:14px}
+.accsay p{margin:0 0 8px;font-size:13.5px;color:var(--dim)}
+.accsay .copyline{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.accsay code{background:var(--soft,#0000000d);padding:5px 9px;border-radius:7px;font-size:12.5px;
+  word-break:break-all}
+.btn.sm{padding:6px 10px;font-size:12.5px}
 .grid7{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px;padding:9px}
-.dow{font-family:var(--mono);font-size:9.5px;color:var(--dim);text-align:center;padding:2px 0 4px;letter-spacing:.05em}
-.cell{min-height:46px;border-radius:8px;background:var(--panel2);padding:4px 3px 3px;cursor:pointer;
+.dow.we{color:var(--faint)}
+.dow{font-family:var(--mono);font-size:calc(11px * var(--calscale, 1));color:var(--dim);text-align:center;padding:2px 0 4px;letter-spacing:.05em}
+.cell{min-height:calc(52px * var(--calscale, 1));border-radius:8px;background:var(--panel2);padding:4px 3px 3px;cursor:pointer;
   display:flex;flex-direction:column;align-items:center;gap:3px;position:relative;border:1px solid transparent}
 .cell.blank{background:transparent;cursor:default}
 /* The ring is drawn inside the border box so a highlighted day does not shift its neighbours,
    and it sits over the unit colour rather than replacing it — today still shows what you are on. */
 .cell.today{border-color:var(--signal);box-shadow:0 0 0 1px var(--signal) inset}
 .cell.today .n{color:var(--signal);font-weight:700}
-.cell .n{font-family:var(--mono);font-size:11px;color:var(--dim);line-height:1}
+/* LARGER TYPE IN THE MONTH GRID (Aaron, 2026-08-25). Seeing a whole month at once is the
+   feature people liked, so the cap is that it must still fit: seven columns on a 320px phone
+   with no horizontal scroll. Date 11->12.5px, shift chip 8->9.5px and 15->17px tall, and the
+   cell grows to match rather than clipping the chip. */
+.cell .n{font-family:var(--mono);font-size:calc(12.5px * var(--calscale, 1));color:var(--dim);line-height:1}
 .cell.on .n{color:var(--ink);font-weight:700}
 .cell.sel{border-color:var(--signal)}
-.cell .blk{width:100%;height:15px;border-radius:4px;display:flex;align-items:center;justify-content:center;
-  font-family:var(--mono);font-size:8px;font-weight:700;color:var(--ground);overflow:hidden;white-space:nowrap}
+.cell .blk{width:100%;height:calc(17px * var(--calscale, 1));border-radius:4px;display:flex;align-items:center;justify-content:center;
+  font-family:var(--mono);font-size:calc(9.5px * var(--calscale, 1));font-weight:700;color:var(--ground);overflow:hidden;white-space:nowrap;padding:0 1px}
+/* The label sits in its own element so it can be condensed without squashing the chip:
+   a transform on .blk would scale the coloured box too. */
+.blk .bt{display:block;white-space:nowrap;transform-origin:center center}
 .cell .blk.noc{font-size:8px;letter-spacing:0}
 .cell .blk.cme{background:rgba(96,165,250,.22);border:1px solid rgba(96,165,250,.55);color:var(--info-ink);
   letter-spacing:.04em}
@@ -278,6 +400,42 @@ h2.sec{font-size:19px;font-weight:800;letter-spacing:-.02em;margin:22px 0 12px}
 .btn[disabled]{opacity:.45;cursor:not-allowed}
 .btnrow{display:grid;gap:8px;margin-top:10px}
 .btnrow.two{grid-template-columns:1fr 1fr}
+.btnrow.three{grid-template-columns:1fr 1fr 1fr}
+
+/* ---------- week view ----------
+   Seven rows down the page, so a day gets the full width and the shift can be set at a size the
+   month grid physically cannot reach. Everything scales from --calscale like the grid does, but
+   from a much larger base: the point of this view is that the words are big.
+   No condensing here and none needed — the constraint the grid fights is column width, and a row
+   has the whole screen. */
+.wknav{display:flex;align-items:center;gap:10px;margin:12px 0 4px}
+.wkspan{flex:1;text-align:center;line-height:1.25}
+.wkspan b{display:block;font-size:calc(17px * var(--calscale,1));letter-spacing:-.01em}
+.wkspan span{font-family:var(--mono);font-size:11.5px;color:var(--faint)}
+.wkarrow{width:44px;height:44px;flex:none;border-radius:12px;border:1px solid var(--line2);
+  background:var(--panel);color:var(--ink);font-size:24px;line-height:1;cursor:pointer}
+.wkarrow[disabled]{opacity:.32;cursor:default}
+.wkbtns{display:flex;justify-content:center;margin-bottom:10px}
+.wkbtns .btn{padding:7px 16px;font-size:13px}
+
+.wklist{display:flex;flex-direction:column;gap:8px}
+.wkrow{display:flex;gap:12px;align-items:stretch;background:var(--panel);
+  border:1px solid var(--line);border-radius:14px;padding:12px 13px;cursor:pointer}
+.wkrow.today{border-color:var(--signal);box-shadow:0 0 0 1px var(--signal) inset}
+.wkday{flex:none;width:calc(52px * var(--calscale,1));text-align:center;
+  display:flex;flex-direction:column;justify-content:center;gap:1px}
+.wkday b{display:block;font-family:var(--mono);font-size:calc(12px * var(--calscale,1));
+  color:var(--dim);letter-spacing:.06em;text-transform:uppercase}
+.wkday span{display:block;font-size:calc(26px * var(--calscale,1));font-weight:800;
+  line-height:1.05;letter-spacing:-.02em}
+.wkbody{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;gap:6px}
+.wkshift{border-left:4px solid var(--line2);padding-left:11px}
+.wkname{font-size:calc(19px * var(--calscale,1));font-weight:750;line-height:1.2;
+  letter-spacing:-.01em;overflow-wrap:anywhere}
+.wkmeta{font-size:calc(12.5px * var(--calscale,1));color:var(--dim);margin-top:2px;line-height:1.35}
+.wkoff{font-size:calc(16px * var(--calscale,1));color:var(--faint);font-weight:600}
+.wkoff.cme{color:var(--info-ink)}
+.wkrole{font-size:calc(12px * var(--calscale,1));color:var(--dim)}
 
 /* ---------- pills / notes ---------- */
 .pill{display:inline-block;font-family:var(--mono);font-size:10.5px;font-weight:700;padding:3px 8px;
@@ -546,6 +704,12 @@ textarea.ta{width:100%;background:var(--panel);border:1px solid var(--line2);bor
 @media (prefers-reduced-motion:reduce){.arch>summary::before{transition:none}}
 .icsmore{margin-top:9px}
 .icsmore summary{font-size:12.5px;color:var(--dim);cursor:pointer}
+/* Sits in an account row, so it matches the row's type rather than a form field's. */
+.qrow{display:flex;align-items:center;gap:9px;margin-top:10px}
+.qlbl{font-size:12px;color:var(--dim);white-space:nowrap}
+.qrow .acsel{flex:1}
+.acsel{background:var(--panel2);border:1px solid var(--line2);color:var(--ink);
+  border-radius:9px;padding:7px 9px;font:600 13px var(--sans);flex:none;cursor:pointer}
 .accttheme{background:transparent;border:1px solid var(--line);color:var(--dim);
   width:28px;height:28px;border-radius:50%;font-size:13px;cursor:pointer;flex:none;
   display:flex;align-items:center;justify-content:center;line-height:1;padding:0}
@@ -934,13 +1098,93 @@ const MONL=['January','February','March','April','May','June','July','August','S
 const DOW=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
 const d2=iso=>new Date(+iso.slice(0,4),+iso.slice(5,7)-1,+iso.slice(8,10));
 const dowOf=iso=>(d2(iso).getDay()+6)%7;
+/* ---------- which day starts the week ----------
+   The month grid runs Mon..Sun, so Saturday and Sunday sit together on the right and a run of
+   nights reads as one block. Plenty of people expect the American calendar instead, Sun..Sat,
+   and neither is wrong -- so it is a preference rather than a decision.
+
+   dowOf() IS NOT TOUCHED BY THIS, deliberately. It is Monday-indexed and is used for two quite
+   different things: naming a day (DOW[dowOf(iso)]) and asking whether it is a weekend
+   (dowOf(iso)>=5, in the weekend counts and the group shading). Re-basing it for a Sunday-first
+   grid would silently make Friday a weekend and Sunday a weekday everywhere those live. Column
+   position is a third question and gets its own function. */
+/* SUNDAY BY DEFAULT (Aaron, 2026-08-25): "so the view matches most peoples calendar apps".
+   It is also what Intl.Locale.getWeekInfo() reports for en-US, so the request and the device
+   convention agree. Anyone who set the preference keeps their choice — only the default moves. */
+/* CALENDAR TEXT SIZE. Someone asked for bigger type and seeing a whole month at once is the
+   feature people liked, so the two pull against each other: every point of size costs column
+   width. One dial drives the date, the chip and the day letters together, and fitChips still
+   guarantees no label is cut off — a larger setting condenses more rather than clipping.
+   Per device, because it is about the screen in your hand, not about you. */
+/* FIVE SIZES, AND THE TOP ONE IS WHERE IT MEASURABLY STOPS. Pushed until labels actually broke:
+   1.75 is clean at every supported width, 2.0 cuts three labels at 320px and 2.5 cuts
+   twenty-four. So the ceiling is 1.75, found rather than guessed.
+   An earlier note here claimed 1.5 was past the point where a month fits one screen. It is not
+   — a month at 1.75 is 557px against an 852px phone. What the largest sizes actually cost is
+   condensing: the longest labels squeeze to about three-quarters width to stay whole. */
+const CALSIZES={1:'Normal',1.15:'Large',1.3:'Larger',1.5:'Largest',1.75:'Huge'};
+let CALSCALE=1;
+try{ const v=parseFloat(localStorage.getItem('ccpsa_calscale')); if(CALSIZES[v])CALSCALE=v; }catch(e){}
+/* HOW TALL IS THE TEST BANNER RIGHT NOW. It is a ::before with wrapping text, so its height
+   depends on the width — measured rather than assumed, and re-measured on rotate. */
+function measureBanner(){
+  try{
+    const cs=getComputedStyle(document.body,'::before');
+    const on=cs && cs.content && cs.content!=='none' && cs.content!=='normal';
+    /* THE FULL BOX, NOT THE CONTENT BOX. getComputedStyle(::before).height reports the CONTENT
+       height and the banner carries the status-bar inset as padding — 33px of text inside a
+       104px bar. Sticking the header to 33px would have put it back underneath, which is the
+       bug this whole change exists to fix. Padding and border are added back. */
+    const px=v=>parseFloat(v)||0;
+    const h=on ? Math.round(px(cs.height)+px(cs.paddingTop)+px(cs.paddingBottom)
+                            +px(cs.borderTopWidth)+px(cs.borderBottomWidth)) : 0;
+    document.documentElement.style.setProperty('--bannerh', h+'px');
+    // When a banner is present it has already taken the status-bar inset, so the header must
+    // not take it a second time. In production there is no banner and this stays unset, which
+    // leaves header.top on env(safe-area-inset-top) exactly as before.
+    document.documentElement.style.setProperty('--hdrsafe', on ? '0px' : '');
+  }catch(e){}
+}
+addEventListener('resize',measureBanner);
+addEventListener('orientationchange',()=>setTimeout(measureBanner,250));
+function applyCalScale(){
+  try{ document.documentElement.style.setProperty('--calscale', String(CALSCALE)); }catch(e){}
+}
+function setCalScale(v){
+  v=parseFloat(v); if(!CALSIZES[v])v=1;
+  CALSCALE=v;
+  try{ localStorage.setItem('ccpsa_calscale', String(v)); }catch(e){}
+  applyCalScale();
+}
+let WEEKSTART='sun';
+try{ const w=localStorage.getItem('ccpsa_weekstart'); if(w==='mon'||w==='sun')WEEKSTART=w; }catch(e){}
+function setWeekStart(v){
+  WEEKSTART = (v==='sun') ? 'sun' : 'mon';
+  try{ localStorage.setItem('ccpsa_weekstart', WEEKSTART); }catch(e){}
+}
+// Header labels in display order. DOW is Mon..Sun, so Sunday-first is Sunday lifted to the front.
+const dowLabels=()=>WEEKSTART==='sun' ? [DOW[6]].concat(DOW.slice(0,6)) : DOW;
+// Which column a date falls in. Sunday-first shifts everything one to the right and wraps Sunday
+// round to the front: Sun 6->0, Mon 0->1, ... Sat 5->6.
+const colOf=iso=>WEEKSTART==='sun' ? (dowOf(iso)+1)%7 : dowOf(iso);
+// Blank cells before the 1st. getDay() is 0=Sun natively, which is already the Sunday-first answer.
+const leadFor=d=>WEEKSTART==='sun' ? d.getDay() : (d.getDay()+6)%7;
 const fmtD=iso=>{const d=d2(iso);return DOW[dowOf(iso)]+', '+MON[d.getMonth()]+' '+d.getDate();};
 const fmtLong=iso=>{const d=d2(iso);return DOW[dowOf(iso)]+', '+MONL[d.getMonth()]+' '+d.getDate()+', '+d.getFullYear();};
-const isoAdd=(iso,n)=>{const d=d2(iso);d.setDate(d.getDate()+n);return d.toISOString().slice(0,10);};
+/* LOCAL DATE, NEVER UTC. toISOString() converts to UTC first, and every screen here turns on
+   what day it is. In Denver that made the app say tomorrow from 6pm every evening — the next
+   shift, the highlighted day, the days-left countdown, which quarter it opens on, all one day
+   out for the last six hours of every day. Reported from a laptop on Eastern time at 22:34 on
+   the 25th, where the app said the 26th; UTC had already rolled over.
+   d2() builds a LOCAL midnight, so reading it back through toISOString() was wrong in the other
+   direction too, east of UTC. One formatter, used by all of them. */
+const isoOf=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'
+              +String(d.getDate()).padStart(2,'0');
+const isoAdd=(iso,n)=>{const d=d2(iso);d.setDate(d.getDate()+n);return isoOf(d);};
 // WHAT DAY IS IT. Almost every screen turns on this — the next shift, what is highlighted,
 // whether requests are still open. On the test site it can be moved, so a date months away can
 // be looked at without waiting for it. Production has no such control and always reads the clock.
-const realTodayISO=()=>new Date().toISOString().slice(0,10);
+const realTodayISO=()=>isoOf(new Date());
 function testToday(){
   if(typeof TEST_BUILD==='undefined'||!TEST_BUILD)return null;
   try{ return localStorage.getItem('__today')||null; }catch(e){ return null; }
@@ -1009,7 +1253,11 @@ function setIdentity(person,role,label){
   // A physician is fixed to themselves. An admin who is also a physician (Nadon) opens on their
   // OWN schedule with a toggle to the admin view; an admin who is not (Sam) has no schedule of
   // their own, so they go straight to the admin view.
-  ME=(person&&DATA.people.includes(person))?person:null;
+  /* EITHER QUARTER. This asked DATA.people, which is the Q4 roster, so anybody who works only
+     the earlier block was treated as an account with no schedule and shown "Choose a physician
+     first" on every tab. CJ Mowry is exactly that: one shift, 16 August, and no Oct-Dec work —
+     an account issued to him this week that showed him nothing. */
+  ME=(person&&whoRoster().includes(person))?person:null;
   // Signing in should land on a SCHEDULE, not a dashboard — for an admin too. Nadon has a
   // schedule of their own; Sam, Zac and AB do not, so they resume whoever they were last
   // looking at. The admin view is then something you choose, not where you are dropped.
@@ -1164,6 +1412,28 @@ function openAccountSheet(){
     <div class="row"><span class="sp" style="background:var(--line2)"></span>
       <span><span class="t">Sign-in email</span>
         <span class="s" id="acEmail">${esc(MYEMAIL||'…')}</span></span></div>
+    <!-- A NAMED SETTING, WHICH IS WHERE EVERY CALENDAR PUTS THIS. Google ("Start week on"),
+         Apple ("Start Week On") and Outlook ("First day of week") all keep it in preferences as
+         a labelled list, and none of them put a control on the calendar itself. Three inline
+         attempts here — two cards, a caption, a lettered circle — were all trying to solve a
+         problem those products decided not to have: it is set once, by a minority, and never
+         again, so it does not belong on a screen people read every day. A <select> also gets
+         the native picker on a phone, which is the easiest possible thing to operate. -->
+    <div class="row"><span class="sp" style="background:var(--line2)"></span>
+      <span style="flex:1"><span class="t">Week starts</span>
+        <span class="s">Which day the calendar begins on</span></span>
+      <select class="acsel" id="acWk" aria-label="Which day the week starts on">
+        <option value="mon"${WEEKSTART==='mon'?' selected':''}>Monday</option>
+        <option value="sun"${WEEKSTART==='sun'?' selected':''}>Sunday</option>
+      </select></div>
+    <div class="row"><span class="sp" style="background:var(--line2)"></span>
+      <span style="flex:1"><span class="t">Calendar text</span>
+        <span class="s">Bigger type in the month view. At the largest sizes the shift
+          labels squeeze to stay whole.</span></span>
+      <select class="acsel" id="acSize" aria-label="Calendar text size">
+        ${Object.keys(CALSIZES).map(v=>`<option value="${v}"${String(CALSCALE)===v?' selected':''}
+          >${CALSIZES[v]}</option>`).join('')}
+      </select></div>
     <div class="btnrow">
       ${CAN_SWITCH?'<button class="btn" id="acSwitch">View another physician</button>':''}
       <button class="btn" id="acMail">Use a different email</button>
@@ -1181,6 +1451,15 @@ function openAccountSheet(){
     bv.style.cursor='pointer';
     bv.onclick=()=>{ const t=Date.now(); taps=(t-last<1200)?taps+1:1; last=t;
                      if(taps>=5){ taps=0; diagToggle(); } }; }
+  const zsel=$('#acSize');
+  if(zsel)zsel.onchange=()=>{ setCalScale(zsel.value); track('cal_size',{scale:CALSCALE});
+                              if(CUR==='sched')renderSched(); };
+  const wsel=$('#acWk');
+  if(wsel)wsel.onchange=()=>{
+    setWeekStart(wsel.value);
+    track('week_start',{to:WEEKSTART});
+    if(CUR==='sched')renderSched();      // repaint behind the sheet, so it is right on return
+  };
   $('#acMail').onclick=openEmailChange;
   $('#acAuth').onclick=openAuthReset;
   $('#acOut').onclick=()=>{
@@ -1318,7 +1597,35 @@ async function openEmailChange(){
 }
 
 /* ---------- my data ---------- */
+/* WHICH BLOCK THE SCHEDULE TAB IS SHOWING. 'live' is the published quarter and the only one
+   anything can be done to; 'archive' is the previous quarter, readable and nothing else.
+   Deliberately NOT persisted: the live block is what matters day to day, and an app that opens
+   on last quarter because you once looked at it is an app that lies about today. */
+/* WHICH QUARTER THE CALENDAR OPENS ON: the one that contains today, according to the device.
+   On 25 August that is Q3, which is the quarter they are actually working — opening on Q4
+   showed everybody an empty October instead of this week. Computed per load rather than stored,
+   so it follows the calendar forward on its own and needs no migration when Q4 becomes current.
+   Falls back to the live block if today is in neither, which is what happens in the gap between
+   quarters. */
+function defaultBlock(){
+  try{
+    const t=todayISO(), a=(DATA.archive||{}).dates;
+    if(a&&a.length&&t>=a[0]&&t<=a[a.length-1])return 'archive';
+  }catch(e){}
+  return 'live';
+}
+let VIEWBLOCK='live';
+const archiveOn=()=>VIEWBLOCK==='archive'&&!!(DATA.archive&&DATA.archive.dates);
+const blockDates=()=>archiveOn()?DATA.archive.dates:DATA.dates;
+const blockDayMap=()=>archiveOn()?(DATA.archive.day||{}):DATA.day;
+const blockLabelNow=()=>archiveOn()?DATA.archive.label:DATA.blockLabel;
+/* dayOf IS ALWAYS THE LIVE BLOCK. It feeds the coverage picker, the swaps tab, the .ics
+   download, the stats and "your next shift" — none of which may follow a quarter somebody is
+   only READING. Letting it track the selection meant choosing Q3 quietly re-pointed the
+   coverage picker at shifts the server would refuse. Only the calendar switches, through
+   vDayOf, and it is the only caller. */
 const dayOf=(n,iso)=>(DATA.day[n]||{})[iso]||null;
+const vDayOf=(n,iso)=>(blockDayMap()[n]||{})[iso]||null;
 // When a shift starts, so a day's shifts read in the order they are worked. The schedule stores
 // them in whatever order the solver produced, which put a 7pm night ahead of the 7am day shift
 // beside it.
@@ -1326,23 +1633,136 @@ function startHour(sh){
   const h=DATA.kindHours[(META(sh)||{}).kind];
   return h ? h[0] : 7;                       // no clock time (Admin) sits with the day
 }
+/* ONE PLACE THAT TURNS kindHours INTO WORDS. The day sheet was computing its own end time as
+   start + duration, which the (startH, startM, endH, endM) shape makes wrong — 7 + 17 is 24.
+   Minutes are shown only when there are any, so "7am – 5pm" stays clean and a night reads
+   "5pm – 11:59pm". */
+/* A BIGGER FONT MUST NOT BREAK A CHIP. "Jeopardy" needs 42px in a 38px chip on a 390px phone,
+   so at the larger size it clipped mid-word and read as text escaping its box. Rather than
+   shrink every chip back, or abbreviate a label people recognise, only the ones that do not fit
+   step down -- half a point at a time, to a floor of 7px, and only until they fit. Everything
+   else keeps the size Aaron asked for.
+   Measured after layout, so it accounts for the actual column width at whatever the screen is. */
+function fitChips(root){
+  const list=(root||document).querySelectorAll('.blk');
+  list.forEach(c=>{
+    const t=c.querySelector('.bt'); if(!t)return;
+    c.style.fontSize=''; t.style.transform='';    // start from the stylesheet, not last pass
+    const avail=c.clientWidth;
+    if(t.scrollWidth<=avail+0.5)return;
+    /* STEP THE SIZE DOWN FIRST, but only to 8px — below that it stops being readable and the
+       point was to make the calendar BIGGER. */
+    let size=parseFloat(getComputedStyle(c).fontSize)||9.5;
+    /* TWO FLOORS, IN ORDER OF WHAT MATTERS.
+       The soft floor tracks the chosen size (85% of it), so picking "Largest" is not undone by
+       every tight chip stepping straight back to a fixed minimum — that made the setting do
+       nothing exactly where it was wanted.
+       But a label that does not fit beats a setting that does. If the soft floor is not enough,
+       it keeps going to a hard 7px. At 320px on "Largest" the soft floor alone left nine labels
+       cut off, which is the whole fault this function exists to prevent. */
+    const soft=Math.max(7, size*0.85);
+    for(let i=0;i<6&&size>soft&&t.scrollWidth>avail+0.5;i++){
+      size-=0.5; c.style.fontSize=size+'px';
+    }
+    for(let i=0;i<12&&size>7&&t.scrollWidth>avail+0.5;i++){
+      size-=0.5; c.style.fontSize=size+'px';
+    }
+    /* THEN CONDENSE, so the WHOLE WORD still shows. "Jeopardy" is 38.5px at 8px in a 34px
+       column, in either font — mono and sans measure within a pixel of each other, so changing
+       typeface buys nothing. Squeezing the last 12% horizontally shows every letter, where
+       clipping or an ellipsis hides some of them. Floored at 0.72: past that it reads as
+       damaged rather than condensed. */
+    if(t.scrollWidth>avail+0.5){
+      const k=Math.max(0.72, avail/t.scrollWidth);
+      t.style.transform='scaleX('+k.toFixed(3)+')';
+    }
+    /* Below about 340px even 7px will not fit "Jeopardy" in a 30px column, and shrinking
+       further stops being readable. text-overflow then does the honest thing and shows it
+       truncated -- "Jeopa…" reads as a word that did not fit, where a hard clip reads as the
+       text escaping its box, which is what was reported. The full name is in the day sheet and
+       in the aria-label either way. */
+  });
+}
+function hrsText(hrs){
+  if(!hrs) return 'All day';
+  const t=(h,m)=>`${h%12||12}${m?':'+String(m).padStart(2,'0'):''}${h<12?'am':'pm'}`;
+  return t(hrs[0],hrs[1])+' – '+t(hrs[2],hrs[3]);
+}
 function byTime(a,b){
   if(a.iso!==b.iso) return a.iso<b.iso?-1:1;
   return startHour(a.shift)-startHour(b.shift) ||
          String(a.shift).localeCompare(String(b.shift));
 }
-function myShifts(n){                       // [{iso, shift, meta}], in the order they are worked
+/* MOONLIGHTERS ONLY (Sam, 2026-08-25). Two wrong answers were tried before this one. First it
+   was offered to anyone credentialed for nights, which is most of the group. Then it was gated
+   on Category === 'Moonlighter' but left in the employed/partner form — and moonlighters never
+   see that form, they get their own with availability and shifts wanted, so it rendered for
+   NOBODY and the gate looked correct in the source.
+   It now lives in the moonlighter form itself, which is the gate. This helper is kept because
+   it is the roster's own word for the distinction and reads better than a category literal. */
+function isMoonlighter(n){
+  return ((DATA.providers||{})[n]||{}).cat==='Moonlighter';
+}
+/* EVERY SHIFT THIS PERSON HAS, ACROSS BOTH QUARTERS. The group works Q3 and can no longer see
+   it anywhere else, so coverage and swaps have to reach it — Q3 is not an archive any more, it
+   is simply the earlier half of the schedule. The rule-check snapshot spans both quarters now,
+   so the server can actually judge a September request rather than waving it through.
+   The CALENDAR still shows one quarter at a time; that is a reading choice, not a limit. */
+/* THE DAY RECORD FOR A DATE IN EITHER QUARTER.
+   allShifts() spans both, and dayOf() is live-only by design — so anything that takes a shift
+   from allShifts and then looks the date up needs this, or it reads null and throws. That is
+   exactly what broke the Now tab: on 25 August the next shift is a September one, dayOf
+   returned null, and `a.s` killed the whole render. Live first, because a date that exists in
+   both should resolve to the block that is being scheduled. */
+/* IS THIS DATE PART OF THE SCHEDULE AT ALL — either quarter. Every "Outside this block" check
+   asked DATA.dates, which is Q4 alone, so every Q3 day sheet said the date did not exist. Q3 is
+   not an archive any more; it is the earlier half of the same schedule. */
+/* THE WHOLE SCHEDULE'S SPAN, both quarters, earliest to latest. Several things clamped against
+   DATA.dates, which starts 1 October — so on 25 August they jumped forward to October instead
+   of showing this week. */
+function spanDates(){
+  const a=(DATA.archive||{}).dates||[];
+  const l=DATA.dates||[];
+  if(!a.length)return l;
+  if(!l.length)return a;
+  return a[0]<l[0]?[a[0],l[l.length-1]]:[l[0],a[a.length-1]];
+}
+function knownDate(iso){
+  if((DATA.dates||[]).includes(iso))return true;
+  const a=DATA.archive;
+  return !!(a&&(a.dates||[]).includes(iso));
+}
+function anyDayOf(n,iso){
+  const live=dayOf(n,iso); if(live)return live;
+  const a=DATA.archive;
+  return (a&&a.day&&(a.day[n]||{})[iso])||null;
+}
+function allShifts(n){
+  const out=myShifts(n,DATA.dates,dayOf);
+  const a=DATA.archive;
+  if(a&&a.dates&&a.dates.length)
+    out.push(...myShifts(n,a.dates,(who,iso)=>((a.day||{})[who]||{})[iso]||null));
+  return out.sort(byTime);
+}
+function myShifts(n,dates,dayFn){           // [{iso, shift, meta}], in the order they are worked
   const out=[];
-  DATA.dates.forEach(iso=>{const a=dayOf(n,iso);
+  // Defaults to the LIVE block. The calendar passes the viewed one; nothing else may.
+  (dates||DATA.dates).forEach(iso=>{const a=(dayFn||dayOf)(n,iso);
     if(a)a.s.forEach(s=>{ if(isRealShift(n,iso,s)) out.push({iso,shift:s,m:META(s)}); });});
   return out.sort(byTime);
 }
+/* Worked, but not owed. See OFF_CONTRACT in build_portal.py: these count as a day on service and
+   show up everywhere a shift shows up, but they are not measured against a contracted total that
+   never included them. Counted separately so the profile sheet can say so out loud — a number
+   that quietly differs from what you can see on the calendar is the thing that started this. */
+const offContract=s=>(DATA.offContract||[]).includes(s);
 function counts(n){
-  const c={icu:0,swing:0,noc:0,clinic:0,proc:0,jeop:0,admin:0,combo:0,wknd:0,worked:0};
+  const c={icu:0,swing:0,noc:0,clinic:0,proc:0,jeop:0,admin:0,combo:0,wknd:0,worked:0,extra:0};
   DATA.dates.forEach(iso=>{
     const a=dayOf(n,iso);if(!a)return;
     let hasD=false,hasN=false,real=false;
     a.s.forEach(s=>{const k=META(s).kind;
+      if(offContract(s)){c.extra++;real=true;return;}
       if(k==='icu'){c.icu++;hasD=true;real=true;}
       else if(k==='noc'){c.noc++;hasN=true;real=true;}
       else if(k==='swing'){c.swing++;real=true;}
@@ -1373,13 +1793,76 @@ function deBalance(n){
   const hasContract=['icu','noc','clinic','admin'].some(k=>typeof p[k]==='number');
   const contract=(nn('icu')+2*nn('noc')+nn('clinic')+nn('admin'))*bm;
   return {worked:f1(worked), contract:f1(contract), bal:f1(worked-contract),
-          hasContract, nights:c.noc};
+          hasContract, nights:c.noc, extra:c.extra};
 }
 
 /* ---------- shared bits ---------- */
 function unitChip(shift,w){
   const m=META(shift);
   return `<span class="dotU" style="background:${m.color}"></span>`;
+}
+/* ---------- WEEK VIEW ----------
+   A month grid can only be so large before a column is narrower than the word in it — that is
+   what the condensing in fitChips is working around, and past about 1.75x it stops being enough.
+   Seven rows down the screen have no such limit: a day gets the full width, so the shift can be
+   set at a size somebody who cannot read the grid can actually read.
+
+   Deliberately NOT a third quarter-worth of state. It navigates by week across the whole
+   schedule, both quarters, because a week that straddles 30 September is still one week and
+   splitting it would be an artefact of how the blocks are filed rather than anything real. */
+let WEEKISO=null;
+function weekStartOf(iso){ return isoAdd(iso, -colOf(iso)); }
+function weekBounds(){
+  const sp=spanDates();
+  return [weekStartOf(sp[0]), weekStartOf(sp[1])];
+}
+function initWeek(){
+  const t=todayISO(), sp=spanDates();
+  const at=(t>=sp[0]&&t<=sp[1])?t:(t<sp[0]?sp[0]:sp[1]);
+  WEEKISO=weekStartOf(at);
+}
+function weekHTML(){
+  if(!WEEKISO)initWeek();
+  const [lo,hi]=weekBounds();
+  if(WEEKISO<lo)WEEKISO=lo; if(WEEKISO>hi)WEEKISO=hi;
+  const days=[]; for(let i=0;i<7;i++)days.push(isoAdd(WEEKISO,i));
+  const endIso=days[6];
+  const span=(d2(WEEKISO).getMonth()===d2(endIso).getMonth())
+    ? `${MONL[d2(WEEKISO).getMonth()]} ${d2(WEEKISO).getDate()}–${d2(endIso).getDate()}`
+    : `${MON[d2(WEEKISO).getMonth()]} ${d2(WEEKISO).getDate()} – ${MON[d2(endIso).getMonth()]} ${d2(endIso).getDate()}`;
+  const t=todayISO();
+  let h=`<div class="wknav">
+    <button class="wkarrow" id="wkPrev" ${WEEKISO<=lo?'disabled':''} aria-label="Previous week">‹</button>
+    <div class="wkspan"><b>${esc(span)}</b><span>${d2(WEEKISO).getFullYear()}</span></div>
+    <button class="wkarrow" id="wkNext" ${WEEKISO>=hi?'disabled':''} aria-label="Next week">›</button>
+  </div>
+  <div class="wkbtns"><button class="btn" id="wkToday">This week</button></div>
+  <div class="wklist">`;
+  days.forEach(iso=>{
+    const known=knownDate(iso);
+    const a=known?anyDayOf(ME,iso):null;
+    const shown=(a?a.s:[]).filter(x=>isRealShift(ME,iso,x));
+    const roles=(a&&a.r)||[];
+    const rq=DATA.requests[ME]||{};
+    const off=(rq.off||[]).includes(iso), cme=(rq.cme||[]).includes(iso), on=(rq.on||[]).includes(iso);
+    const isNow=iso===t;
+    let body;
+    if(!known) body=`<div class="wkoff">Not in the schedule</div>`;
+    else if(shown.length) body=shown.map(x=>{const m=META(x),hrs=DATA.kindHours[m.kind];
+        return `<div class="wkshift" style="border-left-color:${m.color}">
+          <div class="wkname">${esc(shiftLabel(ME,iso,x,false))}</div>
+          <div class="wkmeta">${esc(m.sub)}${hrs?' · '+esc(hrsText(hrs)):''}</div></div>`;}).join('');
+    else if(cme) body=`<div class="wkoff cme">CME day</div>`;
+    else if(off) body=`<div class="wkoff">Requested off</div>`;
+    else body=`<div class="wkoff">Off</div>`;
+    h+=`<div class="wkrow${isNow?' today':''}" data-iso="${iso}" role="button" tabindex="0"
+        aria-label="${esc(fmtLong(iso))}, ${shown.length?shown.map(x=>shiftLabel(ME,iso,x,false)).join(' and '):'no shift'}">
+      <div class="wkday"><b>${DOW[dowOf(iso)]}</b><span>${d2(iso).getDate()}</span></div>
+      <div class="wkbody">${body}${roles.length?`<div class="wkrole">◆ ${esc((DATA.roles[roles[0]]||{label:roles[0]}).label)}</div>`:''}
+        ${on?'<div class="wkrole">● asked to work</div>':''}</div>
+    </div>`;
+  });
+  return h+`</div>`;
 }
 function shiftRow(iso,shift,extra){
   const m=META(shift);
@@ -1464,8 +1947,9 @@ let DAYVIEW=null;
 // into it rather than showing an empty day.
 function inBlockDay(iso){
   if(!DATA||!DATA.dates.length)return iso;
-  if(DATA.dates.includes(iso))return iso;
-  return iso<DATA.dates[0]?DATA.dates[0]:DATA.dates[DATA.dates.length-1];
+  if(knownDate(iso))return iso;
+  const sp=spanDates();
+  return iso<sp[0]?sp[0]:sp[1];
 }
 
 /* ---------- block statistics ----------
@@ -1480,6 +1964,15 @@ function blockStatsHTML(){
   /* DAY EQUIVALENTS GO FIRST. This was the last line of a sheet called "Block statistics",
      behind an unlabelled name chip — Sam went looking for it and could not find it. It is the
      number a physician actually wants from this screen, so it is the headline. */
+  /* Say the quiet part. Some shifts are worked but not owed, and leaving them out of the total
+     without saying so produces exactly the complaint that put them here: a physician counts the
+     clinics on the calendar, compares, and finds the app short. Named, with the count. */
+  const extraNote=de.extra
+    ? `<div class="desub" style="margin-top:5px"><b>${de.extra}</b> ${
+        (DATA.offContract||[]).map(s=>esc(META(s).label)).join(' / ')} shift${
+        de.extra===1?'':'s'} ${de.extra===1?'is':'are'} additional and not counted against
+        contract.</div>`
+    : '';
   return `<div class="derow">
       <div class="dek">Day equivalents</div>
       ${de.hasContract
@@ -1492,6 +1985,7 @@ function blockStatsHTML(){
         : `<div class="deval">${deN(de.worked)}</div>
            <div class="desub">${de.nights?`<b>${de.nights}</b> night${de.nights===1?'':'s'} at 2 day
              equivalents each. `:''}Moonlighters have no contracted total to measure against.</div>`}
+      ${extraNote}
     </div>
     <div class="tiles">
     <div class="tile"><div class="k">Day shifts</div><div class="v">${dayN}${tg.day!=null?` <small>/ ${tg.day}</small>`:''}</div>
@@ -1501,7 +1995,7 @@ function blockStatsHTML(){
       <div class="f">${c.combo?c.combo+' as 24-hour':'&nbsp;'}</div>
       ${tg.noc!=null?`<div class="bar"><i style="width:${pct(c.noc,tg.noc)}%"></i></div>`:''}</div>
     <div class="tile"><div class="k">Clinic</div><div class="v">${c.clinic+c.proc}${tg.clinic?` <small>/ ${tg.clinic}</small>`:''}</div>
-      <div class="f">${c.proc?c.proc+' EBUS':'&nbsp;'}</div></div>
+      <div class="f">${[c.proc?c.proc+' EBUS':'', c.extra?'+'+c.extra+' extra':''].filter(Boolean).join(' · ')||'&nbsp;'}</div></div>
     <div class="tile"><div class="k">Weekend days</div><div class="v">${c.wknd}</div>
       <div class="f">${c.worked} days on service</div></div>
   </div>
@@ -1537,9 +2031,10 @@ const CLINIC_UNITS=['West Clinic','North Clinic','South Clinic','Central Clinic'
                     'Goodland Clinic','RHC-SAN','SAH EBUS','Porter EBUS'];
 let CLINICDAY=null;
 function clinicDayHTML(iso){
-  if(!DATA.dates.includes(iso))return '<div class="empty">Outside this block.</div>';
+  if(!knownDate(iso))return '<div class="empty">Outside this block.</div>';
   const rows=CLINIC_UNITS.map(u=>{
-    const who=DATA.people.filter(p=>((DATA.day[p]||{})[iso]||{s:[]}).s.includes(u));
+    // anyDayOf, and the union roster: on a Q3 date this listed nobody on every clinic.
+    const who=whoRoster().filter(p=>((anyDayOf(p,iso)||{s:[]}).s||[]).includes(u));
     return `<div class="onrow${who.length?'':' isrole'}">
       <span class="ondot" style="background:${who.length?META(u).color:'var(--line2)'}"></span>
       <span class="onshift">${esc(META(u).label||u)}</span>
@@ -1632,8 +2127,15 @@ function renderClinicView(){
   $('#cNext').onclick=()=>set(isoAdd(CLINICDAY||iso,1));
 }
 
+/* Everyone who appears in EITHER quarter. Somebody can be in one and not the other, and "who
+   is on" must not depend on which. */
+function whoRoster(){
+  const r=new Set(DATA.people||[]);
+  if(DATA.archive&&DATA.archive.day)Object.keys(DATA.archive.day).forEach(x=>r.add(x));
+  return [...r].sort();
+}
 function whosOnHTML(iso){
-  if(!DATA.dates.includes(iso))
+  if(!knownDate(iso))
     return '<div class="empty">Outside this block.</div>';
   /* ADMIN IS NOT "ON" (Aaron 8/21). Protected time is the opposite of being on the board: it
      answers "who is unavailable", and this screen is read to find out who is covering what.
@@ -1642,8 +2144,14 @@ function whosOnHTML(iso){
      and STAYS — it is real cover and the dashboard lists it under Backup. */
   const OFF_BOARD=new Set(['Admin']);
   const rows=[];
-  DATA.people.forEach(p=>{
-    const a=(DATA.day[p]||{})[iso];
+  /* EITHER QUARTER, AND EVERYONE IN IT. This read DATA.day and DATA.people, both of which are
+     Q4 alone — so on any date in Q3 it found nobody and the section came up blank. Today IS a
+     Q3 date until 1 October, which is to say it was blank for the whole group, on the screen
+     they open first.
+     The roster is a union too: somebody can appear in one quarter and not the other, and
+     "who is on today" must not depend on which. */
+  [...whoRoster()].forEach(p=>{
+    const a=anyDayOf(p,iso);
     if(!a)return;
     (a.s||[]).forEach(sh=>{ if(!OFF_BOARD.has(sh)&&isRealShift(p,iso,sh)) rows.push({sh,p,role:false}); });
     (a.r||[]).forEach(r=>{ if(!OFF_BOARD.has(r)) rows.push({sh:r,p,role:true}); });
@@ -1748,7 +2256,7 @@ function renderNow(){
     <div class="btnrow"><button class="btn pri" id="pickWho">Choose physician</button></div></div>`;
     $('#pickWho').onclick=openGate;return;}
   const t=todayISO();
-  const all=myShifts(ME).sort(byTime);
+  const all=allShifts(ME);
   const next=all.find(s=>s.iso>=t)||all[0];
   const c=counts(ME),tg=targets(ME),de=deBalance(ME);
   let html=changeBanner();          // anything the scheduling lead changed goes first
@@ -1756,11 +2264,17 @@ function renderNow(){
   if(next){
     const m=next.m,days=Math.round((d2(next.iso)-d2(t))/864e5);
     const when=days<0?'First shift of the block':days===0?'Today':days===1?'Tomorrow':`In ${days} days`;
-    const kindTxt=m.kind==='noc'?'Overnight · 7pm–7am':m.kind==='icu'?'Day shift · 7am–7pm':
-                  m.kind==='swing'?'Swing · 1pm–11pm':m.kind==='clinic'?'Clinic · 8am–5pm':
-                  m.kind==='admin'?'Protected time':m.kind==='jeop'?'Backup':'';
-    const a=dayOf(ME,next.iso),
-          also=a.s.filter(s=>s!==next.shift&&isRealShift(ME,next.iso,s)), roles=a.r||[];
+    /* THE HOURS COME FROM kindHours, not from a second copy written out by hand. These strings
+       still said 7pm–7am and 1pm–11pm after the times changed on 25 August, so the card under
+       "your next shift" contradicted the calendar, the day sheet and the subscribed feed. */
+    const kindName={noc:'Overnight',icu:'Day shift',swing:'Swing',clinic:'Clinic',
+                    admin:'Protected time',jeop:'Backup',proc:'Bronchoscopy'}[m.kind]||'';
+    const kh=DATA.kindHours[m.kind];
+    const kindTxt=!kindName?'':(kh?kindName+' · '+hrsText(kh):kindName);
+    // anyDayOf, not dayOf: `next` can be in either quarter. Defensive fallback too — a shift
+    // with no day record must render as a shift with nothing beside it, never as a crash.
+    const a=anyDayOf(ME,next.iso)||{s:[],r:[]},
+          also=(a.s||[]).filter(s=>s!==next.shift&&isRealShift(ME,next.iso,s)), roles=a.r||[];
     html+=`<div class="hero"><div class="spine" style="background:${m.color}"></div><div class="in">
       <div class="when">${esc(when)}</div>
       <div class="unit"><span class="dotU" style="background:${m.color};width:15px;height:15px"></span>${
@@ -1775,13 +2289,16 @@ function renderNow(){
     html+=`<div class="empty">No shifts scheduled this block.</div>`;
   }
   // week strip
-  const start=(all.length&&t>DATA.dates[DATA.dates.length-1])?DATA.dates[0]
-             :(t<DATA.dates[0]?DATA.dates[0]:t);
+  /* "Next 7 days" means the next seven, not the first seven of Q4. This clamped to
+     DATA.dates[0], so from July to September it showed the week of 1 October — the wrong week
+     for the entire group, every day, for three months. Clamped to the full span now. */
+  const _sp=spanDates();
+  const start=(all.length&&t>_sp[1])?_sp[0]:(t<_sp[0]?_sp[0]:t);
   html+=`<h2 class="sec">Next 7 days</h2><div class="wk7">`;
   for(let i=0;i<7;i++){
     const iso=isoAdd(start,i);
-    const a=dayOf(ME,iso);
-    const inBlock=DATA.dates.includes(iso);
+    const a=anyDayOf(ME,iso);
+    const inBlock=knownDate(iso);
     // A coloured pill told you *that* you worked, never *what* — which is the one thing you
     // want at a glance (client 8/17 #4).
     const wshown=(a?a.s:[]).filter(sh=>isRealShift(ME,iso,sh))
@@ -1876,7 +2393,7 @@ function subscribeCard(){
 
    Built at the moment of printing so it is always the schedule currently being looked at,
    including any change the scheduling lead has just made. */
-const SHIFT_HOURS={noc:'7pm – 7am', icu:'7am – 7pm', swing:'1pm – 11pm', clinic:'8am – 5pm'};
+const SHIFT_HOURS={noc:'5pm – 11:59pm', icu:'7am – 5pm', swing:'5pm – 11:59pm', clinic:'7am – 5pm'};
 function hoursOf(m){ return SHIFT_HOURS[m.kind]||''; }
 
 function buildPrintable(){
@@ -1937,23 +2454,56 @@ function wireSubscribe(){
 function renderSched(){
   const pane=$('#pane-sched');
   if(!ME){pane.innerHTML='<div class="empty" style="margin-top:22px">Choose a physician first.</div>';return;}
-  let html=`<h2 class="sec">My schedule <span class="pill" style="margin-left:6px">${esc(DATA.blockLabel)}</span></h2>
-  <div class="btnrow two">
-    <button class="btn ${schedView==='cal'?'pri':''}" id="vCal">Calendar</button>
+  const arch=!!(DATA.archive&&DATA.archive.dates&&DATA.archive.dates.length);
+  let html=`<h2 class="sec">My schedule <span class="pill" style="margin-left:6px">${esc(blockLabelNow())}</span></h2>`;
+  /* THE PREVIOUS QUARTER, TO READ (Aaron, 2026-08-25 — the group loses Lightning Bolt on
+     1 September). Only offered when there is an archive to offer, and it says "view only" on the
+     control itself rather than letting somebody find that out by tapping something that does
+     nothing. */
+  /* A SELECT, NOT TWO BUTTONS. Quarters are a list that will keep growing -- Q1 2027 is the
+     same kind of thing as Q3 2026 -- and a row of buttons stops working the moment there are
+     three. Earliest first, so it reads as a timeline rather than as "the real one and the other
+     one". */
+  if(arch && schedView!=='week')
+    html+=`<div class="qrow">
+      <label class="qlbl" for="qSel">Quarter</label>
+      <select class="acsel" id="qSel">
+        <option value="archive"${archiveOn()?' selected':''}>${esc(DATA.archive.label)}</option>
+        <option value="live"${!archiveOn()?' selected':''}>${esc(DATA.blockLabel)}</option>
+      </select>
+    </div>`;
+  html+=`<div class="btnrow three">
+    <button class="btn ${schedView==='cal'?'pri':''}" id="vCal">Month</button>
+    <button class="btn ${schedView==='week'?'pri':''}" id="vWeek">Week</button>
     <button class="btn ${schedView==='list'?'pri':''}" id="vList">List</button></div>`;
-  if(schedView==='cal'){
-    const months=[...new Set(DATA.dates.map(i=>i.slice(0,7)))];
+  // Not in the week view: it walks across both quarters, so a note about which one you are
+  // looking at is answering a question that view does not ask.
+  if(archiveOn() && schedView!=='week')
+    html+=`<div class="note" style="margin-top:9px">Requests and time off are set per block, and
+      belong to <b>${esc(DATA.blockLabel)}</b>. Coverage and swaps work on any shift you hold,
+      in either quarter.</div>`;
+
+  if(schedView==='week'){
+    html+=weekHTML();
+  }else if(schedView==='cal'){
+    const months=[...new Set(blockDates().map(i=>i.slice(0,7)))];
     months.forEach(mk=>{
       const y=+mk.slice(0,4),mo=+mk.slice(5)-1;
       const first=new Date(y,mo,1),dim=new Date(y,mo+1,0).getDate();
-      let n=0;DATA.dates.forEach(iso=>{if(iso.slice(0,7)===mk&&dayOf(ME,iso)&&dayOf(ME,iso).s.length)n++;});
-      html+=`<div class="month"><h4><b>${MONL[mo]} ${y}</b><span>${n} shift${n===1?'':'s'}</span></h4><div class="grid7">`;
-      DOW.forEach(d=>html+=`<div class="dow">${d}</div>`);
-      const lead=(first.getDay()+6)%7;
+      /* NO SHIFT COUNT IN THE MONTH HEADER. Client 8/25: physicians were reading "14 shifts"
+         as a contract figure and checking it against their FTE, which it never was. It counted
+         calendar days carrying any shift in the block being viewed — so a doubled day counted
+         once, a partial month at a block boundary undercounted, and the archived quarter showed
+         a different number for the same month. A number that invites a comparison it cannot
+         survive is worse than no number; day equivalents live in the profile sheet, which is
+         where the contract question is actually answered. */
+      html+=`<div class="month"><h4><b>${MONL[mo]} ${y}</b></h4><div class="grid7">`;
+      dowLabels().forEach(d=>html+=`<div class="dow${d==='Sat'||d==='Sun'?' we':''}">${d}</div>`);
+      const lead=leadFor(first);
       for(let i=0;i<lead;i++)html+='<div class="cell blank"></div>';
       for(let d=1;d<=dim;d++){
         const iso=`${y}-${String(mo+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-        const a=dayOf(ME,iso),rq=DATA.requests[ME]||{};
+        const a=vDayOf(ME,iso),rq=DATA.requests[ME]||{};
         const onReq=(rq.on||[]).includes(iso);
         const cmeReq=(rq.cme||[]).includes(iso);
         const offReq=(rq.off||[]).includes(iso)||cmeReq;
@@ -1969,7 +2519,7 @@ function renderSched(){
             const _worst=f=>Math.min(...[_a,_b].map(c=>{const L=chipLum(c);
               return f==='#0B1220'?(L+.05)/.05:1.05/(L+.05);}));
             const _ink=_worst('#0B1220')>=_worst('#FFFFFF')?'#0B1220':'#FFFFFF';
-            inner=`<span class="blk split" style="background:linear-gradient(112deg,${_a} 0 50%,${_b} 50% 100%);color:${_ink};text-shadow:0 1px 1px rgba(0,0,0,.35)" title="24-hour shift">24h</span>`;
+            inner=`<span class="blk split" style="background:linear-gradient(112deg,${_a} 0 50%,${_b} 50% 100%);color:${_ink};text-shadow:0 1px 1px rgba(0,0,0,.35)" title="24-hour shift"><i class="bt">24h</i></span>`;
           }else if(ns.length){
             // every night used to read "NOC" whatever the site, so a month of nights gave no
             // clue whether they were SAH, Porter or Littleton
@@ -1977,14 +2527,14 @@ function renderSched(){
             // The moon already says night, so the cell names the SITE: ☾ SAH, ☾ PTR, ☾ LAH.
             // Spelling out "SAH NOC" beside it clipped at phone width.
             const site=String(nm.short||'NOC').replace(/\s*NOC\s*/,' ').trim()||'NOC';
-            inner=`<span class="blk noc" style="background:${nm.color};color:${chipInk(nm.color)}">☾ ${esc(site)}</span>`;
+            inner=`<span class="blk noc" style="background:${nm.color};color:${chipInk(nm.color)}"><i class="bt">☾ ${esc(site)}</i></span>`;
           }else{
             const m=META(ds[0]);
-            inner=`<span class="blk" style="background:${m.color};color:${chipInk(m.color)}">${
-              esc(shiftLabel(ME,iso,ds[0],true))}</span>`;
+            inner=`<span class="blk" style="background:${m.color};color:${chipInk(m.color)}"><i class="bt">${
+              esc(shiftLabel(ME,iso,ds[0],true))}</i></span>`;
           }
         }
-        if(!inner&&cmeReq)inner='<span class="blk cme">CME</span>';
+        if(!inner&&cmeReq)inner='<span class="blk cme"><i class="bt">CME</i></span>';
         if(a&&a.r&&a.r.length)inner+='<span class="rl"></span>';
         const spoken=[`${MONL[mo]} ${d}`];
         if(shown.length)spoken.push(shown.map(x=>shiftLabel(ME,iso,x,false)).join(' and '));
@@ -2007,13 +2557,13 @@ function renderSched(){
       ● is a day you asked to work, ○ a day off you requested. <b style="color:var(--signal)">Today</b>
       is ringed in green. Tap any day for the details.</div>`;
   }else{
-    const all=myShifts(ME).sort(byTime);
+    const all=myShifts(ME,blockDates(),vDayOf).sort(byTime);
     if(!all.length)html+='<div class="empty">Nothing scheduled this block.</div>';
     let lastMo='';
     all.forEach(s=>{
       const mk=s.iso.slice(0,7);
       if(mk!==lastMo){lastMo=mk;html+=`<h2 class="sec">${MONL[+mk.slice(5)-1]}</h2>`;}
-      const a=dayOf(ME,s.iso),roles=(a.r||[]).map(r=>(DATA.roles[r]||{label:r}).label);
+      const a=vDayOf(ME,s.iso),roles=(a.r||[]).map(r=>(DATA.roles[r]||{label:r}).label);
       html+=shiftRow(s.iso,s.shift,roles.length?`◆ ${esc(roles[0])}`:'');
     });
   }
@@ -2025,6 +2575,18 @@ function renderSched(){
   wireSubscribe();
   $('#vCal').onclick=()=>{schedView='cal';renderSched();};
   $('#vList').onclick=()=>{schedView='list';renderSched();};
+  $('#vWeek').onclick=()=>{schedView='week';if(!WEEKISO)initWeek();track('view_week',{});renderSched();};
+  const wp=$('#wkPrev'), wn=$('#wkNext'), wt=$('#wkToday');
+  if(wp)wp.onclick=()=>{WEEKISO=isoAdd(WEEKISO,-7);renderSched();};
+  if(wn)wn.onclick=()=>{WEEKISO=isoAdd(WEEKISO,7);renderSched();};
+  if(wt)wt.onclick=()=>{initWeek();renderSched();};
+  $$('.wkrow',pane).forEach(r=>{const go=()=>openDay(r.dataset.iso);
+    r.onclick=go; r.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}};});
+  const qs=$('#qSel');
+  if(qs)qs.onchange=()=>{ VIEWBLOCK=qs.value==='archive'?'archive':'live';
+                          track('view_quarter',{block:VIEWBLOCK}); renderSched(); };
+  fitChips(pane);
+
   $$('.cell[data-iso],.row[data-iso]',pane).forEach(c=>{
     c.onclick=()=>openDay(c.dataset.iso);
     c.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openDay(c.dataset.iso);}};
@@ -2049,9 +2611,11 @@ function downloadICS(){
       if(!hrs){
         L.push('DTSTART;VALUE=DATE:'+iso.replace(/-/g,''),'DTEND;VALUE=DATE:'+isoAdd(iso,1).replace(/-/g,''));
       }else{
-        const[h,mi,dur]=hrs;
-        const endH=h+dur, endIso=endH>=24?isoAdd(iso,1):iso;
-        L.push('DTSTART:'+icsStamp(iso,h,mi),'DTEND:'+icsStamp(endIso,endH%24,mi));
+        // (startH, startM, endH, endM). An end before the start still means the next day, which
+        // no current shift does — nights stop at 23:59 — but the rule is about the times.
+        const[h,mi,eh,em]=hrs;
+        const endIso=(eh<h||(eh===h&&em<mi))?isoAdd(iso,1):iso;
+        L.push('DTSTART:'+icsStamp(iso,h,mi),'DTEND:'+icsStamp(endIso,eh,em));
       }
       L.push('SUMMARY:'+shiftLabel(ME,iso,s,false),'LOCATION:'+m.sub.replace(/,/g,''),
              'DESCRIPTION:'+(m.sub+((a.r&&a.r.length)?' — also '+a.r.join(', '):'')).replace(/,/g,'\\,'),
@@ -2099,7 +2663,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260823.2003';           // shown in the account bar so a stale app is obvious
+const BUILD='260825.2327';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 const PH_KEY='phc_pr4QepiHtyMUqSymFZFyH2s2jKesJJEi4sWDjhaKttDN', PH_HOST='https://us.i.posthog.com';
 /* ---------- analytics ----------
@@ -2213,6 +2777,8 @@ function replayGate(){
     else if(!bad&&!REPLAY_ON){ PH.startSessionRecording&&PH.startSessionRecording(); REPLAY_ON=true; }
   }catch(e){}
 }
+applyCalScale();
+measureBanner();
 analyticsInit();
 
 /* NOTHING WAS WATCHING FOR ERRORS. These two are the reason this went in at all. */
@@ -2429,6 +2995,17 @@ const isAdmin=()=>!!(SESSION&&SESSION.role==='admin');
 // the physician never got it.
 const onBehalf=()=>(ROLE==='admin'&&ME&&ACCT&&ME!==ACCT.person)?ME:null;
 const dOnly=d=>String(d||'').slice(0,10);
+/* WHEN THE REQUEST WINDOW OPENS. Requests are for the period that begins when they close —
+   that is what the deadline means — so the pickers start there and the counters count there.
+   Derived rather than hard-coded to 2027: next quarter this has to move on its own, and a
+   literal would have to be remembered by somebody. */
+function reqStart(){
+  const d=(CFG&&CFG.deadline)||'';
+  if(/^\d{4}-\d{2}-\d{2}$/.test(d))return d;
+  const last=(DATA.dates||[]).slice(-1)[0];
+  return last?isoAdd(last,1):realTodayISO();
+}
+function reqYear(){ return +reqStart().slice(0,4); }
 function daysLeft(){
   if(!CFG||!CFG.deadline)return null;
   // Reads the same "today" as everything else, so a simulated date moves the countdown too.
@@ -2479,9 +3056,18 @@ function renderMoonReq(pane,rq,dl){
         <span class="mnote">${per(k)} night${per(k)===1?'':'s'} offered</span></label>`).join('')}
     </div>
     <h2 class="sec">Nights available to work</h2>
-    <div class="addrow"><input type="date" id="mnDate" aria-label="date"><button class="btn" id="mnAdd">Add</button></div>
+    <div class="addrow"><input type="date" id="mnDate" aria-label="date" min="${reqStart()}"
+      max="${reqYear()}-12-31" value="${reqStart()}"><button class="btn" id="mnAdd">Add</button></div>
     <div class="addhint" id="mnHint"></div>
     <div class="chips" id="mnChips">${chipList(avail,'mn',1)}</div>
+    <h2 class="sec">How you'd like your nights</h2>
+    <p class="muted" style="margin-top:0">If you are given more than one, would you rather they
+      ran back to back or were spread out? A preference, not a guarantee — the schedule may not
+      be able to honour it.</p>
+    <div class="segx" id="nsSeg">
+      ${[['','No preference'],['together','Back to back'],['apart','Spread out']]
+        .map(([k,l])=>`<button data-ns="${k}" class="${(rq.nightShape||'')===k?'on':''}">${l}</button>`).join('')}
+    </div>
     <div class="btnrow"><button class="btn pri" id="mSave">Save my availability</button></div>
     <div class="msg" id="mMsg"></div>`;
   const collect=()=>{
@@ -2505,11 +3091,15 @@ function renderMoonReq(pane,rq,dl){
     const i=avail.indexOf(c.dataset.d); if(i>=0)avail.splice(i,1);
     MYREQ={...rq,nights_available:avail,shifts_wanted:collect()}; renderReq();
   });
+  $$('#nsSeg button',pane).forEach(b=>b.onclick=()=>{
+    MYREQ={...rq,nights_available:avail,shifts_wanted:collect(),nightShape:b.dataset.ns||null};
+    renderReq();});
   $('#mSave').onclick=async()=>{
     const m=$('#mMsg'); m.textContent='Saving…'; m.className='msg on';
     try{
       const who=onBehalf();
-      const body={nights_available:avail,shifts_wanted:collect(),moonlighter:true};
+      const body={nights_available:avail,shifts_wanted:collect(),moonlighter:true,
+                  nightShape:(MYREQ&&MYREQ.nightShape)||null};
       if(who)body.person=who;
       await api('/requests',{method:'POST',body:JSON.stringify(body)});
       m.textContent=who?('Saved for '+fullOf(who)):'Saved'; m.className='msg on ok';
@@ -2543,8 +3133,15 @@ function renderReq(){
 
   const rq=MYREQ||{}, off=rq.off||[], cme=rq.cme||[], nonoc=rq.no_noc||[], on=rq.on||[];
   const allow=(CFG&&CFG.allowance)||50;
-  const yr=(new Date().getFullYear());
-  const usedThisYear=off.filter(d=>d.slice(0,4)==String(yr)).length;
+  /* THE YEAR BEING REQUESTED FOR, not the year it happens to be.
+     This read new Date().getFullYear() — 2026 — and counted only off-days in that year. But
+     requests close 1 January 2027 and are FOR what comes after, so every date anybody entered
+     was filtered straight back out: "0 days off asked for", "50 of 50 left", however many they
+     had saved. The counters looked broken because they were counting a different year from the
+     one the form collects.
+     The window opens when requests close, which is the rule the deadline already states. */
+  const rs=reqStart(), ry=reqYear();
+  const usedThisYear=off.filter(d=>d.slice(0,4)===String(ry)).length;
   const left=Math.max(0,allow-usedThisYear);
   const dl=daysLeft();
 
@@ -2561,7 +3158,7 @@ function renderReq(){
     </div>`:''}
 
     <div class="balance">
-      <div><span class="n">${usedThisYear}</span><span class="l">days off asked for in ${yr}</span></div>
+      <div><span class="n">${usedThisYear}</span><span class="l">days off asked for in ${ry}</span></div>
       <div><span class="n">${left}</span><span class="l">of ${allow} left</span></div>
       <div><span class="n">${cme.length}</span><span class="l">CME days (no cap)</span></div>
     </div>
@@ -2571,17 +3168,17 @@ function renderReq(){
     approval.</b></p>
 
     <h2 class="sec">Request Off</h2>
-    <div class="addrow"><input type="date" id="offDate" aria-label="date"><button class="btn" id="offAdd">Add</button></div>
+    <div class="addrow"><input type="date" id="offDate" aria-label="date" min="${rs}" max="${ry}-12-31" value="${rs}"><button class="btn" id="offAdd">Add</button></div>
     <div class="addhint" id="offHint"></div>
     <div class="chips" id="offChips">${chipList(off,'off',1)}</div>
 
     <h2 class="sec">Request CME</h2>
-    <div class="addrow"><input type="date" id="cmeDate" aria-label="date"><button class="btn" id="cmeAdd">Add</button></div>
+    <div class="addrow"><input type="date" id="cmeDate" aria-label="date" min="${rs}" max="${ry}-12-31" value="${rs}"><button class="btn" id="cmeAdd">Add</button></div>
     <div class="addhint" id="cmeHint"></div>
     <div class="chips" id="cmeChips">${chipList(cme,'cme',1)}</div>
 
     <h2 class="sec">Request No Nights</h2>
-    <div class="addrow"><input type="date" id="nnDate" aria-label="date"><button class="btn" id="nnAdd">Add</button></div>
+    <div class="addrow"><input type="date" id="nnDate" aria-label="date" min="${rs}" max="${ry}-12-31" value="${rs}"><button class="btn" id="nnAdd">Add</button></div>
     <div class="addhint" id="nnHint"></div>
     <div class="chips" id="nnChips">${chipList(nonoc,'nn',1)}</div>
 
@@ -2598,6 +3195,12 @@ function renderReq(){
     </div>
     <div id="reqErr"></div>`;
 
+  /* THE PICKER OPENS ON THE WINDOW, NOT ON TODAY. A bare date input opens at the current month
+     however its min is set, so everyone was landing on August 2026 and scrolling forward five
+     months to reach the block they are requesting for. Prefilled with the first day of the
+     window instead.
+     iOS's own "Reset" clears the field, which is why the empty case below still matters and
+     still has to say something useful rather than looking broken. */
   const add=(inputId,arr,tag)=>{
     const el=$('#'+inputId), hint=$('#'+tag+'Hint');
     if(!el.value){                       // silence next to a big button reads as "broken"
@@ -2644,7 +3247,9 @@ function renderReq(){
 function renderReqRead(box){
   const rq=MYREQ||{};
   const sec=(t,a)=>`<div class="rdrow"><span>${t}</span><span>${(a&&a.length)?a.slice().sort().map(fmtD).join(', '):'—'}</span></div>`;
+  const NS={together:'Back to back',apart:'Spread out'};
   box.innerHTML=sec('Days off',rq.off)+sec('CME',rq.cme)+sec('No nights',rq.no_noc)
+    +(rq.nightShape&&NS[rq.nightShape]?`<div class="rsec"><b>Nights</b> ${esc(NS[rq.nightShape])}</div>`:'')
     +((rq.on&&rq.on.length)?sec('Want to work',rq.on):'')
     +`<div class="rdrow"><span>Priority holiday</span><span>${rq.holiday?esc(rq.holiday):'—'}</span></div>`;
 }
@@ -3268,7 +3873,7 @@ function prefetchWho(date,shift){
 }
 
 function openCoverAsk(preIso,preShift){
-  const shifts=myShifts(ME).filter(s=>s.iso>=todayISO());
+  const shifts=allShifts(ME).filter(s=>s.iso>=todayISO());
   if(!shifts.length){ toast('No upcoming shifts'); return; }
   sheet('Request coverage',
     `<label class="lbl" for="cvShift">Which shift</label>
@@ -3384,7 +3989,7 @@ function renderSwap(){
   if(!ME){pane.innerHTML='<div class="empty" style="margin-top:22px">Choose a physician first.</div>';return;}
   if(!SESSION){pane.innerHTML='<div class="empty" style="margin-top:22px">Sign in again to use swaps.</div>';return;}
 
-  const mine=myShifts(ME).sort(byTime).filter(x=>x.iso>=todayISO());
+  const mine=allShifts(ME).filter(x=>x.iso>=todayISO());
   const others=DATA.people.filter(p=>p!==ME).sort();
   // Live only. Settled ones move to the archive at the bottom rather than sitting here.
   const mySw=MYSWAPS.filter(s=>(s.fromPerson===ME||s.toPerson===ME)&&!SWAP_DONE.includes(s.status));
@@ -3515,15 +4120,15 @@ function openSwapMsg(p,shift,mode,back){
 
 /* ---------- day sheet ---------- */
 function openDay(iso){
-  if(!DATA.dates.includes(iso)){sheet(fmtLong(iso),'<div class="note" style="margin-top:0">Outside this block.</div>');return;}
-  const a=dayOf(ME,iso),rq=DATA.requests[ME]||{};
+  if(!knownDate(iso)){sheet(fmtLong(iso),'<div class="note" style="margin-top:0">Outside this block.</div>');return;}
+  const a=anyDayOf(ME,iso),rq=DATA.requests[ME]||{};
   const onReq=(rq.on||[]).includes(iso),offReq=(rq.off||[]).includes(iso),cmeReq=(rq.cme||[]).includes(iso);
   let b='';
   const daySh=(a?a.s:[]).filter(s=>isRealShift(ME,iso,s));
   if(daySh.length){
     daySh.slice().sort((x,y)=>startHour(x)-startHour(y)).forEach(s=>{const m=META(s);
       const hrs=DATA.kindHours[m.kind];
-      const time=!hrs?'All day':`${hrs[0]%12||12}${hrs[0]<12?'am':'pm'} – ${(hrs[0]+hrs[2])%24%12||12}${((hrs[0]+hrs[2])%24)<12?'am':'pm'}`;
+      const time=hrsText(hrs);
       b+=`<div class="row" style="margin-top:8px"><span class="sp" style="background:${m.color}"></span>
         <span><span class="t">${esc(shiftLabel(ME,iso,s,false))}</span><span class="s">${esc(m.sub)}</span></span>
         <span class="rt">${time}</span></div>`;});
@@ -3602,11 +4207,16 @@ let EDITS=[], MYCHANGES=[];
 function applyEdits(edits){
   EDITS=edits||[]; MYCHANGES=[];
   if(!ME)return;
-  const mine=DATA.day[ME]||(DATA.day[ME]={});
+  /* AN EDIT LANDS IN THE QUARTER ITS DATE BELONGS TO. Edits can now be made on Q3 dates, and
+     writing them all into the Q4 map would have invented a Q4 day that does not exist while
+     leaving the real Q3 day untouched — the change would appear on no screen at all. */
+  const arch=(DATA.archive||{}).day;
+  const inArchive=(iso)=>!!(arch&&(DATA.archive.dates||[]).includes(iso));
   EDITS.forEach(o=>{
     const was=(o.from||[]).includes(ME), now=(o.to||[]).includes(ME);
     if(was===now)return;                          // this edit does not involve me
-    const a=mine[o.date]||(mine[o.date]={s:[],r:[]});
+    const map=inArchive(o.date)?(arch[ME]||(arch[ME]={})):(DATA.day[ME]||(DATA.day[ME]={}));
+    const a=map[o.date]||(map[o.date]={s:[],r:[]});
     a.s=(a.s||[]).filter(x=>x!==o.unit);
     if(now)a.s.push(o.unit);
     MYCHANGES.push({date:o.date,unit:o.unit,added:now,at:o.at,by:o.by,note:o.note});
@@ -3863,6 +4473,7 @@ function go(t){
   document.body.classList.toggle('wide',t==='admin');
   window.scrollTo(0,0);
   if(t==='now')renderNow();
+  if(t!=='sched')VIEWBLOCK=defaultBlock();   // only the calendar switches; back to today's quarter
   if(t==='sched')renderSched();
   if(t==='req')renderReq();
   if(t==='swap')renderSwap();      // renderSwap wires its own buttons
@@ -3987,8 +4598,8 @@ function testDateBar(){
   const on=!!testToday();
   bar.innerHTML='<label class="tdl" for="tdIn">'+(on?'Pretending it is':'Today is')+'</label>'+
     '<input class="tdi" type="date" id="tdIn" value="'+esc(todayISO())+'" '+
-      'min="'+esc(DATA.dates[0]<realTodayISO()?DATA.dates[0]:realTodayISO())+'" '+
-      'max="'+esc(DATA.dates[DATA.dates.length-1])+'">'+
+      'min="'+esc(spanDates()[0]<realTodayISO()?spanDates()[0]:realTodayISO())+'" '+
+      'max="'+esc(spanDates()[1])+'">'+
     (on?'<button class="tdb" id="tdReset">Back to today</button>':'');
   document.querySelector('#tdIn').onchange=e=>{
     const v=e.target.value;
@@ -4227,6 +4838,7 @@ function renderAdminHome(){
     <div class="hlinks">
       <button class="btn" id="hDash">Open the dashboard</button>
       <button class="btn" id="hPick">Look at a physician</button>
+      <button class="btn" id="hAcct">Manage access</button>
       <button class="btn gho" id="hRef">Refresh</button>
     </div>`;
 
@@ -4265,7 +4877,216 @@ function renderAdminHome(){
   });
   $('#hDash').onclick=()=>{ showAdminView(); markBar('admin'); };
   $('#hPick').onclick=()=>{ hideAdminHome(); if(ME){boot();markBar('pick');} else togglePicker(); };
+  $('#hAcct').onclick=()=>showAccounts();
   $('#hRef').onclick=async()=>{ await loadAdminQueue(); renderAdminHome(); adminBar(); };
+}
+
+/* ---------- managing access ----------
+   Who can get in, and the three things that can be done about it. Written as one screen because
+   the question is always comparative — "is she locked out or has she never set up" is answered by
+   seeing the row next to everyone else's, not by looking up one person.
+
+   Nothing here deletes. Retiring appends a disabled version of the record, so it is reversible and
+   the history survives; the API refuses Aaron Nadon outright and will not act on anything but one
+   exact name. The confirmation below is deliberately awkward — password plus the name typed back —
+   because the failure that matters is not malice, it is a tired person tapping the wrong row. */
+function acctChips(a){
+  const c=[];
+  if(a.disabled)      c.push('<span class="achip bad">Closed</span>');
+  else if(!a.enrolled)c.push('<span class="achip warn">Not set up</span>');
+  if(a.lockedFor)     c.push(`<span class="achip bad">Locked ${a.lockedFor>90
+                                ?Math.ceil(a.lockedFor/60)+'m':a.lockedFor+'s'}</span>`);
+  else if(a.failedAttempts>=3) c.push(`<span class="achip warn">${a.failedAttempts} failed</span>`);
+  if(a.enrolled&&!a.disabled){
+    if(a.twoFactor) c.push('<span class="achip">2FA</span>');
+    if(a.passkeys)  c.push(`<span class="achip">Face ID${a.passkeys>1?' ×'+a.passkeys:''}</span>`);
+  }
+  if(a.protectedAccount) c.push('<span class="achip">Protected</span>');
+  return c.join('');
+}
+async function showAccounts(){
+  sheet('Manage access','<div class="empty">Loading…</div>');
+  let rows=[];
+  try{
+    const j=await api('/account',{method:'POST',body:JSON.stringify({action:'accounts'})});
+    rows=j.accounts||[];
+  }catch(e){ $('#sheetBd').innerHTML=`<div class="empty">${esc(e.message||'Could not load accounts')}</div>`; return; }
+
+  // Filter state lives out here so a redraw after an action does not throw you back to the top
+  // of 65 names — which is where you were when somebody phoned.
+  let q='', tab='all';
+  const needsAttention=a=>!!a.lockedFor||a.failedAttempts>=3;
+  const pending=a=>!a.enrolled&&!a.disabled;
+  const draw=()=>{
+    const locked=rows.filter(needsAttention).length;
+    const notset=rows.filter(pending).length;
+    const closed=rows.filter(a=>a.disabled).length;
+    const match=a=>{
+      if(tab==='locked'&&!needsAttention(a))return false;
+      if(tab==='pending'&&!pending(a))return false;
+      if(tab==='closed'&&!a.disabled)return false;
+      if(!q)return true;
+      const t=(fullOf(a.person)||a.person)+' '+a.person+' '+(a.email||'');
+      return t.toLowerCase().includes(q);
+    };
+    // Whoever needs something first, then whoever has not started, then everyone else. A list
+    // sorted purely alphabetically buries the one person you opened this to find.
+    const shown=rows.filter(match).sort((x,y)=>
+      (needsAttention(y)-needsAttention(x))||(pending(y)-pending(x))||
+      (x.disabled-y.disabled)||
+      String(fullOf(x.person)||x.person).localeCompare(String(fullOf(y.person)||y.person)));
+    const tabBtn=(k,label,n)=>`<button class="acctab${tab===k?' on':''}" data-tab="${k}"
+      role="tab" aria-selected="${tab===k}"${n===0&&k!=='all'?' disabled':''}>${label}${
+      n!=null?`<span class="n">${n}</span>`:''}</button>`;
+    $('#sheetBd').innerHTML=`
+      <div class="note">${rows.length} account${rows.length===1?'':'s'}.
+        Closing an account can be undone; it is not a delete.</div>
+      <div class="accsearch">
+        <svg class="mag" viewBox="0 0 20 20" aria-hidden="true" fill="none"
+             stroke="currentColor" stroke-width="1.9" stroke-linecap="round">
+          <circle cx="8.6" cy="8.6" r="5.4"/><path d="M12.7 12.7 17 17"/></svg>
+        <input id="accQ" placeholder="Find a name or email" aria-label="Find a name or email"
+               autocomplete="off" autocapitalize="none" spellcheck="false" value="${esc(q)}">
+        ${q?'<button class="clr" id="accClr" aria-label="Clear search">×</button>':''}
+      </div>
+      <div class="acctabs" role="tablist">${tabBtn('all','All',rows.length)}${
+        tabBtn('locked','Locked out',locked)}${tabBtn('pending','Never set up',notset)}${
+        tabBtn('closed','Closed',closed)}</div>
+      <div class="acclist">${shown.length?shown.map(a=>`
+        <div class="accrow${a.disabled?' off':needsAttention(a)?' needs':pending(a)?' pending':''}">
+          <div class="accmain">
+            <div class="accwho"><b>${esc(fullOf(a.person)||a.person)}</b>
+              <span class="accsub">${esc(a.email||'no email on file')}</span></div>
+            <div class="accchips">${acctChips(a)}</div>
+          </div>
+          <div class="accact">${a.protectedAccount
+            ? '<span class="accnote">Cannot be changed here.</span>'
+            : [ a.lockedFor||a.failedAttempts ? `<button class="btn sm pri" data-un="${esc(a.person)}">Unlock</button>`:'',
+                a.disabled ? `<button class="btn sm" data-rs="${esc(a.person)}">Reopen</button>`
+                           : `<button class="btn sm" data-re="${esc(a.person)}">Reset sign-in</button>
+                              <button class="btn sm quiet" data-rt="${esc(a.person)}" title="Close account">Close</button>`
+              ].filter(Boolean).join('')}</div>
+        </div>`).join(''):`<div class="accnone">Nobody matches${q?` “${esc(q)}”`:''}.</div>`}</div>`;
+
+    const qi=$('#accQ');
+    if(qi){ qi.oninput=()=>{ q=qi.value.trim().toLowerCase(); const at=qi.selectionStart;
+                             draw(); const n=$('#accQ'); if(n){n.focus(); try{n.setSelectionRange(at,at);}catch(e){}} }; }
+    const clr=$('#accClr');
+    if(clr) clr.onclick=()=>{ q=''; draw(); const n=$('#accQ'); if(n)n.focus(); };
+    $$('[data-tab]').forEach(b=>b.onclick=()=>{ tab=b.dataset.tab; draw(); });
+
+    const reload=async()=>{
+      const j=await api('/account',{method:'POST',body:JSON.stringify({action:'accounts'})});
+      rows=j.accounts||[]; draw();
+    };
+    // Unlock is the one action with nothing to confirm: it only ever gives access back, and the
+    // person it helps is usually on the phone waiting.
+    $$('[data-un]').forEach(b=>b.onclick=async()=>{
+      b.disabled=true;
+      try{ const j=await api('/account',{method:'POST',
+             body:JSON.stringify({action:'unlock',person:b.dataset.un})});
+           toast(`Unlocked${j.clearedAttempts?` — cleared ${j.clearedAttempts} attempts`:''}`);
+           await reload(); }
+      catch(e){ toast(e.message||'Could not unlock'); b.disabled=false; }
+    });
+    $$('[data-rs]').forEach(b=>b.onclick=()=>confirmAcct('restore',b.dataset.rs));
+    $$('[data-re]').forEach(b=>b.onclick=()=>confirmAcct('reenrol',b.dataset.re));
+    $$('[data-rt]').forEach(b=>b.onclick=()=>confirmAcct('retire', b.dataset.rt));
+  };
+  draw();
+}
+/* The awkward step. Reopening only restores access, so it asks for the password and no more;
+   the two that take access away also want the name typed back. */
+function confirmAcct(action,person){
+  const full=fullOf(person)||person;
+  const copy={
+    retire:{ t:'Close this account',
+             w:`<b>${esc(full)}</b> will not be able to sign in — not with their password, their
+                access code, Face ID, or a reset link. Sessions already open end within 12 hours.
+                Their schedule, requests and swaps are untouched, and you can reopen this later.` },
+    reenrol:{t:'Reset sign-in',
+             w:`Clears <b>${esc(full)}</b>'s password, authenticator and Face ID. They set the
+                account up again from their access code, which keeps working. Use this when
+                somebody has lost the phone their authenticator was on.` },
+    restore:{t:'Reopen this account',
+             w:`<b>${esc(full)}</b> can sign in again with the password they already had.` },
+  }[action];
+  const needName=action!=='restore';
+  const danger=action==='retire';
+  sheet(copy.t,`
+    <div class="cabox${danger?' danger':''}">
+      <div class="cawho"><span class="caav">${esc((full.trim()[0]||'?').toUpperCase())}</span>
+        <div><b>${esc(full)}</b><span class="cawhat">${
+          action==='retire'?'Access removed — reversible'
+          :action==='reenrol'?'Password and authenticator cleared'
+          :'Access given back'}</span></div></div>
+      <p class="cadesc">${copy.w}</p>
+    </div>
+    <div class="fld">
+      <label for="caPw">Your own password</label>
+      <input id="caPw" type="password" autocomplete="current-password" placeholder="••••••••">
+      <span class="hint">Confirms it is you making the change, not whoever picked up your phone.</span>
+    </div>
+    ${needName?`<div class="fld" id="caNmF">
+      <label for="caNm">Type <b>${esc(person)}</b> to confirm</label>
+      <input id="caNm" autocomplete="off" autocapitalize="none" spellcheck="false"
+             placeholder="${esc(person)}">
+      <span class="hint">Guards against the wrong row in a list of names one tap apart.</span>
+    </div>`:''}
+    <div class="siMsg" id="caMsg"></div>
+    <div class="btnrow two">
+      <button class="btn gho" id="caNo">Cancel</button>
+      <button class="btn ${danger?'warnbtn':'pri'}" id="caGo">${copy.t}</button>
+    </div>`);
+  $('#caNo').onclick=closeSheet;
+  $('#caGo').onclick=async()=>{
+    const pw=$('#caPw').value, nm=needName?$('#caNm').value.trim():undefined;
+    const say=(t)=>{const m=$('#caMsg'); m.textContent=t; m.className='siMsg on bad';};
+    if(!pw)return say('Enter your password.');
+    if(needName&&nm!==person){ const f=$('#caNmF'); if(f)f.classList.add('bad');
+                               return say(`Type ${person} exactly to confirm.`); }
+    $('#caGo').disabled=true;
+    try{
+      const j=await api('/account',{method:'POST',
+        body:JSON.stringify({action,person,password:pw,...(needName?{confirm:nm}:{})})});
+      if(action==='reenrol'){ afterReset(person,j); return; }
+      closeSheet(); toast(j.note||'Done');
+      await showAccounts();          // re-read rather than patch the row: the server decides
+    }catch(e){ say(e.message||'Could not save'); $('#caGo').disabled=false; }
+  };
+}
+/* WHAT TO TELL THEM, and it stays on screen.
+   A reset is only half the job: the person still cannot get in until somebody tells them what
+   to do, and the somebody is whoever just pressed the button. A toast is gone in three seconds,
+   usually while they are still finding their phone.
+   There is no code to show here and there never will be — the server holds sha256 of an access
+   code and nothing else, so it cannot print one it has never seen. What it CAN do is say
+   exactly what still works and hand over the link. */
+function afterReset(person,j){
+  const full=fullOf(person)||person;
+  const url=location.origin+location.pathname;
+  sheet('Sign-in reset',`
+    <div class="note">${esc(j.note||'Password, authenticator and Face ID cleared.')}</div>
+    <div class="accsay">
+      <h4>What to tell ${esc(full)}</h4>
+      <p>Their <b>access code has not changed</b> and still works — it is the one they were
+         given originally. They open the link, enter it, and set a new password and
+         authenticator. Nothing else about their account moved: schedule, requests and swaps
+         are exactly as they were.</p>
+      <div class="copyline">
+        <code id="rsUrl">${esc(url)}</code>
+        <button class="btn sm" id="rsCopy">Copy link</button>
+      </div>
+    </div>
+    <div class="btnrow"><button class="btn pri" id="rsDone">Done</button></div>`);
+  $('#rsCopy').onclick=()=>{
+    const t=$('#rsUrl').textContent;
+    // file:// and some in-app browsers are not a secure context, so never rely on the promise.
+    const ok=()=>{ $('#rsCopy').textContent='Copied'; setTimeout(()=>{const b=$('#rsCopy'); if(b)b.textContent='Copy link';},1400); };
+    if(navigator.clipboard&&window.isSecureContext) navigator.clipboard.writeText(t).then(ok,()=>toast(t));
+    else toast(t);
+  };
+  $('#rsDone').onclick=async()=>{ closeSheet(); await showAccounts(); };
 }
 function showAdminHome(){
   hideAdminView();
@@ -4460,6 +5281,23 @@ function siPaint(body){
 function siSay(t,bad){const m=document.querySelector('#siMsg'); if(!m)return;
   m.textContent=t||''; m.className='siMsg'+(t?' on':'')+(bad?' bad':'');}
 
+/* A lockout is reported the same way wherever it lands. The throttle is per ACCOUNT and it fires
+   BEFORE the password is even checked, so the 429 reaches the email+password step far more often
+   than the code step — and that was the one step still printing the server's raw
+   "Try again in 847s.", the dead end the code step had already been fixed to avoid.
+   It surfaced as "I can sign in on the browser but not the home-screen app": a browser trusted
+   once holds __dev for 90 days and skips the second factor entirely, while an installed PWA is a
+   separate storage context with nothing trusted, so it must pass the whole sign-in from scratch
+   and is where the mistyped codes actually accumulate. Same account, same lockout, only one of
+   the two ever had to notice. */
+function siThrottleMsg(j){
+  const m=/try again in (\d+)s/i.exec((j&&j.error)||'');
+  if(!m)return null;
+  const secs=+m[1];
+  return 'Too many attempts. Try again in '+(secs>90?Math.ceil(secs/60)+' minutes':secs+' seconds')+
+         '. Resetting your password also clears this.';
+}
+
 /* ---------- live refresh ----------
    The portal used to fetch its data once at sign-in and never again, so a shift the scheduling
    lead changed this morning never reached a session opened last night — the API was right, the
@@ -4609,7 +5447,8 @@ async function loadPortal(token){
      use. When Aaron says "Dr Stramel cannot sign in", that is the string to search for. */
   try{ if(PH&&PH.identify)PH.identify(j.person,{role:j.role,
          has_schedule:!!(j.data&&j.data.people&&j.data.people.includes(j.person))}); }catch(e){}
-  track('portal_opened',{role:j.role});
+  VIEWBLOCK=defaultBlock();          // the quarter today falls in, per the device
+  track('portal_opened',{role:j.role,quarter:VIEWBLOCK});
   document.body.classList.remove('locked');
   replayGate();                                       // signed in: the sign-in card has gone
   const g=document.querySelector('.signin'); if(g)g.remove();
@@ -4688,7 +5527,7 @@ function stepPassword(email){
         return;
       }
       if(j.need==='2fa'){ step2fa(em,pw); return; }
-      siSay(j.error||'Could not sign in',true);
+      siSay(siThrottleMsg(j)||j.error||'Could not sign in',true);
     }catch(e){ siSay('Could not reach the server.',true); }
   };
   document.querySelector('#siGo').onclick=go;
@@ -4716,7 +5555,12 @@ function step2fa(email,pw){
       const r=await fetch(API+'/session',{method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({email,password:pw,totp:code,device:rememberedDevice()})});
       const j=await r.json();
-      if(!r.ok){siSay(j.error||'That code is not right.',true);return;}
+      if(!r.ok){
+        // "Too many attempts" with no duration is a dead end. Say how long, and point at the
+        // reset — which clears the lockout as a side effect of proving who you are.
+        siSay(siThrottleMsg(j)||j.error||'That code is not right.',true);
+        return;
+      }
       try{sessionStorage.setItem('__tok',j.token);}catch(e){}
       keepDevice(j.device); keepGrant(j.grant);
       await loadPortal(j.token);
@@ -4726,7 +5570,23 @@ function step2fa(email,pw){
   document.querySelector('#siBack').onclick=()=>stepPassword(email);
   const t=document.querySelector('#siTotp');
   t.addEventListener('keydown',ev=>{if(ev.key==='Enter'){ev.preventDefault();go();}});
-  t.addEventListener('input',()=>{if(t.value.replace(/\D/g,'').length===6)go();});
+  /* SUBMITTING ON EVERY SIXTH DIGIT costs an attempt each time. Correcting a code — backspace,
+     retype — reaches six digits again and fired again; a code that had just rolled over could
+     burn three or four tries while somebody was simply fixing a typo. Auto-submit is still
+     right for the common case, but only once per distinct code, never while one is in flight,
+     and never again after one has been refused: at that point the person is correcting
+     something and should press the button when they mean it. */
+  let lastTried=null, inFlight=false, refused=false;
+  const autoGo=async()=>{
+    const code=t.value.replace(/\D/g,'');
+    if(code.length!==6||inFlight||refused||code===lastTried)return;
+    lastTried=code; inFlight=true;
+    const before=t.value;
+    await go();
+    inFlight=false;
+    if(document.querySelector('#siTotp')===t&&t.value===before)refused=true;
+  };
+  t.addEventListener('input',autoGo);
   setTimeout(()=>t.focus(),60);
 }
 
