@@ -137,8 +137,22 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
    which is the same fault wearing a different hat. 100dvh is measured against the viewport
    itself rather than an ancestor, with 100vh ahead of it for anything that does not know dvh.
    In an installed app the two are equal; there is no browser chrome to shrink one of them. */
+/* AT LEAST A SCREEN TALL, IN CSS, AT LAYOUT TIME.
+   iOS in standalone resolves bottom:0 against the DOCUMENT when the document is shorter than the
+   viewport, so the tab bar sits at the end of the content instead of on the glass. padShort()
+   fixes that by measuring and padding — but measuring happens after a layout, so there is a
+   window where the short page has already been laid out and the bar has already been placed
+   wrong. Safari then animates it back down as the page grows, which is the slow slide Sam sees
+   going Home -> Providers: the admin home is tall, the pane behind it is nearly empty, and the
+   document collapses for a moment before the spacer lands.
+   A min-height cannot be late. It is applied in the same layout pass that places the bar, so
+   there is no first frame where the document is short and nothing to animate back from.
+   min- rather than height, so a long page still grows. padShort() stays: it also covers content
+   that arrives after a fetch, and belt-and-braces here costs nothing. */
 body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--sans);
      -webkit-font-smoothing:antialiased;
+     min-height:100vh;                 /* for anything that does not know dvh */
+     min-height:100dvh;                /* the viewport as it actually is, chrome included */
      padding-bottom:calc(var(--tabh) + env(safe-area-inset-bottom))}
 button,input,select,textarea{font:inherit;color:inherit}
 a{color:var(--signal)}
@@ -943,9 +957,17 @@ body.adminmode main{padding:0}
   background:var(--alert);color:#fff;font-size:10.5px;font-weight:750;line-height:17px}
 .ab.on .abadge{background:var(--ground);color:var(--signal)}
 
+/* The bar now carries a control, so it is a row rather than a line of text. gap + wrap because
+   a long full name on a 320px phone must push the button to a second line rather than squeeze it
+   below a thumb's worth of height. */
 .viewbar{padding:7px 14px;background:var(--ok);border-top:1px solid var(--line);
-  color:var(--dim);font-size:12.5px}
+  color:var(--dim);font-size:12.5px;
+  display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
 .viewbar b{color:var(--ink)}
+.viewx{flex:none;background:var(--ground);border:1px solid var(--line);border-radius:999px;
+  color:var(--ink);font:inherit;font-size:12px;font-weight:600;padding:5px 12px;cursor:pointer;
+  min-height:32px}
+.viewx:hover{border-color:var(--signal);color:var(--signal)}
 
 /* --card and --muted were used by the swap pane but never defined, so those cards had no
    background and their names inherited a colour meant for a light surface — invisible on the
@@ -1047,7 +1069,7 @@ body.adminmode main{padding:0}
 <header class="top">
   <div class="topin">
     <div class="brand"><span class="mark" aria-hidden="true"></span><b>Scheduling Wizard</b></div>
-    <button class="whoami" id="whoami" hidden aria-label="Your account — switch physician or sign out"><span class="nm" id="whoNm"></span><span class="chev" aria-hidden="true">▾</span></button>
+    <button class="whoami" id="whoami" hidden aria-label="Your account — switch provider or sign out"><span class="nm" id="whoNm"></span><span class="chev" aria-hidden="true">▾</span></button>
   </div>
 </header>
 
@@ -1077,7 +1099,7 @@ body.adminmode main{padding:0}
 <div id="gate"><div class="in">
   <div class="gatetop" id="gateTop"></div>
   <div class="eyebrow">CCPSA · Q4 2026</div>
-  <h1 id="gateH">Physicians</h1>
+  <h1 id="gateH">Providers</h1>
   <div class="note" style="margin-top:2px" id="gateNote">Choose whose schedule to open.</div>
   <label class="sr" for="gateSearch">Search by name</label>
   <input id="gateSearch" type="search" placeholder="Search by name" autocomplete="off" autocapitalize="off" spellcheck="false">
@@ -1249,7 +1271,22 @@ function setIdentity(person,role,label){
   // The account key is the last resort, not the name: it reads as "sam" or "Greco". The API
   // sends the label from the accounts table; a physician falls back to their own full name.
   ACCT={person,role:ROLE,label:label||fullOf(person)||person};
-  CAN_SWITCH=(ROLE==='admin');
+  /* EVERY PHYSICIAN CAN LOOK AT EVERY OTHER PHYSICIAN'S SCHEDULE (Nadon, 2026-08-25). This was
+     admin-only, which is what Mary Elmasri ran into: she could see who was on a given day but
+     could not open one person and read their quarter.
+
+     SWITCHING IS NOT ADMIN ACCESS, and the two must not be confused. What a switch changes is
+     WHOSE SCHEDULE IS DRAWN — the schedule is already in the page for everyone, because "who's
+     on" and the coverage pickers have always needed it. What it does NOT change for a physician
+     is whose requests, time off, CME and swaps are shown: those stay their own. See visitingOn()
+     and the tab rule in go().
+
+     The server never had to be trusted differently for this. requests.js and coverage.js resolve
+     "who" as (role === 'admin' && asked-for) || me.person, and swaps.js filters to the swaps you
+     are a party to — so a physician who asks for somebody else's records is handed their own,
+     whatever the client does. This change only stops the app from hiding a view of data it was
+     already entitled to draw. */
+  CAN_SWITCH=true;
   // A physician is fixed to themselves. An admin who is also a physician (Nadon) opens on their
   // OWN schedule with a toggle to the admin view; an admin who is not (Sam) has no schedule of
   // their own, so they go straight to the admin view.
@@ -1311,7 +1348,7 @@ function openGate(){
     top.innerHTML=(ROLE==='admin'
         ?'<button class="gback" data-g="home">Home</button>'+
          '<button class="gback" data-g="admin">Admin view</button>':'')+
-      '<button class="gback on" data-g="pick">Physicians</button>';
+      '<button class="gback on" data-g="pick">Providers</button>';
     top.querySelectorAll('.gback').forEach(bt=>bt.onclick=()=>{
       const v=bt.dataset.g;
       if(v==='pick')return;
@@ -1334,7 +1371,7 @@ function togglePicker(){
   if(document.querySelector('.pdrop')){ closePicker(); return; }
   const chip=document.querySelector('#whoami');
   const d=el('div','pdrop');
-  d.innerHTML='<div class="pds"><input id="pdq" type="search" placeholder="Search physicians" '+
+  d.innerHTML='<div class="pds"><input id="pdq" type="search" placeholder="Search providers" '+
               'autocapitalize="none" spellcheck="false"></div><div class="pdlist" id="pdl"></div>';
   document.body.appendChild(d);
   // Anchored to the chip itself. It used to hang off the header element, which put it below the
@@ -1349,7 +1386,11 @@ function togglePicker(){
   d._place=place;
   const paint=q=>{
     const t=(q||'').trim().toLowerCase();
-    const ppl=DATA.people.filter(nm=>!t||nm.toLowerCase().includes(t)||
+    /* whoRoster(), not DATA.people. DATA.people is the CURRENT block's roster, so anybody who
+       works only the archived quarter was missing from the list entirely — the same Q4-only
+       assumption that showed CJ Mowry an empty app. If the point is to look up any physician,
+       the list has to be every physician. */
+    const ppl=whoRoster().filter(nm=>!t||nm.toLowerCase().includes(t)||
       ((DATA.providers[nm]||{}).first||'').toLowerCase().includes(t));
     const box=document.querySelector('#pdl');
     if(!ppl.length){ box.innerHTML='<div class="pdnone">Nobody by that name.</div>'; return; }
@@ -1361,7 +1402,11 @@ function togglePicker(){
       if(nm===ME)return;                       // already on them; nothing to reload
       ME=nm; try{localStorage.setItem('ccpsa_me',nm);}catch(e){}
       MYREQ=null;
-      const tab=(CUR&&CUR!=='admin')?CUR:'now';
+      // Staying on the tab you were on is right for an admin, who is switching who they work on.
+      // A physician switching to READ somebody lands on the schedule: it is the only thing that
+      // changed, and go() would bounce them off Requests or Swaps anyway.
+      const vis=(ROLE!=='admin'&&nm!==ACCT.person);
+      const tab=vis?'sched':((CUR&&CUR!=='admin')?CUR:'now');
       hideAdminView(); boot(); markBar('pick'); go(tab);
     });
   };
@@ -1435,11 +1480,20 @@ function openAccountSheet(){
           >${CALSIZES[v]}</option>`).join('')}
       </select></div>
     <div class="btnrow">
-      ${CAN_SWITCH?'<button class="btn" id="acSwitch">View another physician</button>':''}
+      ${CAN_SWITCH?'<button class="btn" id="acSwitch">View another provider</button>':''}
       <button class="btn" id="acMail">Use a different email</button>
       <button class="btn" id="acAuth">Authenticator not working?</button>
       <button class="btn gho" id="acOut">Sign out</button>
-    </div>`);
+    </div>
+    <!-- NOTIFICATIONS LIVE HERE NOW. The Swaps card is gone once the question is settled, so this
+         is the only permanent home: the state for anybody who wonders, the way back for anybody
+         who declined and changed their mind, and the test tools for an admin reproducing a
+         report. Behind your own name is where people look for their own settings. -->
+    <div class="row" style="margin-top:14px"><span class="sp" style="background:var(--line2)"></span>
+      <span style="flex:1"><span class="t">Notifications</span>
+        <span class="s" id="acPush">Checking…</span></span></div>
+    <div id="acPushBody"></div>
+    ${notifyTestHTML()}`);
   // The address lives on the account record, not in the session token — fetched only when
   // somebody opens this sheet, rather than widening every portal load for one line of text.
   loadMyEmail().then(()=>{const e=$('#acEmail'); if(e)e.textContent=MYEMAIL||'—';});
@@ -1460,6 +1514,9 @@ function openAccountSheet(){
     track('week_start',{to:WEEKSTART});
     if(CUR==='sched')renderSched();      // repaint behind the sheet, so it is right on return
   };
+  // Same painter the Swaps card used, pointed at this sheet's slot.
+  paintAccountPush();
+  wireNotifyTest();
   $('#acMail').onclick=openEmailChange;
   $('#acAuth').onclick=openAuthReset;
   $('#acOut').onclick=()=>{
@@ -1957,7 +2014,7 @@ function inBlockDay(iso){
    reference numbers you check occasionally, not something you open the app for, so they moved
    here behind your profile (client 8/17 #4). */
 function blockStatsHTML(){
-  if(!ME)return '<div class="empty">No physician selected.</div>';
+  if(!ME)return '<div class="empty">No provider selected.</div>';
   const c=counts(ME), tg=targets(ME), de=deBalance(ME);
   const pct=(a,b)=>b?Math.min(100,Math.round(a/b*100)):0;
   const dayN=c.icu+c.swing;
@@ -2060,7 +2117,7 @@ function renderGroup(){
   const months=groupMonths(); GMONTH=GMONTH||months[0];
   const chosen=[...GSEL];
   pane.innerHTML=`
-    <h2 class="sec">Compare physicians</h2>
+    <h2 class="sec">Compare providers</h2>
     <div class="note" style="margin-top:0">Pick people, then choose how to look at them.</div>
     <div class="gpick" id="gPick">${DATA.people.map(p=>
       `<button class="pill gp${GSEL.has(p)?' on':''}" data-p="${esc(p)}">${esc(p)}</button>`).join('')}</div>
@@ -2072,7 +2129,7 @@ function renderGroup(){
       <button class="btn" id="gClear">Clear</button>
     </div>
     <div id="gBody">${chosen.length?(GMODE==='grid'?groupGrid(chosen):groupStack(chosen))
-      :'<div class="empty">Choose one or more physicians above.</div>'}</div>`;
+      :'<div class="empty">Choose one or more providers above.</div>'}</div>`;
   pane.querySelectorAll('.gp').forEach(b=>b.onclick=()=>{
     const p=b.dataset.p; GSEL.has(p)?GSEL.delete(p):GSEL.add(p); renderGroup();});
   pane.querySelectorAll('[data-gm]').forEach(b=>b.onclick=()=>{GMODE=b.dataset.gm;renderGroup();});
@@ -2252,8 +2309,8 @@ function wireNudge(){
 
 function renderNow(){
   const pane=$('#pane-now');
-  if(!ME){pane.innerHTML=`<div class="empty" style="margin-top:22px">Choose a physician to see a personal schedule.
-    <div class="btnrow"><button class="btn pri" id="pickWho">Choose physician</button></div></div>`;
+  if(!ME){pane.innerHTML=`<div class="empty" style="margin-top:22px">Choose a provider to see a personal schedule.
+    <div class="btnrow"><button class="btn pri" id="pickWho">Choose provider</button></div></div>`;
     $('#pickWho').onclick=openGate;return;}
   const t=todayISO();
   const all=allShifts(ME);
@@ -2401,10 +2458,17 @@ function buildPrintable(){
   if(!host){ host=el('div',''); host.id='printOnly'; document.body.appendChild(host); }
   const who=ME?(fullOf(ME)||ME):null;
   if(!who){ host.innerHTML=''; return; }
-  const shifts=myShifts(ME);
+  /* BOTH QUARTERS on the printable too. myShifts() defaults to the LIVE block, so the sheet you
+     printed or saved as PDF ended at 1 October while the app beside it showed July onwards.
+     allShifts() is the pair-aware version that already existed for exactly this. Client 8/26. */
+  const shifts=allShifts(ME);
   const when=new Date().toLocaleDateString(undefined,{year:'numeric',month:'long',day:'numeric'});
-  let h='<h1>'+esc(who)+'</h1><div class="pmeta">'+esc(DATA.blockLabel||'')+
-        (DATA.blockLabel?' · ':'')+shifts.length+' shift'+(shifts.length===1?'':'s')+
+  // The heading names the range actually printed. It said "Q4 · Oct-Dec" over a sheet that now
+  // starts in July, which is a caption contradicting the thing under it.
+  const _sp=spanDates();
+  const _rng=_sp.length?(fmtD(_sp[0])+' – '+fmtD(_sp[_sp.length-1])):(DATA.blockLabel||'');
+  let h='<h1>'+esc(who)+'</h1><div class="pmeta">'+esc(_rng)+
+        (_rng?' · ':'')+shifts.length+' shift'+(shifts.length===1?'':'s')+
         ' · printed '+esc(when)+'</div>';
   if(!shifts.length){
     h+='<p>No shifts in this block.</p>';
@@ -2453,9 +2517,19 @@ function wireSubscribe(){
 
 function renderSched(){
   const pane=$('#pane-sched');
-  if(!ME){pane.innerHTML='<div class="empty" style="margin-top:22px">Choose a physician first.</div>';return;}
+  if(!ME){pane.innerHTML='<div class="empty" style="margin-top:22px">Choose a provider first.</div>';return;}
   const arch=!!(DATA.archive&&DATA.archive.dates&&DATA.archive.dates.length);
-  let html=`<h2 class="sec">My schedule <span class="pill" style="margin-left:6px">${esc(blockLabelNow())}</span></h2>`;
+  /* WHOSE SCHEDULE IS THIS. "My schedule" over somebody else's shifts is the kind of wrong that
+     gets acted on — a physician checking a colleague's nights and reading them as their own. When
+     visiting, the heading says the name and a line underneath says what is and is not on screen,
+     because a tab quietly missing is worse than a tab explained. */
+  const vis=visitingOn();
+  let html=`<h2 class="sec">${vis?esc(fullOf(vis))+"'s schedule":'My schedule'}
+    <span class="pill" style="margin-left:6px">${esc(blockLabelNow())}</span></h2>`;
+  if(vis)
+    html+=`<div class="behalf">Reading <b>${esc(fullOf(vis))}</b>'s schedule. Their time off,
+      requests and swaps are private — yours are still under your own name.
+      <button class="lnk" id="backToMe">Back to my schedule</button></div>`;
   /* THE PREVIOUS QUARTER, TO READ (Aaron, 2026-08-25 — the group loses Lightning Bolt on
      1 September). Only offered when there is an archive to offer, and it says "view only" on the
      control itself rather than letting somebody find that out by tapping something that does
@@ -2464,7 +2538,14 @@ function renderSched(){
      same kind of thing as Q3 2026 -- and a row of buttons stops working the moment there are
      three. Earliest first, so it reads as a timeline rather than as "the real one and the other
      one". */
-  if(arch && schedView!=='week')
+  /* THE QUARTER CONTROL STAYS IN THE WEEK VIEW. It used to be hidden there, on the reasoning that
+     a week walks across both quarters so naming one answers a question the view does not ask.
+     True, and still beside the point: a control that vanishes when you press Week reads as
+     something breaking, and it stranded anyone who switched to Week while in Q3 with no way back
+     to Q4 but to leave the view. Client 8/25 (Nadon). In the week view it does not filter — it
+     JUMPS, to today's week if today falls inside the quarter picked, otherwise to its first week.
+     Which is what somebody reaching for it in that view actually wants. */
+  if(arch)
     html+=`<div class="qrow">
       <label class="qlbl" for="qSel">Quarter</label>
       <select class="acsel" id="qSel">
@@ -2582,9 +2663,25 @@ function renderSched(){
   if(wt)wt.onclick=()=>{initWeek();renderSched();};
   $$('.wkrow',pane).forEach(r=>{const go=()=>openDay(r.dataset.iso);
     r.onclick=go; r.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}};});
+  const b2m=$('#backToMe');
+  if(b2m)b2m.onclick=returnToMe;
   const qs=$('#qSel');
-  if(qs)qs.onchange=()=>{ VIEWBLOCK=qs.value==='archive'?'archive':'live';
-                          track('view_quarter',{block:VIEWBLOCK}); renderSched(); };
+  if(qs)qs.onchange=()=>{
+    VIEWBLOCK=qs.value==='archive'?'archive':'live';
+    track('view_quarter',{block:VIEWBLOCK,view:schedView});
+    /* In month and list the quarter FILTERS what is drawn. In week it cannot — a week is seven
+       days and may straddle the boundary — so it moves the window instead. Today's week when
+       today is inside the quarter chosen, otherwise the quarter's first week, which is the
+       useful landing spot rather than an arbitrary one. */
+    if(schedView==='week'){
+      const ds=(VIEWBLOCK==='archive'?((DATA.archive||{}).dates||[]):(DATA.dates||[]));
+      if(ds.length){
+        const t=todayISO();
+        WEEKISO=weekStartOf(t>=ds[0]&&t<=ds[ds.length-1] ? t : ds[0]);
+      }
+    }
+    renderSched();
+  };
   fitChips(pane);
 
   $$('.cell[data-iso],.row[data-iso]',pane).forEach(c=>{
@@ -2596,11 +2693,19 @@ function renderSched(){
 /* ---------- downloads ---------- */
 function icsStamp(iso,h,mi){return iso.replace(/-/g,'')+'T'+String(h).padStart(2,'0')+String(mi).padStart(2,'0')+'00';}
 function downloadICS(){
+  /* BOTH QUARTERS. This walked DATA.dates, which is Q4 alone, so the file you downloaded stopped
+     at 1 October while the app either side of it showed July onwards. Sam, 8/26: the one-off
+     files should carry Q3 too. spanDates() is the full range the app knows and anyDayOf() reads
+     from whichever quarter the date belongs to — the same pair every other cross-quarter view
+     uses. The calendar NAME loses "Q4" with it, because it is no longer true. */
   const L=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Scheduling Wizard//CCPSA//EN','CALSCALE:GREGORIAN','METHOD:PUBLISH',
-           'X-WR-CALNAME:CCPSA Q4 2026 - '+fullOf(ME)];
+           'X-WR-CALNAME:CCPSA - '+fullOf(ME)];
   let n=0;
-  DATA.dates.forEach(iso=>{
-    const a=dayOf(ME,iso);if(!a)return;
+  const _sp=spanDates(), _from=_sp[0], _to=_sp[_sp.length-1];
+  const _all=[];
+  for(let d=_from; d<=_to; d=isoAdd(d,1)) if(knownDate(d)) _all.push(d);
+  _all.forEach(iso=>{
+    const a=anyDayOf(ME,iso);if(!a)return;
     // Same rule as every other view: protected time is not an appointment and does not belong in
     // anyone's calendar app. The SERVER feed has always filtered it; this one-off download did
     // not, so the file you tapped "download" on disagreed with the feed you subscribed to.
@@ -2636,8 +2741,13 @@ function downloadICS(){
 function downloadCSV(){
   const head=['Date','Day','Shift','Where','Type','Roles'];
   const rows=[];
-  DATA.dates.forEach(iso=>{
-    const a=dayOf(ME,iso);if(!a)return;
+  // Both quarters, same reason as the .ics beside it: a download that stops at 1 October is not
+  // the schedule the app is showing.
+  const _sp=spanDates(), _to=_sp[_sp.length-1];
+  const _all=[];
+  for(let d=_sp[0]; d<=_to; d=isoAdd(d,1)) if(knownDate(d)) _all.push(d);
+  _all.forEach(iso=>{
+    const a=anyDayOf(ME,iso);if(!a)return;
     const shown=a.s.filter(s=>isRealShift(ME,iso,s));
     shown.forEach(s=>{const m=META(s);
       rows.push([iso,DOW[dowOf(iso)],shiftLabel(ME,iso,s,false),m.sub,m.kind,(a.r||[]).join(' / ')]);});
@@ -2663,7 +2773,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260825.2327';           // shown in the account bar so a stale app is obvious
+const BUILD='260826.0147';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 const PH_KEY='phc_pr4QepiHtyMUqSymFZFyH2s2jKesJJEi4sWDjhaKttDN', PH_HOST='https://us.i.posthog.com';
 /* ---------- analytics ----------
@@ -2994,6 +3104,60 @@ const isAdmin=()=>!!(SESSION&&SESSION.role==='admin');
 // entered for someone else was silently filed under the ADMIN — the page looked unchanged and
 // the physician never got it.
 const onBehalf=()=>(ROLE==='admin'&&ME&&ACCT&&ME!==ACCT.person)?ME:null;
+/* LOOKING AT A COLLEAGUE, which is not the same as acting for them.
+   An admin who switches is working ON that person: onBehalf() is set and their requests and swaps
+   are the ones on screen, because entering time off for somebody is a thing an admin does. A
+   physician who switches is only READING a schedule. Nadon 8/25: "They should not see their
+   requests or swaps though, just the schedule."
+   So for a visitor the Requests and Swaps tabs are removed rather than filled. Not because the
+   server would hand anything over — it would return the visitor's OWN records, since a doctor
+   asking for another person's is given theirs — but because that is worse than refusing: the
+   page would show YOUR time off under SOMEBODY ELSE'S name, which is a lie that looks like data. */
+const visitingOn=()=>(ROLE!=='admin'&&ME&&ACCT&&ME!==ACCT.person)?ME:null;
+/* One way home, called from the header bar and from the Schedule banner. An admin with no
+   schedule of their own (Sam, Zac, AB) has nowhere personal to return TO, so for them this goes
+   to the approvals desk instead of leaving them on an empty "choose a provider". */
+/* THE HEADER BAR THAT SAYS WHOSE PAGE THIS IS. Its own function because it has two callers and
+   they used to disagree: boot() drew it, and returnToMe() sent an admin with no schedule of their
+   own to the approvals desk WITHOUT going through boot() — so the bar stayed up, still announcing
+   somebody they had just stopped looking at. Anything that changes ME calls this. */
+function viewBar(){
+  const vb=document.querySelector('#viewingBanner');
+  if(onBehalf()||visitingOn()){
+    if(!vb){
+      const d=el('div','viewbar');d.id='viewingBanner';
+      document.querySelector('header').appendChild(d);
+    }
+    // An admin is working ON that person, so their requests and swaps are on screen too. A
+    // provider is only reading. Saying which is the difference between the bar being information
+    // and the bar being a warning.
+    document.querySelector('#viewingBanner').innerHTML=
+      '<span>Viewing <b>'+esc(fullOf(ME))+'</b>'+
+      (onBehalf()?' — their schedule, requests and swaps':' — schedule only')+'</span>'+
+      '<button class="viewx" id="viewBack">Back to mine</button>';
+    const bb=document.querySelector('#viewBack');
+    if(bb)bb.onclick=returnToMe;
+  }else if(vb){vb.remove();}
+}
+function returnToMe(){
+  const mine=ACCT&&ACCT.person;
+  if(mine&&whoRoster().includes(mine)){
+    ME=mine; try{localStorage.setItem('ccpsa_me',mine);}catch(e){}
+    MYREQ=null; boot(); markBar('pick'); go('sched');
+    return;
+  }
+  /* An admin with no schedule of their own — Sam, Zac, AB — has nowhere personal to go back to,
+     so "back to mine" means the approvals desk. boot() cannot be used for that: with ME null and
+     BOOTED already true it falls through to go(), landing on a tab with nobody selected. So the
+     three things boot() would have refreshed are refreshed here, explicitly.
+       viewBar()     - or the bar keeps naming the person just left
+       accountBar()  - or the button still reads "Nadon's stats" with no Nadon on screen
+       adminBar()    - or the segment stays on 'pick' */
+  ME=null; try{localStorage.removeItem('ccpsa_me');}catch(e){}
+  MYREQ=null; LOADED_FOR=null;
+  viewBar(); accountBar(); adminBar();
+  showAdminHome();
+}
 const dOnly=d=>String(d||'').slice(0,10);
 /* WHEN THE REQUEST WINDOW OPENS. Requests are for the period that begins when they close —
    that is what the deadline means — so the pickers start there and the counters count there.
@@ -3115,7 +3279,7 @@ function reqSavedHTML(){
 }
 function renderReq(){
   const pane=$('#pane-req');
-  if(!ME){pane.innerHTML='<div class="empty" style="margin-top:22px">Choose a physician first.</div>';return;}
+  if(!ME){pane.innerHTML='<div class="empty" style="margin-top:22px">Choose a provider first.</div>';return;}
 
   // Locked after the deadline: the whole form is replaced, per the spec.
   if(CFG&&CFG.locked){
@@ -3377,20 +3541,30 @@ async function paintSignIn(){
   };
 }
 
+/* Did they already decide? Either answer — allowed, or declined the one-time offer — means the
+   question has been asked and settled, and a card that keeps asking is not a card, it is nagging. */
+const pushSettled=()=>{
+  if(pushGranted())return true;
+  try{ return localStorage.getItem('ccpsa_pushask')==='1'; }catch(e){ return false; }
+};
 function notifyCard(){
-  /* ONCE IT IS ON, THERE IS NOTHING TO SAY. This was a paragraph explaining what notifications
-     are, sitting at the top of the Swaps tab forever — including for people who had already
-     turned them on and did not need persuading. It renders only while there is still something
-     to do about it. The test tools stay reachable from the Account sheet.
-     Checked live rather than captured at load, so it disappears the moment they allow it.
-     An admin keeps the card, because the test tools inside it are how we reproduce a report. */
-  if(pushGranted()&&ROLE!=='admin')return '';
+  /* ONCE IT IS SETTLED, NOTHING IS SHOWN. AT ALL.
+     This started as a paragraph explaining notifications, parked at the top of the Swaps tab
+     forever. Then it was hidden for physicians who had allowed them — but kept for admins,
+     because the test tools were inside it, so an admin with notifications on still got sold
+     notifications. Trimming the pitch was not enough: Sam, 8/26 — "I shouldn't see any
+     notifications messaging once turned on or dismissed initially. The current box is not
+     necessary. It should be removed."
+     So it is, and the ADMIN TEST TOOLS MOVED to the Account sheet, which is where the comment
+     here has claimed they lived since the day it was written. They had not.
+     Settled means allowed OR declined: someone who said no once should not be asked on every
+     visit to Swaps. The way back is the Account sheet, same place. */
+  if(pushSettled())return '';
   return `<div class="swcard" id="notifyCard">
     <div class="lgh">Notifications</div>
     <div class="sub" id="notifyWhat">A message on your phone when someone asks you to cover a
       shift, when your own request is taken, and when an admin approves it.</div>
     <div id="notifyBody" class="sub" style="margin-top:8px">Checking…</div>
-    ${notifyTestHTML()}
   </div>`;
 }
 /* ---------- ask once, when asking makes sense ----------
@@ -3431,6 +3605,32 @@ async function maybeOfferPush(){
 
 /* Admins get a way to fire each kind at themselves. Checking that a notification reads well
    otherwise means arranging the whole three-person situation that produces it. */
+/* The Account sheet's version of the state line. Says where things stand in a few words, and
+   offers the way ON to anybody who declined the one-time ask and changed their mind — which the
+   Swaps card used to be, and no longer is. */
+async function paintAccountPush(){
+  const line=document.querySelector('#acPush'), body=document.querySelector('#acPushBody');
+  if(!line)return;
+  const st=await pushState();
+  if(!line.isConnected)return;                 // the sheet may have closed while we awaited
+  const say={on:'On for this device',off:'Off for this device',
+             blocked:'Blocked in your settings','needs-install':'Add to your home screen first',
+             unsupported:'Not available in this browser'}[st]||st;
+  line.textContent=say;
+  if(!body)return;
+  if(st==='off'){
+    body.innerHTML='<div class="btnrow" style="margin-top:8px">'+
+      '<button class="btn" id="acPushOn">Turn on notifications</button></div>';
+    const b=document.querySelector('#acPushOn');
+    if(b)b.onclick=async()=>{ b.disabled=true; b.textContent='Asking…';
+      try{ await enablePush(); }catch(e){ toast(e.message||'Could not turn them on'); }
+      paintAccountPush(); };
+  }else if(st==='needs-install'){
+    body.innerHTML='<div class="btnrow" style="margin-top:8px">'+
+      '<button class="btn" id="acPushHow">Show me how</button></div>';
+    const h=document.querySelector('#acPushHow'); if(h)h.onclick=()=>{closeSheet();openInstall();};
+  }else{ body.innerHTML=''; }
+}
 function notifyTestHTML(){
   if(ROLE!=='admin')return '';
   const kinds=[['ask','Asked to cover'],['taken','Someone else took it'],
@@ -3462,6 +3662,15 @@ async function paintNotify(){
   // Awaited above; the pane may have been re-rendered underneath us since. See paintSignIn.
   if(!box.isConnected)return;
   if(st==='on'){
+    /* AND STOP SELLING THEM. The card is hidden entirely once push is on — except for admins,
+       who keep it because the test tools inside are how we reproduce a report. What they kept
+       with it was the pitch: "A message on your phone when someone asks you to cover a shift…",
+       still sitting above a line saying it was already on. Sam read that as the app failing to
+       notice his device had them. The explanation is for somebody deciding; once it is on there
+       is nothing left to decide, so it goes and the heading carries the state instead. */
+    const what=document.querySelector('#notifyWhat'); if(what)what.remove();
+    const head=document.querySelector('#notifyCard .lgh');
+    if(head)head.textContent='Notifications — on';
     box.innerHTML='<b style="color:var(--signal)">On for this device.</b> Turn them on separately '+
       'on any other phone or computer you use.';
     return;
@@ -3986,7 +4195,7 @@ function pickWhoToAsk(date,shift,note,j){
 function renderSwap(){
   const pane=$('#pane-swap');
   // coverage requests lead: asking everyone who can take it is the good path
-  if(!ME){pane.innerHTML='<div class="empty" style="margin-top:22px">Choose a physician first.</div>';return;}
+  if(!ME){pane.innerHTML='<div class="empty" style="margin-top:22px">Choose a provider first.</div>';return;}
   if(!SESSION){pane.innerHTML='<div class="empty" style="margin-top:22px">Sign in again to use swaps.</div>';return;}
 
   const mine=allShifts(ME).filter(x=>x.iso>=todayISO());
@@ -4145,7 +4354,18 @@ function openDay(iso){
     b+=`<div class="row" style="margin-top:8px"><span class="sp" style="background:${rm.color}"></span>
       <span><span class="t">◆ ${esc(rm.label)}</span><span class="s">Layered role — on top of your shift</span></span></div>`;});
   if(onReq)b+=`<div class="note"><span class="pill ok">You asked to work</span> This was one of your request-on days.</div>`;
-  if(a&&a.s.length)b+=`<div class="btnrow"><button class="btn" id="dsSwap">Find cover for this shift</button></div>`;
+  /* NOT FOR A DAY THAT HAS ALREADY HAPPENED. This offered cover on any day carrying a shift, with
+     no date test at all — so a July night, seven weeks gone, came with a button to find somebody
+     to work it. Nobody had seen it because the archive was showing the SOLVED plan, in which the
+     test persona had nothing on that date; putting the as-worked record in front of it exposed a
+     gap that was there all along.
+     The quarter is not the question — the date is. Q3 runs to 30 September, so most of it is
+     still ahead of us and cover on those days is real. */
+  const past = iso < todayISO();
+  if(a&&a.s.length&&!past)
+    b+=`<div class="btnrow"><button class="btn" id="dsSwap">Find cover for this shift</button></div>`;
+  else if(a&&a.s.length&&past)
+    b+=`<div class="note" style="margin-top:9px">This day has passed — it is here as a record.</div>`;
   sheet(fmtLong(iso),b);
   const sw=$('#dsSwap');
   // Used to close this sheet and jump to the Swaps tab — a different page, arrived at with no
@@ -4274,7 +4494,7 @@ function renderEdit(){
   const pane=$('#pane-edit');
   if(!pane.dataset.wired){
     pane.innerHTML=`<h2 class="sec">Change the schedule</h2>
-      <div class="note" style="margin-top:0">Changes appear on every physician's phone straight
+      <div class="note" style="margin-top:0">Changes appear on every provider's phone straight
         away. The solved block is not altered — each change is recorded, attributed and undoable.</div>
       <div class="swcard" style="margin-top:12px">
         <label class="lbl" for="edDate">Day</label>
@@ -4326,7 +4546,7 @@ function openCell(unit){
     <div class="chips">${cur||'<i class="muted">nobody</i>'}</div>
     <div class="lbl" style="margin-top:12px">Available and legal for this shift</div>
     <div class="chips">${chips||'<i class="muted">nobody is free and credentialed</i>'}</div>
-    <label class="lbl" for="edNote" style="margin-top:12px">Why (shown to the physician)</label>
+    <label class="lbl" for="edNote" style="margin-top:12px">Why (shown to the provider)</label>
     <input id="edNote" class="inp" placeholder="e.g. called out sick">
     <div id="edVerdict"></div>
     <div class="btnrow"><button class="btn" id="edCancel">Cancel</button>
@@ -4465,8 +4685,19 @@ function diagWire(){
   }
   setInterval(diagPaint,700);
 }
+/* The two tabs that are about YOU, not about the schedule. Hidden while a physician is reading a
+   colleague — see visitingOn(). Toggling visibility only: the redirect lives in go(), so there is
+   no path where this calls go() and go() calls this. */
+function syncTabs(){
+  const visiting=!!visitingOn();
+  $$('.tab').forEach(b=>{ if(b.dataset.t==='req'||b.dataset.t==='swap') b.hidden=visiting; });
+}
 function go(t){
+  // Asked for a tab that does not belong to the person being read? Show them the schedule, which
+  // is what they came for. Covers every route in — the tab bar, a switch, a resumed session.
+  if(visitingOn()&&(t==='req'||t==='swap')) t='sched';
   CUR=t;
+  syncTabs();
   $$('.tab').forEach(b=>{const on=b.dataset.t===t;b.classList.toggle('on',on);
     if(on)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
   $$('.pane').forEach(p=>p.classList.toggle('on',p.id==='pane-'+t));
@@ -4479,9 +4710,14 @@ function go(t){
   if(t==='swap')renderSwap();      // renderSwap wires its own buttons
   if(t==='edit')renderEdit();
   if(t==='admin')renderAdmin();
-  // Twice: several of those renders finish after a fetch, so the first call measures a page that
-  // has not finished growing. The second catches up, and a re-measure is nearly free.
-  padShort(); setTimeout(padShort, 400);
+  /* Three times, and the middle one is the point. Several of those renders finish after a fetch,
+     so the first call measures a page that has not finished growing and the 400ms call catches
+     up — but 400ms is long enough to WATCH the bar move, which is what it looked like. The rAF
+     call lands before the browser paints, so the correction is not something you can see happen.
+     A re-measure is nearly free; the cost of missing one is a bar that slides. */
+  padShort();
+  requestAnimationFrame(padShort);
+  setTimeout(padShort, 400);
 }
 function wireTabs(){$$('.tab').forEach(b=>b.onclick=()=>go(b.dataset.t));}
 
@@ -4695,7 +4931,7 @@ function adminBar(){
   bar.innerHTML='<button class="ab'+(onHome?' on':'')+'" data-v="home">Home'+
       (n?'<span class="abadge">'+n+'</span>':'')+'</button>'+
     '<button class="ab'+(onAdmin?' on':'')+'" data-v="admin">Admin view</button>'+
-    '<button class="ab'+(onAdmin||onHome?'':' on')+'" data-v="pick">Physicians</button>';
+    '<button class="ab'+(onAdmin||onHome?'':' on')+'" data-v="pick">Providers</button>';
   bar.querySelectorAll('.ab').forEach(b=>b.onclick=()=>{
     const v=b.dataset.v;
     bar.querySelectorAll('.ab').forEach(x=>x.classList.toggle('on',x===b));
@@ -4837,7 +5073,7 @@ function renderAdminHome(){
          <div class="zs">Cover approvals, swap sign-offs and holiday decisions land here.</div></div>`}
     <div class="hlinks">
       <button class="btn" id="hDash">Open the dashboard</button>
-      <button class="btn" id="hPick">Look at a physician</button>
+      <button class="btn" id="hPick">Look at a provider</button>
       <button class="btn" id="hAcct">Manage access</button>
       <button class="btn gho" id="hRef">Refresh</button>
     </div>`;
@@ -5106,6 +5342,15 @@ function showAdminHome(){
 function hideAdminHome(){
   const w=document.querySelector('#homeWrap'); if(w)w.classList.remove('on');
   const t=document.querySelector('.tabs'); if(t){t.style.display='';t.hidden=false;}
+  /* AND RE-MEASURE, or the bar slides.
+     The tab bar is position:fixed;bottom:0, and when the document is SHORTER than the viewport
+     that bottom resolves against the document — so the bar rides up the page. padShort() is what
+     stops that, by keeping the document at least a screen tall.
+     Every other route out of here calls go(), which measures. This one does not: an admin with
+     nobody selected presses Providers and gets hideAdminHome() + togglePicker(), no go(), no
+     boot(). So the bar came back at the wrong height and only dropped into place on the next
+     thing that happened to measure — which is the slide Sam reported going Home -> Providers. */
+  padShort();
 }
 function onAdminHome(){ return !!document.querySelector('#homeWrap.on'); }
 // Everything that belongs to ONE person. Called at boot and again whenever the admin switches
@@ -5153,24 +5398,21 @@ function boot(){
   testDateBar();
   if(ROLE==='clinic'){ renderClinicView(); return; }
   adminBar();
-  const vb=document.querySelector('#viewingBanner');
-  if(ROLE==='admin'&&ME&&ACCT&&ME!==ACCT.person){
-    if(!vb){
-      const d=el('div','viewbar');d.id='viewingBanner';
-      document.querySelector('header').appendChild(d);
-    }
-    document.querySelector('#viewingBanner').innerHTML=
-      'Viewing <b>'+esc(fullOf(ME))+'</b> — their schedule, requests and swaps';
-  }else if(vb){vb.remove();}
+  /* THE WAY BACK, ON EVERY TAB. This bar existed for admins and said what you were looking at
+     without offering to stop. That was survivable for an admin, who knows the picker; it is not
+     for a provider who tapped a colleague's name to check one night shift and now has to work out
+     how to get home. The route back was a link on the Schedule pane only — invisible from Now.
+     So: the bar covers both cases, and it carries a button. */
+  viewBar();
   /* An admin with no schedule of their own used to have the physician list thrown open over
      everything, on every boot — including on the way back from tapping a notification, which is
      the list Sam kept finding on top of what he had just opened. The empty state already says
-     "Choose a physician" and has the button; a menu that opens itself is not more helpful than
+     "Choose a provider" and has the button; a menu that opens itself is not more helpful than
      one you can open. */
   if(!ME&&!BOOTED){
     BOOTED=true;
     // An admin who is not a physician now has somewhere of their own to be. Landing on the
-    // approvals desk beats landing on an empty "choose a physician" — it is the work.
+    // approvals desk beats landing on an empty "choose a provider" — it is the work.
     if(ROLE==='admin'){ showAdminHome(); return; }
     go('now'); return;
   }
@@ -5338,14 +5580,14 @@ async function refreshLive(force){
     applyEdits(j.edits||[]);
     if(!first){
       // Re-render in place. boot() lands on the schedule tab, which for an admin with no
-      // schedule of their own means "Choose a physician" — so a background refresh was
+      // schedule of their own means "Choose a provider" — so a background refresh was
       // yanking people out of the admin view every 90 seconds while they were reading it.
       const inAdmin=!!document.querySelector('#admWrap.on');
       const inGroup=!!document.querySelector('#pane-group.on');
       const inClinic=!!document.querySelector('#pane-clinic.on');
       // Home belongs on this list for the same reason as the rest: boot() lands on the schedule
       // tab, so without it, approving anything from the desk threw you off the desk — after()
-      // calls refreshLive, and the admin ended up on "Choose a physician" mid-queue.
+      // calls refreshLive, and the admin ended up on "Choose a provider" mid-queue.
       const inHome=onAdminHome();
       if(inAdmin||inGroup||inClinic||inHome){
         if(inGroup)renderGroup();
