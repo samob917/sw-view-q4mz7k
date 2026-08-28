@@ -2773,7 +2773,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260826.0147';           // shown in the account bar so a stale app is obvious
+const BUILD='260827.2059';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 const PH_KEY='phc_pr4QepiHtyMUqSymFZFyH2s2jKesJJEi4sWDjhaKttDN', PH_HOST='https://us.i.posthog.com';
 /* ---------- analytics ----------
@@ -4688,14 +4688,20 @@ function diagWire(){
 /* The two tabs that are about YOU, not about the schedule. Hidden while a physician is reading a
    colleague — see visitingOn(). Toggling visibility only: the redirect lives in go(), so there is
    no path where this calls go() and go() calls this. */
+/* A READ-ONLY ACCOUNT NEVER HAS THEM, not even on its own name. Carie Barton, the practice
+   accountant (client 8/26), signs in to look at schedules; she has no shifts, so Requests and
+   Swaps would be two tabs that could only ever be empty and would invite a support question
+   about why. The API refuses her writes regardless — this is the half that stops her finding a
+   button that then fails. */
+const readOnlyRole=()=>ROLE==='viewer';
 function syncTabs(){
-  const visiting=!!visitingOn();
-  $$('.tab').forEach(b=>{ if(b.dataset.t==='req'||b.dataset.t==='swap') b.hidden=visiting; });
+  const hide=!!visitingOn()||readOnlyRole();
+  $$('.tab').forEach(b=>{ if(b.dataset.t==='req'||b.dataset.t==='swap') b.hidden=hide; });
 }
 function go(t){
   // Asked for a tab that does not belong to the person being read? Show them the schedule, which
   // is what they came for. Covers every route in — the tab bar, a switch, a resumed session.
-  if(visitingOn()&&(t==='req'||t==='swap')) t='sched';
+  if((visitingOn()||readOnlyRole())&&(t==='req'||t==='swap')) t='sched';
   CUR=t;
   syncTabs();
   $$('.tab').forEach(b=>{const on=b.dataset.t===t;b.classList.toggle('on',on);
