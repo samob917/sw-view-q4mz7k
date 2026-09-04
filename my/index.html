@@ -3243,7 +3243,8 @@ async function saveTeamGroup(into){
     <div class="msg" id="grpMsg"></div>
     <div class="btnrow"><button class="btn pri" id="grpGo">Save</button>
       <button class="btn" id="grpX">Cancel</button></div>
-    <div class="note">Saved groupings are shared with the group. Yours are yours to change.</div>`);
+    <div class="note">Saved groupings are yours — nobody else sees them. Scheduling admins can
+      see everyone's.</div>`);
   $('#grpX').onclick=closeSheet;
   $('#grpGo').onclick=async()=>{
     const name=($('#grpName').value||'').trim(), m=$('#grpMsg');
@@ -4141,7 +4142,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260904.1817';           // shown in the account bar so a stale app is obvious
+const BUILD='260904.1856';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 const PH_KEY='phc_pr4QepiHtyMUqSymFZFyH2s2jKesJJEi4sWDjhaKttDN', PH_HOST='https://us.i.posthog.com';
 /* ---------- analytics ----------
