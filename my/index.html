@@ -4142,7 +4142,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260904.1856';           // shown in the account bar so a stale app is obvious
+const BUILD='260907.2000';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 const PH_KEY='phc_pr4QepiHtyMUqSymFZFyH2s2jKesJJEi4sWDjhaKttDN', PH_HOST='https://us.i.posthog.com';
 /* ---------- analytics ----------
@@ -4674,12 +4674,39 @@ function renderMoonReq(pane,rq,dl){
     const m=$('#mMsg'); m.textContent='Saving…'; m.className='msg on';
     try{
       const who=onBehalf();
+      /* knownAt — WHICH VERSION THIS PAGE WAS SHOWN (Auston Stiefer via Aaron, 2026-09-07: "I
+         keep getting a message that says 'Your requests changed somewhere else since this page
+         loaded' and my requests are not updated or saved").
+         The version check refuses a save that does not say which version it is replacing, which
+         is right: a page that has not seen the current record must not overwrite it. The
+         physicians' form sent it. THIS one never did — so a moonlighter's FIRST save worked,
+         stamped a submittedAt, and every save after it was refused for ever. Four of the nine
+         were locked out. Nothing was lost, which is the check doing its job; they simply could
+         not add to what they had.
+         Mine as of 2026-09-02, when the guard went in and this second form was missed. */
       const body={nights_available:avail,shifts_wanted:collect(),moonlighter:true,
-                  nightShape:(MYREQ&&MYREQ.nightShape)||null};
+                  nightShape:(MYREQ&&MYREQ.nightShape)||null,
+                  knownAt:(MYREQ&&MYREQ.submittedAt)||null};
       if(who)body.person=who;
-      await api('/requests',{method:'POST',body:JSON.stringify(body)});
+      const r=await api('/requests',{method:'POST',body:JSON.stringify(body)});
+      /* ADOPT WHAT CAME BACK. Without this the page still holds the submittedAt it loaded with,
+         so the save AFTER this one sends a stale knownAt and is refused — the same lockout,
+         one press later. */
+      if(r&&r.requests){ MYREQ=r.requests; rq=r.requests; }
       m.textContent=who?('Saved for '+fullOf(who)):'Saved'; m.className='msg on ok';
-    }catch(e){ m.textContent=e.message||'Could not save'; m.className='msg on bad'; }
+    }catch(e){
+      /* A GENUINE COLLISION NEEDS A WAY THROUGH, not a red line. Two devices, or an admin
+         entering on their behalf — the honest fix is to show what is saved and let them redo the
+         change against it, which is what the physicians' form already offers. */
+      const pay=(e&&e.payload)||{};
+      if(pay.current){
+        MYREQ=pay.current;
+        m.innerHTML=esc(e.message)+' <button class="lnk" id="mReload">Show what is saved</button>';
+        m.className='msg on bad';
+        const rl=$('#mReload');
+        if(rl)rl.onclick=()=>{ renderReq(); toast('Showing the saved list — make your change again'); };
+      }else{ m.textContent=(e&&e.message)||'Could not save'; m.className='msg on bad'; }
+    }
   };
 }
 
