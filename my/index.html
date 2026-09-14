@@ -393,6 +393,15 @@ h2.sec{font-size:19px;font-weight:800;letter-spacing:-.02em;margin:22px 0 12px}
 .cell .blk.noc{font-size:8px;letter-spacing:0}
 .cell .blk.cme{background:rgba(96,165,250,.22);border:1px solid rgba(96,165,250,.55);color:var(--info-ink);
   letter-spacing:.04em}
+/* A REQUESTED-OFF DAY IS A BAR, NOT A DOT (Sam/Aaron, 2026-09-11: "the off requests for everyone
+   do not show up on their schedules but we should see where people requested off"; on 09-09,
+   "request-off days show as open circles … admin view shows blacked-out days; provider view
+   should match"). It was an 8px dim ○ in the corner, which on a phone is invisible against an
+   empty square — and an empty square is exactly what a day off looks like anyway, so the one
+   piece of information the marker carried was the one nobody could see. Deliberately muted
+   rather than coloured: this is the absence of work, and it must not compete with a real shift. */
+.cell .blk.off{background:var(--line2);border:1px solid var(--line);color:var(--dim);
+  letter-spacing:.04em;font-weight:700}
 .cell .blk.split{background-image:none}
 .cell .req{position:absolute;top:2px;right:3px;font-size:8px;color:var(--signal)}
 .cell .rl{width:5px;height:5px;border-radius:50%;background:#F0ABFC}
@@ -902,8 +911,16 @@ textarea.ta{width:100%;background:var(--panel);border:1px solid var(--line2);bor
 .cell.bz .bd{font-size:10.5px;color:var(--dim);line-height:1;text-align:left}
 .cell.bz .bstack{display:flex;flex-direction:column;gap:2px;justify-content:flex-end;flex:1;
   align-self:stretch;width:100%}
-.cell.bz .bl{display:block;width:100%;height:4px;border-radius:2px;background:var(--pc);
-  align-self:stretch}
+/* NAMED, NOT JUST COLOURED (Sam, 2026-09-11: "do not use the line chart, use the actual shifts
+   and have it list them in a popup when a specific day is selected, like the admin view
+   version"). A 4px bar carried the shift only in a title attribute — which does not exist on a
+   phone, where this view is mostly read. The bar still encodes the person by colour and the day's
+   height still reads as how busy it is; it now also says WHICH shift, which was the question. */
+.cell.bz .bl{display:block;width:100%;min-height:11px;border-radius:2px;background:var(--pc);
+  align-self:stretch;font-size:8px;line-height:11px;font-weight:700;color:var(--ground);
+  overflow:hidden;white-space:nowrap;text-overflow:clip;padding:0 2px;font-family:var(--mono)}
+.cell.bz{cursor:pointer}
+.cell.bz .bl.soft{color:var(--pc)}
 /* Dotted: real work that does not take somebody off the board, so it is visibly not counted. */
 .cell.bz .bl.soft{background:none;height:0;border-top:3px dotted var(--pc);border-radius:0}
 .cell.bz .bl.mtg{border-top-style:dashed}
@@ -1044,6 +1061,44 @@ body.clinicrole .tab[data-t="clinic"]{order:-1}
   padding:9px 11px;font-size:13px;display:grid;gap:5px}
 .swtrade .tl{display:inline-block;min-width:124px;color:var(--muted);font-size:12px}
 /* the overlay: yours filled, theirs outlined, and the days you could take lit */
+/* THE CHAIN PICKER IS A TAP TARGET, AND A PICKED DAY IS FILLED (Sam, 2026-09-12: "its hard to
+   press the days in the chain calendar and the green dot is not obvious enough, fill the whole
+   day in green"). A 9px dot in the corner of a 44px square is both hard to hit and hard to read
+   at a glance — and this grid is the one place in the app where you are picking MANY days in a
+   row, so every miss costs a re-check of the whole month. */
+.grid7.chainpick .cell{min-height:52px;padding:4px}
+.grid7.chainpick .cell.on{background:var(--signal);border-color:var(--signal)}
+.grid7.chainpick .cell.on .n{color:var(--ground);font-weight:800}
+.grid7.chainpick .cell.on .blk{filter:saturate(.2) brightness(1.5);opacity:.85}
+/* The day you are ACCEPTING is not yours to give away — shown, and not selectable. */
+.grid7.chainpick .cell.incoming{border-color:var(--warn);box-shadow:inset 0 0 0 2px var(--warn)}
+.grid7.chainpick .cell.locked{opacity:.85;cursor:not-allowed}
+/* The overlay is read-only. Nothing on it responds to a press, so nothing on it should look as
+   though it would — a cell that lifts under the finger and then does nothing is the confusion. */
+.grid7.chainpick.look .cell{cursor:default}
+/* The two sides of a live chain, side by side. Two columns even on a 320px phone: stacking them
+   turns "take this, give that" back into a sentence, which is the thing being fixed. */
+.chcols{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0 4px}
+.chcol{background:var(--panel2);border-radius:8px;padding:8px 9px;min-width:0}
+.chcol h5{margin:0;font-family:var(--mono);font-size:10.5px;letter-spacing:.07em;
+  text-transform:uppercase;color:var(--dim)}
+.chcol .chsub{font-size:11.5px;color:var(--dim);margin:1px 0 5px;line-height:1.3}
+.chcol .chline{font-size:12.5px;line-height:1.35;margin-top:2px;overflow-wrap:anywhere}
+.chcol .chline.muted{color:var(--faint)}
+/* The two ways out of a take, both on screen and both labelled — one of them may be closed off,
+   and the reason it is closed off is the point (see openChainTake). */
+.chopt{border:1px solid var(--line);border-radius:10px;padding:10px 11px;margin:8px 0}
+.chopt.pick{border-color:var(--signal);box-shadow:0 0 0 1px var(--signal) inset}
+.chopt.shut{opacity:.62}
+.chopt{display:block;cursor:pointer}
+.chopt.shut{cursor:default}
+.chopt h4{margin:0 0 2px;font-size:13.5px}
+.chopt h4 input{margin:0 6px 0 0;vertical-align:-1px}
+/* A day you do not work cannot be put up. Dimmed rather than blanked: it is still a day of the
+   month and the reader is counting squares — a hole would read as the grid being broken, which
+   is the fault that started this. */
+.grid7.chainpick .cell.nooffer{opacity:.34;cursor:default}
+.chopt .why{font-size:12px;color:var(--dim);line-height:1.4}
 .cell.ovc{display:flex;flex-direction:column;gap:2px;align-items:stretch;padding-top:15px}
 .cell.ovc .n{position:absolute;top:3px;left:5px;font-size:11px;font-weight:650;color:var(--ink)}
 .cell.ovc.can{border-color:var(--signal);box-shadow:inset 0 0 0 1px var(--signal)}
@@ -2075,6 +2130,11 @@ function fitChips(root){
     const t=c.querySelector('.bt'); if(!t)return;
     c.style.fontSize=''; t.style.transform='';    // start from the stylesheet, not last pass
     const avail=c.clientWidth;
+    /* A chip that has not been laid out yet measures 0 wide, and every branch below would then
+       read as "does not fit" — stepping a perfectly good label to 7px and condensing it to 0.72
+       for a width that was never real. Callers inside a sheet run a frame early, so this is not
+       hypothetical. Nothing measurable, nothing to fit. */
+    if(!avail)return;
     if(t.scrollWidth<=avail+0.5)return;
     /* STEP THE SIZE DOWN FIRST, but only to 8px — below that it stops being readable and the
        point was to make the calendar BIGGER. */
@@ -3104,13 +3164,19 @@ function teamFilters(){
 function teamFilterSet(id){
   const h=HOSPITALS.find(x=>x[0]===id);
   if(h)return {name:h[1],set:new Set(h[2])};
+  /* THE BANDS COME FROM THE SHIPPED LISTS (Sam, 2026-09-11: "i dont see orientation in icu days").
+     These were a third hardcoded copy of the ICU units. Orientation was made an ICU day earlier
+     today — in SHIFT_META, in counts(), and in DATA.icu, so the provider stats and isICU() all
+     agree — and this list, which is what the REPORT groups by, never heard about it. Clark and
+     Lee's orientation days were counted as ICU everywhere except the one screen an admin uses to
+     check the numbers.
+     Reading DATA means the next shift added to a band is added once. Verified identical to the
+     literals they replace apart from Orientation: same twelve ICU units, same eight clinics, same
+     four NOCs plus the swing. Backup stays literal — it is not a list the build ships. */
   const BANDS={
-    icu:['Red - Neuro/Trauma (201-224)','Yellow - CICU-M (225-236)','Green - CICU-C (237-248)',
-         'Blue - SMICU (329-340)','SAN ICU','Avista/North 2','LAH CVICU','LAH ICU 1',
-         'LAH ICU 2/PTR','Porter ICU','CR/PKR','Parker ICU'],
-    clinic:['West Clinic','North Clinic','South Clinic','Central Clinic','SAH EBUS','Porter EBUS',
-            'Goodland Clinic','RHC-SAN'],
-    noc:['South Swing','SAH NOC','SAH NOC2','PTR NOC','LAH NOC'],
+    icu:(DATA.icu||[]),
+    clinic:(DATA.clinic||[]),
+    noc:(DATA.noc||[]).concat(DATA.swing||[]),
     backup:['Day Jeopardy','IP Backup'],
   };
   const b=BANDS[id];
@@ -3140,19 +3206,38 @@ function renderTeam(into){
   const roster=whoRoster();
   // The clinic account is here to read the whole board, so it starts with the whole board.
   if(!TSEL.size&&ROLE==='clinic')roster.forEach(p=>TSEL.add(p));
-  if(!TGROUPSLOADED)loadTeamGroups(into);
+  // Not fetched for a non-admin either. The server would only ever return their own groups, so
+  // this was never a leak — it is a round trip on every team-schedule open for a feature they
+  // can no longer see.
+  if(!TGROUPSLOADED&&isAdmin())loadTeamGroups(into);
   const chip=(id,label,on)=>`<button class="onfb${on?' on':''}" data-tf="${id}">${esc(label)}</button>`;
   pane.innerHTML=`
     <div class="note" style="margin-top:2px">Pick people, then choose how to look at them.</div>
     ${pickerHTML('tPick',roster,TSEL)}
     ${showingHTML()}
+    <!-- GROUPINGS ARE AN ADMIN FEATURE, ENTIRELY (Sam, 2026-09-11: "Only ADMIN should see the
+         groupings"). The server already refused to SHOW a non-admin anyone else's group — a
+         grouping is visible to its creator and to admins, filtered server-side — so nothing was
+         leaking. What remained was a section offering every physician a feature meant for the
+         people who build reports: a heading, an empty row telling them to save one, and a button.
+         The six real groups are named BOBOs, Partners, HR Team, Finance Team, MT and Triad, which
+         is the clearest possible statement of who this is for.
+         Gone from the non-admin view rather than disabled, because a control that is present and
+         does nothing is worse than one that was never offered. -->
+    ${isAdmin()?`
     <h2 class="sec" style="margin-top:14px">Saved groupings</h2>
     <div id="tGrpRow" class="onfilter">${teamGroupChips()||
-      '<span class="muted sm">None yet — pick some people and save the grouping.</span>'}</div>
+      '<span class="muted sm">None yet — pick some people and save the grouping.</span>'}</div>`:''}
+    <!-- REPORTS AND GROUPINGS PART COMPANY HERE. Groupings are admin-only (2026-09-11); reports
+         can be granted to an account that is not an admin, and Carie Barton is the case. The
+         button therefore hangs off canReport(), not off the groupings block it used to live
+         inside — otherwise granting her reports would have shown her the groupings too, which is
+         the other half of the same instruction. -->
+    ${(isAdmin()||canReport())?`
     <div class="btnrow" style="margin:6px 0">
-      <button class="btn" id="tSave">Save this grouping…</button>
-      ${ROLE==='admin'?'<button class="btn" id="tRpt">Report…</button>':''}
-    </div>
+      ${isAdmin()?'<button class="btn" id="tSave">Save this grouping…</button>':''}
+      <button class="btn" id="tRpt">Report…</button>
+    </div>`:''}
     <h2 class="sec">Show which assignments</h2>
     <div class="onfilter">
       ${chip('all','All assignments',!TFILTER)}
@@ -3185,7 +3270,11 @@ function renderTeam(into){
   $('#tQtr').onchange=e=>{TQTR=e.target.value;paintTeamBody();};
   const rb=$('#tRpt');
   if(rb)rb.onclick=()=>{ if(TSEL.size){RPT.people=new Set(TSEL);} showReport(); };
-  $('#tSave').onclick=()=>saveTeamGroup(into);
+  // Null-guarded like every other control here: the groupings block is not rendered for a
+  // non-admin at all, and an unguarded handler would throw before the rest of this wiring ran —
+  // taking the quarter selector and Clear down with it.
+  const sb2=$('#tSave');
+  if(sb2)sb2.onclick=()=>saveTeamGroup(into);
   const cb=$('#tClear');
   if(cb)cb.onclick=()=>{TSEL.clear();renderTeam(into);};
   wireTeamGroups(into);
@@ -3205,6 +3294,11 @@ function paintTeamBody(){
   box.innerHTML=chosen.length
     ?(TMODE==='grid'?teamGrid(chosen):teamBusy(chosen))
     :'<div class="empty">Choose one or more providers above.</div>';
+  /* WIRING BELONGS WITH RENDERING — the same lesson wireCoverage() records. This function is
+     called from the quarter selector, the mode buttons, the picker and renderTeam, and every one
+     of those replaces the cells with fresh HTML carrying no handlers. Wiring anywhere else leaves
+     a calendar whose days silently stop opening. */
+  if(chosen.length&&TMODE!=='grid')wireBusyDays();
 }
 
 /* ---------- saved groupings ----------
@@ -3230,6 +3324,12 @@ function wireTeamGroups(into){
   $$('[data-grp]').forEach(b=>b.onclick=()=>{
     const g=TGROUPS.find(x=>x.id===b.dataset.grp); if(!g)return;
     TSEL=new Set(g.members.filter(m=>whoRoster().includes(m)));
+    /* A GROUP'S PERIOD TRAVELS WITH IT INTO THE REPORT. Selecting "Finance Team" should give the
+       report that team ALREADY ASKS FOR, dates included — that is the whole reason the range is
+       stored on the group. A group saved without one leaves RPT alone, so the six that exist
+       today behave exactly as they did. Clearing the quarters matters: a range and a highlighted
+       quarter on screen at once is two different answers to "what period is this". */
+    if(g.from&&g.to){ RPT.from=g.from; RPT.to=g.to; RPT.qs=new Set(); }
     renderTeam(into);
   });
 }
@@ -3240,18 +3340,36 @@ async function saveTeamGroup(into){
     <div class="sub" style="margin-top:0">${mine.length} people:
       ${esc(mine.slice(0,6).map(p=>fullOf(p)||p).join(', '))}${mine.length>6?' and '+(mine.length-6)+' more':''}</div>
     <div class="addrow"><input class="inp" id="grpName" placeholder="e.g. SAH nights" maxlength="60"></div>
+    <!-- A PERIOD, OPTIONALLY (Sam, 2026-09-11: "Allow people to set a date range when creating
+         groups"). The reason is the report: "Oct 15 to Nov 15" could not be expressed, because
+         the period selector was quarters and a grouping remembered only WHO. Leaving both blank
+         keeps the old meaning exactly — these people, whatever period you are looking at — which
+         is what all six existing groups mean. -->
+    <div class="sub" style="margin:10px 0 4px">Report period <span class="muted">(optional)</span></div>
+    <div class="addrow">
+      <input class="inp" type="date" id="grpFrom" aria-label="Report period start">
+      <input class="inp" type="date" id="grpTo" aria-label="Report period end">
+    </div>
     <div class="msg" id="grpMsg"></div>
     <div class="btnrow"><button class="btn pri" id="grpGo">Save</button>
       <button class="btn" id="grpX">Cancel</button></div>
     <div class="note">Saved groupings are yours — nobody else sees them. Scheduling admins can
-      see everyone's.</div>`);
+      see everyone's. A period is remembered with the group and used when you open its report.</div>`);
   $('#grpX').onclick=closeSheet;
   $('#grpGo').onclick=async()=>{
     const name=($('#grpName').value||'').trim(), m=$('#grpMsg');
     if(!name){ m.textContent='Give it a name.'; m.className='msg on bad'; return; }
+    // Checked here as well as on the server: half a range is a range that cannot be applied, and
+    // the message belongs beside the two boxes rather than arriving as a failed save.
+    const from=($('#grpFrom').value||''), to=($('#grpTo').value||'');
+    if(!!from!==!!to){
+      m.textContent='Give both dates, or neither.'; m.className='msg on bad'; return; }
+    if(from&&to&&from>to){
+      m.textContent='That range starts after it ends.'; m.className='msg on bad'; return; }
     m.textContent='Saving…'; m.className='msg on';
     try{
-      await api('/groups',{method:'POST',body:JSON.stringify({name,members:mine})});
+      await api('/groups',{method:'POST',
+        body:JSON.stringify({name,members:mine,...(from&&to?{from,to}:{})})});
       closeSheet(); toast('Saved "'+name+'"');
       TGROUPSLOADED=false; renderTeam(into);
     }catch(e){ m.textContent=e.message||'Could not save'; m.className='msg on bad'; }
@@ -3337,6 +3455,7 @@ function teamBusy(people){
         return;                       // protected time is not an appointment; it is not drawn
       }
       out.push({p,kind:META(sh).kind,label:shiftLabel(p,iso,sh,false),
+                short:shiftLabel(p,iso,sh,true),
                 service:ONSERVICE.has(META(sh).kind)});
     });
     return out;
@@ -3360,13 +3479,26 @@ function teamBusy(people){
       const onService=people.filter(p=>rows(p,iso).some(x=>x.service)).length;
       const bars=all.map(x=>`<i class="bl${x.service?'':' soft'}${x.kind==='mtg'?' mtg':''}"
         style="--pc:${personColour(x.p)}"
-        title="${esc((fullOf(x.p)||x.p)+' — '+x.label+(x.service?'':x.kind==='mtg'?' (meeting)':' (not on service)'))}"></i>`).join('');
+        title="${esc((fullOf(x.p)||x.p)+' — '+x.label+(x.service?'':x.kind==='mtg'?' (meeting)':' (not on service)'))}"
+        >${esc(x.short||'')}</i>`).join('');
+      // Tapping a day opens the list, which is the admin day view's behaviour and the thing this
+      // screen was missing: the grid answers "how busy", the popup answers "who, on what".
       html+=`<div class="cell bz${iso===todayISO()?' today':''}" data-iso="${iso}"
-        aria-label="${esc(fmtLong(iso)+', '+onService+' of '+people.length+' on service')}">
+        role="button" tabindex="0" data-busyday="${iso}"
+        aria-label="${esc(fmtLong(iso)+', '+onService+' of '+people.length+' on service — open the list')}">
         <span class="bd">${d}</span><span class="bstack">${bars}</span>
         <span class="bn">${onService||''}</span></div>`;
     }
     html+='</div></div>';
+  });
+  /* WHAT THE POPUP READS. Recomputed from `rows` rather than scraped back out of the DOM: the
+     grid draws a bar per assignment and the list wants them grouped by person, and parsing your
+     own markup to recover data you already had is how the two drift apart. */
+  BUSYDAY={};
+  days.forEach(iso=>{
+    const per=[];
+    people.forEach(p=>{ const r=rows(p,iso); if(r.length)per.push({p,shifts:r}); });
+    if(per.length)BUSYDAY[iso]=per;
   });
   const legend=people.map(p=>`<span><i class="bkey" style="background:${personColour(p)}"></i>${
     esc(fullOf(p)||p)}</span>`).join('');
@@ -3376,6 +3508,40 @@ function teamBusy(people){
       twice. A meeting is drawn dotted and named, and counts as nothing.
       Busiest day this quarter: <b>${peak}</b> of ${people.length}.</div>
     <div class="bleg">${legend}</div>`+html;
+}
+
+/* ---------- one day of a group, as a list (Sam, 2026-09-11) ----------
+   "have it list them in a popup when a specific day is selected, like the admin view version."
+   The grid answers how busy a day is. This answers who is on and what they are on, which is the
+   question somebody actually has once a day looks heavy — and it was previously only obtainable
+   by hovering a 4px bar, which a phone cannot do at all. */
+let BUSYDAY={};
+function openBusyDay(iso){
+  const per=BUSYDAY[iso]||[];
+  if(!per.length){ toast('Nobody from this group is working that day'); return; }
+  const onService=per.filter(x=>x.shifts.some(s=>s.service)).length;
+  /* NAME — SHIFT, on one line (Sam, 2026-09-11: "the format when i press on a day should be
+     Name - Shift"). It was the name on one line with the shifts stacked underneath, which reads
+     as a heading with a list under it; what this screen is actually for is scanning who is on
+     what, and that wants the two side by side. Somebody holding two shifts gets two rows rather
+     than a nested list, so every row has the same shape. */
+  const row=(x)=>x.shifts.map(sh=>`<div class="cvrow">
+      <span class="sp" style="background:${personColour(x.p)};flex:none"></span>
+      <span class="cvnm">${esc(fullOf(x.p)||x.p)} — ${esc(sh.label)}</span>
+      <span class="cabusy">${sh.service?'':sh.kind==='mtg'?'meeting':'not on service'}</span>
+    </div>`).join('');
+  sheet(fmtLong(iso),`
+    <div class="sub" style="margin-top:0"><b>${onService}</b> of ${per.length} on service</div>
+    <div class="plist" style="margin-top:10px">${per.map(row).join('')}</div>
+    <div class="note">Solid bars on the calendar are on service; dotted is clinic, bronchoscopy,
+      jeopardy, backup or a meeting — real work that does not take somebody off the board.</div>`);
+}
+function wireBusyDays(){
+  $$('[data-busyday]').forEach(c=>{
+    const go=()=>openBusyDay(c.dataset.busyday);
+    c.onclick=go;
+    c.onkeydown=e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); go(); } };
+  });
 }
 
 /* Everyone who appears in EITHER quarter. Somebody can be in one and not the other, and "who
@@ -3982,6 +4148,10 @@ function renderSched(){
           }
         }
         if(!inner&&cmeReq)inner='<span class="blk cme"><i class="bt">CME</i></span>';
+        // A day off you asked for now says so, in the same place a shift would. Only when the day
+        // is otherwise empty: if a shift was scheduled over the request the shift is the fact
+        // that matters, and the request still shows on the day sheet.
+        if(!inner&&offReq&&!cmeReq)inner='<span class="blk off"><i class="bt">OFF</i></span>';
         if(a&&a.r&&a.r.length)inner+='<span class="rl"></span>';
         const spoken=[`${MONL[mo]} ${d}`];
         if(shown.length)spoken.push(shown.map(x=>shiftLabel(ME,iso,x,false)).join(' and '));
@@ -3995,7 +4165,11 @@ function renderSched(){
         if(isNow)spoken.unshift('Today');
         html+=`<div class="cell${shown.length?' on':''}${isNow?' today':''}" data-iso="${iso}" role="button" tabindex="0" aria-label="${esc(spoken.join(', '))}">
           <span class="n" aria-hidden="true">${d}</span>${inner}
-          ${onReq?'<span class="req" aria-hidden="true">●</span>':(offReq&&!cmeReq&&!shown.length)?'<span class="req" aria-hidden="true" style="color:var(--dim)">○</span>':''}</div>`;
+          ${onReq?'<span class="req" aria-hidden="true">●</span>'
+            // The ○ stays for the one case the bar cannot cover: a request-off day the schedule
+            // put a shift on anyway. There the shift owns the block, and this is the only mark
+            // saying the day was asked for — which is precisely the conflict an admin wants to see.
+            :(offReq&&!cmeReq&&shown.length)?'<span class="req" aria-hidden="true" style="color:var(--dim)">○</span>':''}</div>`;
       }
       html+='</div></div>';
     });
@@ -4142,7 +4316,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260907.2000';           // shown in the account bar so a stale app is obvious
+const BUILD='260914.0006';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 const PH_KEY='phc_pr4QepiHtyMUqSymFZFyH2s2jKesJJEi4sWDjhaKttDN', PH_HOST='https://us.i.posthog.com';
 /* ---------- analytics ----------
@@ -4486,6 +4660,14 @@ async function signInApi(){
   }catch(e){SESSION=null;return null;}
 }
 const isAdmin=()=>!!(SESSION&&SESSION.role==='admin');
+/* MAY THIS ACCOUNT PULL A REPORT (Sam, 2026-09-11: "Admin should be able to grant the ability to
+   generate reports to other accounts if needed. Carrie Barton is the only one who needs this").
+   A capability beside the role, not a fifth role: Carie is a VIEWER — read-only, agreed with the
+   client on 2026-08-26 — and making her an admin to let her pull a headcount would hand her every
+   schedule edit with it. She stays read-only and gains one screen.
+   Mirrors canReport() in _lib.js. This decides what is DRAWN; the server decides what is allowed,
+   and the capability is in the signed token so the browser cannot argue with it. */
+const canReport=()=>!!(SESSION&&(SESSION.role==='admin'||SESSION.reports===true));
 // Who this page is acting FOR. An admin looking at Dr Smith is editing Smith's requests, not
 // their own. The read path already knew this; the write path did not, so a request an admin
 // entered for someone else was silently filed under the ADMIN — the page looked unchanged and
@@ -4604,7 +4786,16 @@ function monthsOfBlock(){
   return out;
 }
 function renderMoonReq(pane,rq,dl){
-  const avail=rq.nights_available||[], want=rq.shifts_wanted||{};
+  /* THE CALENDAR EDITS RQ.on, so the moonlighter's saved nights have to be IN it before the grid
+     is drawn — otherwise the first repaint shows an empty month over a record full of offers and
+     the next save writes that emptiness back. Seeded from nights_available, and REQMODE is
+     pinned to 'on' because a tap on this form can only ever mean "I will work this night". */
+  const want=rq.shifts_wanted||{};
+  REQMODE='on';
+  rqSeed({...rq, on:(rq.nights_available||[]).slice(), off:[], cme:[], no_noc:[]},
+         MOONFOR!==((ME||'')+'|'+(rq.submittedAt||'')));
+  MOONFOR=(ME||'')+'|'+(rq.submittedAt||'');
+  const avail=RQ.on;
   const months=monthsOfBlock();
   const monthName=k=>MONL[+k.slice(5)-1]+' '+k.slice(0,4);
   const per=k=>avail.filter(d=>d.slice(0,7)===k).length;
@@ -4631,11 +4822,30 @@ function renderMoonReq(pane,rq,dl){
                data-m="${k}" value="${want[k]!=null?want[k]:''}" placeholder="0">
         <span class="mnote">${per(k)} night${per(k)===1?'':'s'} offered</span></label>`).join('')}
     </div>
-    <h2 class="sec">Nights available to work</h2>
-    <div class="addrow"><input type="date" id="mnDate" aria-label="date" min="${reqStart()}"
-      max="${reqYear()}-12-31" value="${reqStart()}"><button class="btn" id="mnAdd">Add</button></div>
+    <h2 class="sec">Nights you can work</h2>
+    <!-- THE SAME CALENDAR EVERYONE ELSE GETS (Aaron, 2026-09-11: "the moonlighter requests don't
+         have the same calendar view that you built for the other docs. If you could add that
+         functionality, I think it would be useful for the moonlighters as it is really helpful
+         for the rest of us.")
+
+         This form was built separately because a moonlighter asks for the opposite thing — days
+         they WILL work (R-012), not days off — and the calendar added for everybody else on
+         2026-09-02 never reached it. So nine people were still adding nights one date-picker
+         press at a time, with no view of the month they were offering into.
+
+         It drives RQ.on, the same buffer the physicians' form uses for want-to-work, so tapping,
+         the two-tap range and the quarter tabs all work here exactly as they do there — one
+         implementation, not a second that drifts. The chips stay underneath: they are the list of
+         what you have picked, and on a small screen that is easier to check than counting
+         squares. -->
+    <div class="btnrow" style="margin:0 0 8px">
+      <button class="btn${RQRANGE?' pri':''}" id="mnRange">${RQRANGE
+        ?'Pick the last day of the run':'Date range'}</button>
+      <button class="btn" id="mnRangeX"${RQRANGE?'':' hidden'}>Cancel range</button>
+    </div>
+    <div id="rqCal" class="rqcal">${reqCalHTML()}</div>
     <div class="addhint" id="mnHint"></div>
-    <div class="chips" id="mnChips">${chipList(avail,'mn',1)}</div>
+    <div class="chips" id="mnChips">${chipList(RQ.on.slice().sort(),'mn',1)}</div>
     <h2 class="sec">How you'd like your nights</h2>
     <p class="muted" style="margin-top:0">If you are given more than one, would you rather they
       ran back to back or were spread out? A preference, not a guarantee — the schedule may not
@@ -4651,24 +4861,27 @@ function renderMoonReq(pane,rq,dl){
     pane.querySelectorAll('.minp').forEach(i=>{const v=parseInt(i.value,10); if(!isNaN(v)&&v>=0)w[i.dataset.m]=v;});
     return w;
   };
-  $('#mnAdd').onclick=()=>{
-    const el=$('#mnDate'), hint=$('#mnHint');
-    if(!el.value){ if(hint)hint.textContent='Pick a date first, then press Add.';
-                   el.focus(); if(el.showPicker)try{el.showPicker();}catch(e){} return; }
-    const v=el.value;
-    if(!avail.includes(v))avail.push(v);
-    avail.sort(); MYREQ={...rq,nights_available:avail,shifts_wanted:collect()}; renderReq();
-  };
+  /* The grid, the two-tap range and the quarter tabs are the physicians' own — wireReqCal() and
+     wireReqMonths() are called here rather than reimplemented, so there is one calendar in this
+     app and not two that drift. Everything they write lands in RQ.on, which is what saves. */
+  try{ wireReqCal(); }catch(e){}
+  try{ wireReqMonths(); }catch(e){}
+  const mr=$('#mnRange');
+  if(mr)mr.onclick=()=>{ RQRANGE=!RQRANGE; RQANCHOR=null; renderReq(); };
+  const mrx=$('#mnRangeX');
+  if(mrx)mrx.onclick=()=>{ RQRANGE=false; RQANCHOR=null; renderReq(); };
   // chipList writes data-d on a .pillx. This looked for [data-x] and read dataset.x, so the
   // selector matched nothing at all and the × on a night you had offered did nothing — the one
   // way to take back an offer. The physicians' own chips, three functions down, were always
   // written against the real markup; only this copy drifted.
+  // Removing a chip clears the same buffer the calendar paints from, so the square unfills too.
+  // Before, the chips and the grid would have disagreed the moment either was used.
   $$('#mnChips .pillx',pane).forEach(c=>c.onclick=()=>{
-    const i=avail.indexOf(c.dataset.d); if(i>=0)avail.splice(i,1);
-    MYREQ={...rq,nights_available:avail,shifts_wanted:collect()}; renderReq();
+    rqSet('on',c.dataset.d,false);
+    MYREQ={...rq,nights_available:RQ.on.slice().sort(),shifts_wanted:collect()}; renderReq();
   });
   $$('#nsSeg button',pane).forEach(b=>b.onclick=()=>{
-    MYREQ={...rq,nights_available:avail,shifts_wanted:collect(),nightShape:b.dataset.ns||null};
+    MYREQ={...rq,nights_available:RQ.on.slice().sort(),shifts_wanted:collect(),nightShape:b.dataset.ns||null};
     renderReq();});
   $('#mSave').onclick=async()=>{
     const m=$('#mMsg'); m.textContent='Saving…'; m.className='msg on';
@@ -4684,7 +4897,7 @@ function renderMoonReq(pane,rq,dl){
          were locked out. Nothing was lost, which is the check doing its job; they simply could
          not add to what they had.
          Mine as of 2026-09-02, when the guard went in and this second form was missed. */
-      const body={nights_available:avail,shifts_wanted:collect(),moonlighter:true,
+      const body={nights_available:RQ.on.slice().sort(),shifts_wanted:collect(),moonlighter:true,
                   nightShape:(MYREQ&&MYREQ.nightShape)||null,
                   knownAt:(MYREQ&&MYREQ.submittedAt)||null};
       if(who)body.person=who;
@@ -4692,7 +4905,18 @@ function renderMoonReq(pane,rq,dl){
       /* ADOPT WHAT CAME BACK. Without this the page still holds the submittedAt it loaded with,
          so the save AFTER this one sends a stale knownAt and is refused — the same lockout,
          one press later. */
-      if(r&&r.requests){ MYREQ=r.requests; rq=r.requests; }
+      /* AND RE-SEED AT THE MOMENT OF THE SAVE, not at the next render. Adopting the returned
+         record changes submittedAt, which is what the seed guard is keyed on — so the NEXT
+         render saw a new id, forced a re-seed, and threw away any night tapped in between. The
+         physicians' form has always seeded inside its own save handler for this reason; this one
+         adopted the record and left the seed to whenever a render next happened.
+         Symptom: save, tap another night, save again — and the second night was silently gone. */
+      if(r&&r.requests){
+        MYREQ=r.requests; rq=r.requests;
+        rqSeed({...r.requests, on:(r.requests.nights_available||[]).slice(),
+                off:[], cme:[], no_noc:[]}, true);
+        MOONFOR=(ME||'')+'|'+(r.requests.submittedAt||'');
+      }
       m.textContent=who?('Saved for '+fullOf(who)):'Saved'; m.className='msg on ok';
     }catch(e){
       /* A GENUINE COLLISION NEEDS A WAY THROUGH, not a red line. Two devices, or an admin
@@ -4762,7 +4986,12 @@ const REQKINDS_ALL=[
   {k:'off',   arr:'off',    label:'Day off',      one:'day off',           many:'days off'},
   {k:'cme',   arr:'cme',    label:'CME',          one:'CME day',           many:'CME days'},
   {k:'nn',    arr:'no_noc', label:'No nights',    one:'no-night day',      many:'no-night days'},
-  {k:'on',    arr:'on',     label:'Want to work', one:'want-to-work day',  many:'want-to-work days'},
+  /* "CAN WORK", NOT "WANT TO WORK" (Sam, 2026-09-11). A moonlighter is stating availability —
+     the nights they are able to cover — not preference. "Want to work" reads as enthusiasm and
+     invites the reading that a night not picked is one they would rather avoid, when in fact it
+     is one they cannot do. R-012 gives them a night only on a date they offered, so this list is
+     a statement of capacity and the label should say so. */
+  {k:'on',    arr:'on',     label:'Can work',     one:'can-work day',      many:'can-work days'},
 ];
 const isMoonlighterMe=()=>!!(DATA.providers[ME]||{}).moon;
 const REQKINDS=()=>REQKINDS_ALL.filter(k=>k.k!=='on'||isMoonlighterMe());
@@ -4809,6 +5038,7 @@ const rqSavedHas=(k,iso)=>RQSAVED[k].includes(iso);
 // The live edit buffers, held between renders so a drag can paint across a repaint.
 let RQ={off:[],cme:[],nn:[],on:[]};
 let RQDRAG=null;
+let MOONFOR=null;   // whose moonlighter record RQ.on currently holds
 
 const rqHas=(k,iso)=>RQ[k].includes(iso);
 function rqSet(k,iso,on){
@@ -5278,7 +5508,14 @@ function renderReq(){
       <div class="addhint" id="${hi}"></div>`).join('')}
 
     <h2 class="sec">Priority holiday</h2>
-    <p class="muted" style="margin-top:0">You may claim <b>one</b> holiday a year as your guaranteed 4-day block.</p>
+    <!-- NO PROMISE OF A FIXED BLOCK LENGTH (Aaron, 2026-09-09, on the holiday wording: remove it
+         from all views "for now to preserve flexibility"). The CLAIM stays — one holiday a year,
+         named by you, decided by an admin — because that is the feature. What goes is the
+         guarantee attached to it, which the schedule cannot always keep and which nobody had
+         agreed to underwrite. Also removed from the admin queue card.
+         Phrased without repeating the old promise, because this comment ships inside the page:
+         the wording it describes must not survive in the source of the very view it left. -->
+    <p class="muted" style="margin-top:0">You may name <b>one</b> holiday a year as your priority.</p>
     <div class="segx" id="holSeg">
       ${[['','none'],['thanksgiving','Thanksgiving'],['christmas','Christmas'],['newyear','New Year']]
         .map(([k,l])=>`<button data-h="${k}" class="${(rq.holiday||'')===k?'on':''}">${l}</button>`).join('')}
@@ -5644,6 +5881,63 @@ const pushSettled=()=>{
   if(pushGranted())return true;
   try{ return localStorage.getItem('ccpsa_pushask')==='1'; }catch(e){ return false; }
 };
+/* THIS DEVICE IS SILENT AND ANOTHER ONE IS NOT (Sam, 2026-09-11: "some people may not get push
+   notifcations if turned on for computer first then downloaded on phone, the phone doesnt get
+   notifications").
+
+   A DIFFERENT QUESTION FROM THE ONE-TIME OFFER, which is why it is allowed past pushSettled().
+   That offer asks "do you want notifications" and a no must stick — being asked on every visit is
+   nagging, and Sam said so on 8/26. This asks "you already said yes, somewhere else; this device
+   never got the message" — and somebody who turned them on at a desk has ALREADY answered the
+   first question. Showing them nothing on the phone is how they end up believing they are covered
+   while their phone stays quiet.
+
+   Only ever shown when the server says another device is subscribed and this one is not, so it
+   cannot appear for somebody who has simply never wanted notifications. */
+let PUSHOTHERS=null;
+async function pushOtherDevices(){
+  if(PUSHOTHERS!==null)return PUSHOTHERS;
+  PUSHOTHERS=0;
+  try{
+    // This browser's own endpoint, so it is excluded from the count server-side rather than
+    // this device reporting itself as "somewhere else".
+    let ep='';
+    try{ const reg=await navigator.serviceWorker.getRegistration();
+         const sub=reg&&await reg.pushManager.getSubscription();
+         if(sub)ep=sub.endpoint; }catch(e){}
+    const r=await api('/push'+(ep?'?endpoint='+encodeURIComponent(ep):''));
+    PUSHOTHERS=(r&&r.others)||0;
+  }catch(e){ PUSHOTHERS=0; }
+  return PUSHOTHERS;
+}
+async function paintDeviceGap(){
+  const host=document.querySelector('#deviceGap');
+  if(!host)return;
+  const st=await pushState();
+  if(st!=='off'){ host.innerHTML=''; return; }      // nothing to say on a device that is set up
+  const others=await pushOtherDevices();
+  if(!host.isConnected)return;
+  if(!others){ host.innerHTML=''; return; }
+  host.innerHTML=`<div class="swcard">
+    <div class="lgh">This device isn't set up for notifications</div>
+    <div class="sub">You have notifications on ${others===1?'another device':others+' other devices'},
+      but not this one — so anything sent while you are here will not reach you.</div>
+    <div class="btnrow" style="margin-top:10px">
+      <button class="btn pri" id="dgOn">Turn them on here</button>
+      <button class="btn" id="dgNo">Not on this device</button>
+    </div></div>`;
+  const yes=document.querySelector('#dgOn');
+  if(yes)yes.onclick=async()=>{ yes.disabled=true; yes.textContent='Asking…';
+    try{ const r=await enablePush();
+         if(r&&r.ok){ toast('Notifications on for this device'); PUSHOTHERS=null; }
+         else toast((r&&r.why)||'Could not turn them on'); }
+    catch(e){ toast(e.message||'Could not turn them on'); }
+    paintDeviceGap(); };
+  const no=document.querySelector('#dgNo');
+  // Declining sets the same flag the one-time offer uses, so this device stops asking too.
+  if(no)no.onclick=()=>{ try{localStorage.setItem('ccpsa_pushask','1');}catch(e){}
+                         host.innerHTML=''; };
+}
 function notifyCard(){
   /* ONCE IT IS SETTLED, NOTHING IS SHOWN. AT ALL.
      This started as a paragraph explaining notifications, parked at the top of the Swaps tab
@@ -5802,6 +6096,619 @@ async function paintNotify(){
     else { toast(r.why||'Could not turn them on'); pn.disabled=false; pn.textContent='Turn on notifications'; }
     paintNotify();
   };
+}
+
+/* ---------- CHAIN TRADES: the loop, on screen (Sam, 2026-09-11) ----------
+   "We should have an intelligent way to close the chain when we have trades."
+
+   The state machine went in first with its rules and its tests; this is the part a physician can
+   actually reach, which until now did not exist — the API was live and nothing in the app called
+   it. One shift is open at a time, one person owes a shift back to the originator, and the loop
+   closes only when the ORIGINATOR receives one.
+
+   Every screen here says draft-of-a-trade rather than trade: nothing moves on the schedule until
+   an admin approves the whole chain, and a half-applied three-way is two people double-booked. */
+let CHAINS=[], CHAINWANT=new Set(), CHAINEXPIRY=7;
+
+async function loadChains(){
+  try{ const r=await api('/chain'); CHAINS=r.chains||[]; CHAINEXPIRY=r.expiryDays||7; }
+  catch(e){ CHAINS=[]; }
+}
+const chainLive=(c)=>!['closed','approved','rejected','cancelled','expired'].includes(c.status);
+
+/* A MONTH GRID FOR "DAYS I WOULD TAKE A SHIFT" — the request calendar's shape, because Sam asked
+   for it in those words ("like in the calendar selector for requests off"). Its own small grid
+   rather than rqCal: that one is bound to RQ and the request record, and borrowing it here would
+   put trade picks into somebody's leave buffer. */
+/* THE WHOLE QUARTER, SCROLLED — not one month behind tabs (Sam, 2026-09-13: "separate by
+   quarter, not by month and allow scroll through the 3 months"). Picking the days you would take
+   a shift is a judgement across a quarter: paging month by month means holding January in your
+   head while looking at February, which is the work this screen is supposed to remove. The three
+   months are drawn stacked and the sheet scrolls, exactly as the request calendar does.
+   Quarters ARE the unit here — it is how the blocks are solved and how the group already thinks
+   about the year. */
+let CHAINQ=null, CHAINVIEW='cal';
+/* WHAT IS A FAIR TRADE FOR WHAT — the same five classes the server keeps in _rules.js, built
+   from the same four shift lists it is built from (DATA.icu/noc/swing/clinic all come out of
+   dsl_model, so there is one source and two readers rather than two lists).
+   tools/api_tests.mjs compares the two files, the way it already does for shift hours — this is
+   the second pair of files that must agree, and the first pair only got a test after they had
+   already disagreed in production about Day Jeopardy.
+   Sam, 2026-09-13: "Ebus and IP Backup and clinic are counting as shifts that are a fair trade,
+   this may not be the case, you should have the option to open up shifts you want to trade." */
+const TRADE_CLASSES=['icu','night','swing','clinic','other'];
+const TRADE_LABEL={icu:'ICU day',night:'Night',swing:'Swing',
+                   clinic:'Clinic or procedure',other:'Backup or other'};
+const tradeClass=s=>(DATA.icu||[]).includes(s)?'icu'
+                   :(DATA.noc||[]).includes(s)?'night'
+                   :(DATA.swing||[]).includes(s)?'swing'
+                   :(DATA.clinic||[]).includes(s)?'clinic':'other';
+const standsFor=s=>tradeClass(s)==='swing'?['swing','icu','night']:[tradeClass(s)];
+function acceptDefault(s){
+  const k=tradeClass(s);
+  if(k==='swing')return ['swing','icu','night'];
+  return (k==='icu'||k==='night')?[k,'swing']:[k];
+}
+const acceptOf=(c)=>(c&&c.accept&&c.accept.length)?c.accept
+                    :acceptDefault(((c&&c.offer)||(c&&c.open)||{}).shift);
+const tradeOk=(offered,given,accept)=>
+  standsFor(given).some(k=>((accept&&accept.length)?accept:acceptDefault(offered)).includes(k));
+/* ONLY QUARTERS YOU COULD ACTUALLY TRADE INTO (Sam, 2026-09-13: "this only happend on the select
+   a trade chain selecting the days you can work, and the blanks was in Q3").
+
+   A day before today is not a day you can offer to work, so the grid blanks it — correct. What
+   was wrong was still OFFERING the quarter. On 13 September, Q3 runs 1 July to 30 September and
+   holds 18 future days out of 92: pressing it drew an entirely blank July, an entirely blank
+   August, and a September with its first twelve days missing. A screen that answers a press with
+   blanks reads as broken, and it was my grid that did it — the physicians' request calendar
+   never offered a spent quarter at all.
+
+   A month with nothing selectable is dropped too, so the quarter you are left with opens on days
+   you can actually pick rather than on two empty grids you have to scroll past. */
+function chainQuarters(){
+  const t=todayISO(), out=[];
+  spanMonths().forEach(m=>{
+    // does this month hold a day that could still be worked?
+    const y=+m.slice(0,4), mo=+m.slice(5)-1, dim=new Date(y,mo+1,0).getDate();
+    let usable=false;
+    for(let d=1;d<=dim&&!usable;d++){
+      const iso=`${y}-${String(mo+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+      if(knownDate(iso)&&iso>=t)usable=true;
+    }
+    if(!usable)return;
+    const n=Math.floor((mo)/3)+1, id=y+'-Q'+n;
+    let q=out.find(x=>x.id===id);
+    if(!q){ q={id,label:'Q'+n+' '+y,months:[]}; out.push(q); }
+    q.months.push(m);
+  });
+  return out;
+}
+/* ONE MONTH GRID, DRAWN TWO WAYS — AS AN ANSWER OR AS A QUESTION.
+   Sam, 2026-09-13: "the pass it on screen is confusing and pressing q4 on one button presses it
+   on both". Both halves of the take screen called chainCalHTML, so both emitted a quarter row and
+   both read the same CHAINQ — pressing Q4 under one moved the other, which looks like a bug in
+   the button and is really two screens sharing one variable. They were never the same thing: the
+   top calendar ANSWERS a question (where does this shift land on my month) and the bottom one
+   ASKS one (which days would you give up). Drawing them identically invited exactly the confusion
+   reported. The overlay is now one month, no quarter row, and no cell you can press — so there is
+   nothing on it to mistake for the picker below. */
+/* A DAY YOU DO NOT WORK IS NOT A SHIFT YOU CAN GIVE (Sam, 2026-09-13: "i keep getting the 'None
+   of those days has a shift of yours that could close this trade' issue").
+
+   The pass-it-on calendar let you tick ANY future day, because it is the same grid step one uses
+   — and there the question is the opposite one, "which days could you WORK", where a free day is
+   the whole point. Here the question is which of your shifts you would put up, so ticking a day
+   off meant offering nothing, and the refusal arrived after the press instead of the grid simply
+   not offering it. `only` is that set: when it is passed, nothing outside it can be picked. */
+function chainMonthHTML(mk,incoming,pick,only){
+  const y=+mk.slice(0,4), mo=+mk.slice(5)-1;
+  const first=new Date(y,mo,1), dim=new Date(y,mo+1,0).getDate();
+  const t=todayISO(), rq=(DATA.requests||{})[ME]||{};
+  let h=`<div class="month"><h4><b>${MONL[mo]} ${y}</b></h4><div class="grid7 chainpick${
+    pick?'':' look'}">`;
+  dowLabels().forEach(x=>h+=`<div class="dow${x==='Sat'||x==='Sun'?' we':''}">${x}</div>`);
+  for(let i=0;i<leadFor(first);i++)h+='<div class="cell blank"></div>';
+  for(let d=1;d<=dim;d++){
+    const iso=`${y}-${String(mo+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    if(!knownDate(iso)||iso<t){ h+='<div class="cell blank"></div>'; continue; }
+    const on=pick&&CHAINWANT.has(iso);
+    const mine=worksOn(ME,iso);
+    const offReq=(rq.off||[]).includes(iso)||(rq.cme||[]).includes(iso);
+    let inner='';
+    if(mine.length){
+      const m0=META(mine[0]);
+      inner=`<span class="blk" style="background:${m0.color};color:${chipInk(m0.color)}"><i class="bt">${
+        esc(shiftLabel(ME,iso,mine[0],true))}</i></span>`;
+    } else if(offReq){
+      inner='<span class="blk off"><i class="bt">OFF</i></span>';
+    }
+    const isIncoming=incoming&&incoming.date===iso;
+    if(isIncoming){
+      const im=META(incoming.shift);
+      inner+=`<span class="blk" style="background:transparent;border:1px dashed ${im.color};
+        color:${im.color};font-weight:700"><i class="bt">${esc(im.short||incoming.shift)}</i></span>`;
+    }
+    const say=(isIncoming?'the offered shift lands here; ':'')
+             +(mine.length?('you work '+mine.map(x=>shiftLabel(ME,iso,x,false)).join(' and '))
+             :offReq?'you asked this day off':'you are free');
+    // The day you are accepting is never offerable — you would be giving away the shift you just
+    // took. In the read-only overlay nothing is offerable, so nothing carries data-chd at all.
+    const offerable=!only||only.has(iso);
+    const live=pick&&!isIncoming&&offerable;
+    h+=`<div class="cell${on?' on':''}${mine.length?' has':''}${isIncoming?' incoming locked':''}${
+        (pick&&!offerable&&!isIncoming)?' nooffer':''}"
+      ${live?`role="button" tabindex="0" data-chd="${iso}"`:''}
+      aria-label="${esc(fmtLong(iso)+', '+say)}${on?', selected':''}"><span class="n">${d}</span>
+      ${inner}</div>`;
+  }
+  return h+'</div></div>';
+}
+// The overlay: the month the offered shift lands in, and only that month.
+function chainLookHTML(open){ return chainMonthHTML(open.date.slice(0,7),open,false); }
+function chainCalHTML(incoming,only){
+  const qs=chainQuarters();
+  if(!qs.length)return '<div class="empty">No schedule to pick from.</div>';
+  if(!CHAINQ||!qs.some(q=>q.id===CHAINQ)){
+    const here=inBlockDay(todayISO()).slice(0,7);
+    CHAINQ=(qs.find(q=>q.months.includes(here))||qs[0]).id;
+  }
+  const q=qs.find(x=>x.id===CHAINQ);
+  return `<div class="btnrow">${qs.map(x=>
+    `<button class="btn${x.id===CHAINQ?' pri':''}" data-chq="${x.id}">${esc(x.label)}</button>`).join('')}</div>`
+    + q.months.map(mk=>chainMonthHTML(mk,incoming,true,only)).join('');
+}
+/* THE SAME DAYS, AS A LIST (Sam, 2026-09-13: "we should also allow list view of their shifts in
+   pass it on view"). Which of MY shifts am I willing to put up is a question about shifts, and a
+   month grid answers it in the shape of a month: three grids to scan for the six coloured squares
+   that are the only cells that mean anything, with each one abbreviated to fit a 34px chip. The
+   list is those six, in date order, spelled out. Same CHAINWANT behind both — the toggle changes
+   how the days are shown, never which ones are chosen, so switching view never loses a pick. */
+function chainListHTML(incoming,only){
+  const t=todayISO(), rows=[];
+  spanMonths().forEach(mk=>{
+    const y=+mk.slice(0,4), mo=+mk.slice(5)-1, dim=new Date(y,mo+1,0).getDate();
+    for(let d=1;d<=dim;d++){
+      const iso=`${y}-${String(mo+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+      if(!knownDate(iso)||iso<t)continue;
+      if(incoming&&incoming.date===iso)continue;   // not yours to give: you are accepting it
+      if(only&&!only.has(iso))continue;
+      const mine=worksOn(ME,iso).filter(x=>isRealShift(ME,iso,x));
+      if(mine.length)rows.push({iso,shifts:mine});
+    }
+  });
+  if(!rows.length)return '<div class="empty">You have no shifts left in the published schedule.</div>';
+  return rows.map(r=>`<label class="cvrow"><input type="checkbox" class="chld" value="${r.iso}"${
+      CHAINWANT.has(r.iso)?' checked':''}>
+    <span class="cvnm">${esc(fmtD(r.iso))} · ${esc(r.shifts.map(s=>shiftLabel(ME,r.iso,s,false)).join(' + '))}</span>
+  </label>`).join('');
+}
+function wireChainCal(host,after){
+  $$('[data-chq]',host).forEach(b=>b.onclick=()=>{ CHAINQ=b.dataset.chq; after(); });
+  $$('[data-chd]',host).forEach(c=>{
+    const go=()=>{ const iso=c.dataset.chd;
+      if(CHAINWANT.has(iso))CHAINWANT.delete(iso); else CHAINWANT.add(iso); after(); };
+    c.onclick=go;
+    c.onkeydown=e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); go(); } };
+  });
+  $$('.chld',host).forEach(b=>b.onchange=()=>{
+    if(b.checked)CHAINWANT.add(b.value); else CHAINWANT.delete(b.value); after();
+  });
+}
+
+// Start one: my shift, and the days I would take one back.
+/* The available list, from the SAME endpoint the coverage picker uses — /api/coverage?preview=1
+   — so "who could take this shift" has one answer in the app and not two. Painted after the sheet
+   because it is a round trip, and re-read whenever the chosen shift changes. */
+async function paintChainWho(date,shift){
+  const host=$('#chWho'); if(!host)return;
+  try{
+    const j=await prefetchWho(date,shift);
+    if(!host.isConnected)return;
+    const free=j.free||[], working=j.working||[], blocked=j.blocked||[];
+    /* NAMES, NOT RULES (Sam, 2026-09-13: "i dont want to SEE the rules in the available vs
+       unavailable chart, i just want to see the names"). I put the reason beside each name —
+       "already works South Swing that day" — reasoning that it answered "why isn't Sullivan
+       here". It answers a question nobody is asking at that moment: you are choosing colleagues,
+       not auditing the rule engine, and a second column of grey text beside every name is the
+       thing the coverage picker already had removed for exactly this reason. The grouping says
+       enough — Available, Working that day, Unable. */
+    const row=(e,checked)=>`<label class="cvrow">
+      <input type="checkbox" class="chpick" value="${esc(e.person)}"${checked?' checked':''}>
+      <span class="cvnm">${esc(fullOf(e.person)||e.person)}</span>
+    </label>`;
+    const group=(title,rows,checked,klass)=>rows.length
+      ? `<div class="cvhead ${klass||''}">${title} <span class="cvn">${rows.length}</span></div>`
+        +rows.map(e=>row(e,checked)).join('') : '';
+    if(!free.length&&!working.length&&!blocked.length){
+      host.innerHTML='<div class="empty">Nobody to ask for that shift.</div>'; return;
+    }
+    host.innerHTML=group('Available',free,true)
+      +(free.length?'':'<div class="empty">Nobody is free at that time of day.</div>')
+      +((working.length||blocked.length)?`
+        <div class="btnrow" style="margin:8px 0 0">
+          <button class="btn" id="chWhoMore">Show the ${working.length+blocked.length} who
+            can't</button></div>
+        <div id="chWhoRest" hidden>
+          ${group('Working that day',working,false,'warn')}
+          ${group('Unable',blocked,false,'bad')}
+        </div>`:'')
+      +`<div class="note" style="margin-top:6px">Only the first step is narrowed. Once the chain
+        is moving, later shifts stay open to everyone eligible.</div>`;
+    const more=$('#chWhoMore');
+    if(more)more.onclick=()=>{ const r=$('#chWhoRest'); if(!r)return;
+      r.hidden=!r.hidden;
+      more.textContent=r.hidden?('Show the '+(working.length+blocked.length)+" who can't")
+                               :'Hide them'; };
+  }catch(e){
+    if(!host.isConnected)return;
+    host.innerHTML=`<div class="errbox">Could not read who is available. ${esc(e.message||'')}</div>`;
+  }
+}
+
+/* TWO STEPS, IN THE ORDER THE DECISION IS MADE (Sam, 2026-09-13: "the flow is: select days you
+   are allowing to trade ... then the next button should be all eligible or inelligible for the
+   check box").
+
+   It was one sheet carrying the shift, the calendar and the people at once, which asks you to
+   choose who to ask before you have finished deciding what you are offering. Days first — that
+   is the judgement — then Next, and only then who. Which also means the availability list is
+   fetched for a shift you have actually settled on rather than re-fetched every time you change
+   your mind.
+
+   Step two shows BOTH lists. Available is ticked; the people who cannot take it are shown too,
+   unticked, because "why isn't Sullivan here" is a fair question and the answer belongs on the
+   screen rather than in somebody's head. The server intersects whatever is sent with the free
+   list, so ticking one changes nothing it would allow. */
+function openChainStart(preIso,preShift){
+  const t=todayISO();
+  const mine=allShifts(ME).filter(x=>x.iso>=t&&isRealShift(ME,x.iso,x.shift));
+  if(!mine.length){ toast('You have no upcoming shifts to trade'); return; }
+  CHAINWANT=new Set();
+  /* THE CHOSEN SHIFT HAS TO SURVIVE A REDRAW. step1 re-renders on every calendar tap, and the
+     <select> was rebuilt each time with its selection taken from preIso/preShift — so choosing
+     your third shift and then picking a day silently put you back on your first, and the sheet
+     said one thing while the post said another. Held in a variable now, like every other answer
+     on this screen. */
+  let offVal=(preIso&&preShift&&mine.some(x=>x.iso===preIso&&x.shift===preShift))
+    ? preIso+'|'+preShift : mine[0].iso+'|'+mine[0].shift;
+  // What they will take back. Follows the shift's own class until they say otherwise, and then
+  // stops following it — an explicit answer must not be overwritten by picking a different shift.
+  let acc=null;
+  const accNow=()=>acc||acceptDefault(offVal.split('|')[1]);
+  const step1=()=>{
+    const offShift=offVal.split('|')[1], on=accNow();
+    sheet('Start a trade chain',`
+      <div class="sub" style="margin-top:0">Offer one of your shifts, and mark the days you would
+        be happy to take one back.</div>
+      <label class="lbl" for="chShift">The shift you want covered</label>
+      <select class="inp" id="chShift">${mine.slice(0,80).map(x=>{
+        const v=x.iso+'|'+x.shift;
+        return `<option value="${esc(v)}"${v===offVal?' selected':''}>${esc(fmtD(x.iso))} — ${
+          esc(shiftLabel(ME,x.iso,x.shift,false))}</option>`;}).join('')}</select>
+      <!-- "Ebus and IP Backup and clinic are counting as shifts that are a fair trade, this may
+           not be the case, you should have the option to open up shifts you want to trade"
+           (Sam, 2026-09-13). It starts like-for-like because that is the only assumption that is
+           safe to make for somebody; widening it is a decision and belongs to the person losing
+           the shift. -->
+      <label class="lbl">What you will take back</label>
+      <div class="sub" style="margin-top:0">You are giving up
+        <b>${esc(TRADE_LABEL[tradeClass(offShift)])}</b>. Only the same kind counts by default —
+        open it up if you would take something else.</div>
+      <div class="btnrow" id="chAcc">${TRADE_CLASSES.map(k=>
+        `<button class="btn${on.includes(k)?' pri':''}" data-chacc="${k}"
+           aria-pressed="${on.includes(k)?'true':'false'}">${esc(TRADE_LABEL[k])}</button>`).join('')}</div>
+      <h2 class="sec">Days you could work in return</h2>
+      <div class="sub" style="margin-top:0">A day shift trades for a day, a night for a night — a
+        swing counts as either. Your own shifts are drawn underneath; <b>OFF</b> is a day you
+        asked for.</div>
+      <div id="chCal">${chainCalHTML()}</div>
+      <div class="note"><b>${CHAINWANT.size}</b> day${CHAINWANT.size===1?'':'s'} chosen.
+        Chains expire after ${CHAINEXPIRY} days if nobody closes the loop.</div>
+      <div class="msg" id="chMsg"></div>
+      <div class="btnrow"><button class="btn pri" id="chNext">Next — choose who to ask</button>
+        <button class="btn" id="chX">Cancel</button></div>`, ()=>renderSwap());
+    wireChainCal($('#chCal'),step1);
+    requestAnimationFrame(()=>fitChips($('#chCal')));   // same chips, same squares — see openChainTake
+    $('#chShift').onchange=e=>{ offVal=e.target.value; step1(); };
+    $$('#chAcc [data-chacc]').forEach(b=>b.onclick=()=>{
+      const k=b.dataset.chacc, cur=new Set(accNow());
+      if(cur.has(k))cur.delete(k); else cur.add(k);
+      // Never let them arrive at "nothing closes this" — a chain nobody can end is worse than a
+      // narrow one, because it looks open right up until the seventh day.
+      if(!cur.size){ toast('Leave at least one kind of shift you would take back'); return; }
+      acc=TRADE_CLASSES.filter(x=>cur.has(x));
+      step1();
+    });
+    $('#chX').onclick=closeSheet;
+    $('#chNext').onclick=()=>{
+      if(!CHAINWANT.size){ const m=$('#chMsg');
+        m.textContent='Pick at least one day you could work in return.';
+        m.className='msg on bad'; return; }
+      step2(offVal);
+    };
+  };
+  const step2=(shiftVal)=>{
+    const [date,shift]=shiftVal.split('|');
+    sheet('Who to ask',`
+      <div class="sub" style="margin-top:0">${esc(META(shift).label||shift)} · ${esc(fmtD(date))}
+        — offering <b>${CHAINWANT.size}</b> day${CHAINWANT.size===1?'':'s'} back, for
+        ${esc(accNow().map(k=>TRADE_LABEL[k].toLowerCase()).join(' or '))}.</div>
+      <div id="chWho"><div class="cvload">Reading who is available…</div></div>
+      <div class="msg" id="chMsg2"></div>
+      <div class="btnrow"><button class="btn pri" id="chGo">Offer it</button>
+        <button class="btn" id="chBack">Back</button></div>`, ()=>renderSwap());
+    $('#chBack').onclick=()=>step1();          // the days survive; CHAINWANT is not cleared
+    paintChainWho(date,shift);
+    $('#chGo').onclick=async()=>{
+      const m=$('#chMsg2');
+      const to=[...document.querySelectorAll('.chpick:checked')].map(b=>b.value);
+      if(!to.length){ m.textContent='Tick at least one person to ask.';
+                      m.className='msg on bad'; return; }
+      m.textContent='Offering…'; m.className='msg on'; $('#chGo').disabled=true;
+      try{
+        const on=onBehalf();
+        await api('/chain',{method:'POST',body:JSON.stringify(
+          {action:'open',date,shift,wantDays:[...CHAINWANT],to,accept:accNow(),
+           ...(on?{person:on}:{})})});
+        await loadChains(); closeSheet(); toast('Offered — the chain is open'); renderSwap();
+      }catch(e){ m.textContent=(e&&e.message)||'Could not offer that';
+                 m.className='msg on bad'; $('#chGo').disabled=false; }
+    };
+  };
+  step1();
+}
+
+/* Taking the open shift. Two ways out, and the screen offers whichever is actually possible:
+   close the loop by giving the originator a day they asked for, or put your own days up. */
+function openChainTake(id){
+  const c=CHAINS.find(x=>x.id===id); if(!c||!c.open)return;
+  const t=todayISO();
+  /* What I hold on a day the originator said they would work, AND of a kind they said they would
+     take. Both halves matter: the day was always checked, the kind was not, so an EBUS list
+     offered against a twelve-hour ICU day appeared here as a way to close the loop and the server
+     accepted it. Anything filtered out on kind is counted rather than dropped silently — "you do
+     work that day, and it is not what they asked for" is the answer, and a screen that just shows
+     nothing makes the reader wonder whether it is broken. */
+  const offShift=((c.offer||c.open)||{}).shift, acc=acceptOf(c);
+  const closers=[], wrongKind=[];
+  (c.wantDays||[]).forEach(d=>{
+    if(d<t)return;
+    ((anyDayOf(ME,d)||{s:[]}).s||[]).filter(x=>isRealShift(ME,d,x))
+      .forEach(sh=>(tradeOk(offShift,sh,acc)?closers:wrongKind).push({date:d,shift:sh}));
+  });
+  CHAINWANT=new Set();
+  /* THE DAYS YOU COULD ACTUALLY PUT UP: ones you work, minus the shift you are accepting.
+     Not "any future day", which is what the grid offered — it is the same grid step one uses,
+     and there a free day is exactly the point. Here it meant offering nothing and being told so
+     after the press. */
+  const giveable=new Set();
+  spanMonths().forEach(mk=>{
+    const y=+mk.slice(0,4), mo=+mk.slice(5)-1, dim=new Date(y,mo+1,0).getDate();
+    for(let d=1;d<=dim;d++){
+      const iso=`${y}-${String(mo+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+      if(!knownDate(iso)||iso<t||iso===c.open.date)continue;
+      if(worksOn(ME,iso).some(x=>isRealShift(ME,iso,x)))giveable.add(iso);
+    }
+  });
+  /* WHICH ROUTE THEY ARE TAKING, and it is theirs to pick (Sam, 2026-09-13: "if i take a shift
+     but can not give one back OR DONT WANT TO, i should be able to select shifts I am open to
+     giving up"). Close-first is the default when they can close, because the shortest trade
+     should be the one you fall into — but it is a default, not a wall. */
+  let route=closers.length?'close':'pass';
+  // The picker below opens on the quarter the shift is in. The overlay above no longer has a
+  // quarter of its own — it is the one month the shift lands in, full stop.
+  CHAINQ=c.open.date.slice(0,4)+'-Q'+(Math.floor((+c.open.date.slice(5,7)-1)/3)+1);
+  const draw=()=>{
+    sheet('View this shift',`
+      <div class="warnbox" style="margin-top:0"><b>${esc(fullOf(c.originator)||c.originator)}</b>
+        is offering <b>${esc(fmtD(c.open.date))} — ${esc(META(c.open.shift).label||c.open.shift)}</b>.
+        Nothing moves until an admin approves the whole chain.</div>
+      <h2 class="sec">Step 1 · you take this shift</h2>
+      <div id="chCalView">${chainLookHTML(c.open)}</div>
+      <div class="note" style="margin-top:0">Dashed is the shift you would take. Filled bars are
+        shifts you already work; <b>OFF</b> is a day you asked for.</div>
+      <!-- TWO ROUTES, BOTH LIVE, THE SHORT ONE FIRST (Sam, 2026-09-13: "you take a shift and
+           either offer one to the original person based on their list, or you list shifts you are
+           willing to give. thats it" and "if i take a shift but can not give one back OR DONT
+           WANT TO, i should be able to select shifts I am open to giving up").
+
+           It rendered one branch and hid the other, and the server refused the second whenever
+           the first was possible — so the screen was different on every chain and could not be
+           learned, and a physician holding a day they needed was told they had to give up that
+           specific day. Both are radio options now. Closing is preselected when it is possible,
+           which keeps the shortest trade the default; it is no longer the only answer. The one
+           genuinely unavailable case — you work nothing they asked for — is stated as the fact it
+           is rather than as a policy. -->
+      <h2 class="sec">Step 2 &middot; what goes back to ${esc(firstOf(c.originator))}</h2>
+      <div class="chopt ${route==='close'?'pick':''} ${closers.length?'':'shut'}"${
+        closers.length?' data-chroute="close"':''}>
+        <h4><input type="radio" name="chroute" value="close"${route==='close'?' checked':''}${
+          closers.length?'':' disabled'}> Give ${esc(firstOf(c.originator))} one of yours now</h4>
+        <div class="why">${closers.length
+          ? `They said they could work these days and will take back
+             ${esc(acc.map(k=>TRADE_LABEL[k].toLowerCase()).join(' or '))}. The trade is finished
+             here — no third person.`
+          : wrongKind.length
+          ? `You work ${esc(fmtD(wrongKind[0].date))}, but they gave up
+             ${esc(TRADE_LABEL[tradeClass(offShift)].toLowerCase())} and will only take back
+             ${esc(acc.map(k=>TRADE_LABEL[k].toLowerCase()).join(' or '))} — so
+             ${esc(shiftLabel(ME,wrongKind[0].date,wrongKind[0].shift,false))} cannot close it.`
+          : `You are not working any of the days they offered
+             (${esc((c.wantDays||[]).filter(d=>d>=t).map(d=>fmtD(d)).join(', ')||'none left')}), so
+             there is nothing of yours to give them.`}</div>
+        ${(closers.length&&route==='close')?`<div id="chClose" style="margin-top:6px">${
+          closers.map((x,i)=>`
+          <label class="cvrow"><input type="radio" name="chc" class="chc" value="${i}"${i?'':' checked'}>
+            <span class="cvnm">${esc(fmtD(x.date))} · ${esc(shiftLabel(ME,x.date,x.shift,false))}</span>
+          </label>`).join('')}</div>`:''}
+      </div>
+      <div class="chopt ${route==='pass'?'pick':''} ${giveable.size?'':'shut'}"${
+        giveable.size?' data-chroute="pass"':''}>
+        <h4><input type="radio" name="chroute" value="pass"${route==='pass'?' checked':''}${
+          giveable.size?'':' disabled'}> ${closers.length?'Or list':'List'} shifts you would
+          give</h4>
+        <div class="why">${giveable.size
+          ? `Somebody else takes one of these and gives ${esc(firstOf(c.originator))} a shift back,
+             which closes the loop for all three of you.${closers.length
+             ? ' Pick this if the day above is one you need.' : ''}`
+          : `You have no other shifts in the published schedule, so there is nothing to put up.`}</div>
+        ${(giveable.size&&route==='pass')?`
+        <div class="btnrow" style="margin:8px 0 6px">
+          <button class="btn${CHAINVIEW==='cal'?' pri':''}" data-chv="cal">Calendar</button>
+          <button class="btn${CHAINVIEW==='list'?' pri':''}" data-chv="list">My shifts</button>
+        </div>
+        <div id="chCal2">${CHAINVIEW==='list'?chainListHTML(c.open,giveable)
+                                             :chainCalHTML(c.open,giveable)}</div>
+        <div class="note" style="margin-top:0"><b>${CHAINWANT.size}</b> of your
+          ${giveable.size} shift${giveable.size===1?'':'s'} chosen. Only days you work can be
+          offered — a day off is not a shift to give, and the one you are accepting is outlined
+          because you would be giving away what you just took.</div>`:''}
+      </div>
+      <div class="msg" id="chMsg2"></div>
+      <div class="btnrow"><button class="btn pri" id="chTake">${route==='close'
+          ? 'Take it and give one back' : 'Take it and offer my days'}</button>
+        <button class="btn" id="chX2">Cancel</button></div>`, ()=>renderSwap());
+    // Nothing to wire on the overlay: it has no buttons and no pickable cells by construction.
+    $$('[data-chv]').forEach(b=>b.onclick=()=>{
+      CHAINVIEW=b.dataset.chv;
+      /* THE CALENDAR FOLLOWS THE PICKS. The list runs the whole span; the calendar shows one
+         quarter. Tick a September shift in the list, flip to a calendar sitting on Q4, and your
+         pick is nowhere on screen — it survived in CHAINWANT, but "it is still there, on a page
+         you are not looking at" is not the reassurance it sounds like. If nothing chosen is in
+         view, open on the quarter that holds the first thing you chose. */
+      if(CHAINVIEW==='cal'&&CHAINWANT.size){
+        const qid=x=>x.slice(0,4)+'-Q'+(Math.floor((+x.slice(5,7)-1)/3)+1);
+        const days=[...CHAINWANT].sort();
+        if(!days.some(d=>qid(d)===CHAINQ))CHAINQ=qid(days[0]);
+      }
+      draw();
+    });
+    // The whole block is the target, not just the radio — a 14px circle is not a tap target.
+    $$('[data-chroute]').forEach(o=>o.onclick=e=>{
+      if(e.target.closest('[data-chd],.cvrow,[data-chv],[data-chq]'))return;   // its own controls
+      if(route===o.dataset.chroute)return;
+      route=o.dataset.chroute; draw();
+    });
+    if($('#chCal2'))wireChainCal($('#chCal2'),draw);
+    // THE THIRD PANE NOBODY FITTED (Sam, 2026-09-13: "the labels are weird, PTR NOC gets cut
+    // off"). Same .blk chips, same .cell squares, and fitChips was called on the month view and
+    // the request calendar and not on this one — so "PTR NOC" is 44px of mono in a 34px chip and
+    // .blk is overflow:hidden with the text CENTRED, losing a slice off each end. Exactly the
+    // 2026-09-04 "Day Off tag gets cut off" fault, in the one calendar added since.
+    requestAnimationFrame(()=>{ fitChips($('#chCalView')); if($('#chCal2'))fitChips($('#chCal2')); });
+    $('#chX2').onclick=closeSheet;
+    $('#chTake').onclick=async()=>{
+      const m=$('#chMsg2'); const pick=document.querySelector('.chc:checked');
+      // Whose page this is, like every other write. Without it an admin viewing a physician was
+      // recorded as the taker and could hit "that is your own shift" on somebody else's chain.
+      const on=onBehalf();
+      const body={action:'take',id:c.id,...(on?{person:on}:{})};
+      if(route==='close'){
+        if(!pick){ m.textContent='Pick which shift you are giving back.';
+                   m.className='msg on bad'; return; }
+        const x=closers[+pick.value]; body.giveDate=x.date; body.giveShift=x.shift;
+      } else if(CHAINWANT.size){ body.wantDays=[...CHAINWANT]; }
+      else { m.textContent='Pick at least one shift of yours to put up.';
+             m.className='msg on bad'; return; }
+      m.textContent='Sending…'; m.className='msg on'; $('#chTake').disabled=true;
+      try{
+        const r=await api('/chain',{method:'POST',body:JSON.stringify(body)});
+        await loadChains(); closeSheet();
+        toast(r.closed?'Loop closed — it is with an admin now':'Taken — your days are up next');
+        renderSwap();
+      }catch(e){ m.textContent=(e&&e.message)||'Could not take that';
+                 m.className='msg on bad'; $('#chTake').disabled=false; }
+    };
+  };
+  draw();
+}
+
+/* AN OPEN CHAIN IS A POOL WITH TWO SIDES (Sam, 2026-09-13: "an open chain should have 2 columns:
+   can take and can give").
+
+   The card used to read as a sentence — "Open now: Nov 10 Porter ICU from Ann" — and a sentence
+   makes you work out which end of it concerns you. There are only ever two facts about a live
+   chain and they are the two things a reader is deciding between: here is what is going spare,
+   and here is what would be wanted back. Side by side, they are the whole trade at a glance.
+
+   CAN TAKE is every shift currently on offer, not just the first. When somebody takes a shift and
+   lists three days they would give, all three are on the table and the server already records
+   them (open.alternatives) — the card showed one and hid the rest, which is how "someone else can
+   take one of your offers" stopped being visible.
+
+   CAN GIVE is the originator's own list: the days they said they could work, and the kinds of
+   shift they will accept. Those two together are exactly what closes the loop. */
+function chainCols(c){
+  if(!c.open)return '';
+  const shifts=(c.open.alternatives&&c.open.alternatives.length)
+    ? c.open.alternatives : [{date:c.open.date,shift:c.open.shift}];
+  const acc=acceptOf(c), t=todayISO();
+  const days=(c.wantDays||[]).filter(d=>d>=t);
+  return `<div class="chcols">
+    <div class="chcol"><h5>Can take</h5>
+      <div class="chsub">from ${esc(firstOf(c.open.person))}</div>
+      ${shifts.map(x=>`<div class="chline"><b>${esc(fmtD(x.date))}</b> · ${
+        esc(META(x.shift).label||x.shift)}</div>`).join('')}</div>
+    <div class="chcol"><h5>Can give</h5>
+      <div class="chsub">to ${esc(firstOf(c.originator))} — ${
+        esc(acc.map(k=>TRADE_LABEL[k].toLowerCase()).join(' or '))}</div>
+      ${days.length?days.map(d=>`<div class="chline"><b>${esc(fmtD(d))}</b></div>`).join('')
+        :'<div class="chline muted">no days left</div>'}</div>
+  </div>`;
+}
+function chainCard(c){
+  const legs=(c.links||[]).map(l=>`${esc(fullOf(l.from)||l.from)} → ${esc(fullOf(l.to)||l.to)}`
+    +` <span class="muted sm">(${esc(fmtD(l.date))} ${esc(META(l.shift).short||l.shift)})</span>`);
+  const mineToTake=chainLive(c)&&c.open&&c.open.person!==ME;
+  const st={open:['warn','Waiting for someone'],awaiting_admin:['warn','With an admin'],
+            approved:['ok','Approved'],rejected:['bad','Rejected'],
+            cancelled:['bad','Withdrawn'],expired:['bad','Expired']}[c.status]||['warn',c.status];
+  return `<div class="swcard">
+    <div class="swtop"><b>${esc(fullOf(c.originator)||c.originator)}</b>
+      — ${esc(fmtD(c.offer.date))} ${esc(META(c.offer.shift).label||c.offer.shift)}
+      <span class="pill">Chain</span> <span class="badge ${st[0]}">${esc(st[1])}</span></div>
+    ${legs.length?`<div class="swwho">${legs.join(' · ')}</div>`
+      :'<div class="swwho muted">Nobody has taken it yet.</div>'}
+    ${chainCols(c)}
+    <div class="swact">
+      ${mineToTake?`<button class="btn primary" data-chtake="${c.id}">View this shift</button>`:''}
+      ${(chainLive(c)&&c.originator===ME)?`<button class="btn" data-chcancel="${c.id}">Withdraw</button>`:''}
+      ${(isAdmin()&&c.status==='awaiting_admin')?`
+        <button class="btn primary" data-chap="${c.id}">Approve</button>
+        <button class="btn" data-chrj="${c.id}">Reject</button>`:''}
+    </div></div>`;
+}
+
+function chainSection(){
+  const mine=CHAINS.filter(c=>c.originator===ME
+    || (c.links||[]).some(l=>l.from===ME||l.to===ME)
+    || (chainLive(c)&&c.open&&c.open.person!==ME)
+    || (isAdmin()&&c.status==='awaiting_admin'));
+  return `<h2 class="sec">Trade chains</h2>
+    <div class="btnrow" style="margin:0 0 8px">
+      <button class="btn" id="chStart">Start a trade chain</button></div>
+    <div id="chList">${mine.length?mine.map(chainCard).join('')
+      :'<div class="empty">No chains going. A chain lets three or more people trade in a loop when no two of you can swap directly.</div>'}</div>`;
+}
+
+function wireChains(){
+  const b=$('#chStart'); if(b)b.onclick=()=>openChainStart();
+  $$('[data-chtake]').forEach(x=>x.onclick=()=>openChainTake(x.dataset.chtake));
+  $$('[data-chcancel]').forEach(x=>x.onclick=async()=>{
+    x.disabled=true;
+    try{ await api('/chain',{method:'POST',body:JSON.stringify({action:'cancel',id:x.dataset.chcancel})});
+         await loadChains(); toast('Withdrawn'); renderSwap(); }
+    catch(e){ toast(e.message||'Could not withdraw'); x.disabled=false; }
+  });
+  const act=(sel,action)=>$$(sel).forEach(x=>x.onclick=async()=>{
+    x.disabled=true;
+    try{ await api('/chain',{method:'PATCH',
+           body:JSON.stringify({id:x.dataset.chap||x.dataset.chrj,action})});
+         await loadChains(); toast(action==='approve'?'Approved — it is on the schedule':'Rejected');
+         renderSwap(); }
+    catch(e){ toast(e.message||'Could not '+action); x.disabled=false; }
+  });
+  act('[data-chap]','approve'); act('[data-chrj]','reject');
 }
 
 function coverageCard(){
@@ -6261,18 +7168,55 @@ function ovDays(){
   }
   return out;
 }
+/* THE NIGHT UNITS, AND WHY THERE ARE TWO LISTS.
+   NOC_UNITS is the four night shifts; a swing is an evening but it is not a night, and the rest
+   rules below turn on that difference — R-008 and R-024/R-026 are about NOCs, while the
+   am-I-free-at-that-hour test is about the 17:00 line and so counts both. _rules.js splits them
+   the same way, as NOC and SWING, and tools/api_tests.mjs compares the two files: two lists of
+   night shifts that quietly disagree is exactly how the Day Jeopardy calendar bug happened. */
+const NOC_UNITS=['SAH NOC','SAH NOC2','PTR NOC','LAH NOC'];
+const SWING_UNITS=['South Swing'];
+const isNoc=(x)=>NOC_UNITS.includes(x);
+const isEvening=(x)=>isNoc(x)||SWING_UNITS.includes(x);
+const worksOn=(p,iso)=>((anyDayOf(p,iso)||{s:[]}).s||[]).filter(x=>isRealShift(p,iso,x));
+
+/* WHY I COULD NOT TAKE THIS, COUNTING ONLY THE DAYS EITHER SIDE — '' when there is nothing.
+   Aaron, 2026-09-09: the highlighted days "need rule-checking — a Parker shift after a night
+   shift should not be flagged as viable". `takeable` asked one question, am I working at that
+   time of day, which is the right test for the day ITSELF and says nothing about the days around
+   it. So a Parker ICU the morning after a NOC was drawn as takeable, and the offer built on it
+   came back FAILS from the server, which had been checking R-008 the whole time. The square and
+   the API now ask the same thing.
+
+   These three are the cross-day half of _rules.js checkAssignment, in the same order. The server
+   still re-checks every offer and its verdict is the one that counts; this only stops the screen
+   inviting a trade that was never going to pass. */
+function ovRestProblem(iso,shift){
+  const prevNoc=(k)=>worksOn(ME,isoAdd(iso,-k)).some(isNoc);
+  if(isNoc(shift)&&(prevNoc(1)||prevNoc(2)))
+    return 'a night within 2 days before it (R-024/R-026)';
+  if(prevNoc(1))
+    return 'a NOC the night before — no day shift the morning after (R-008)';
+  let run=0;
+  for(let k=6;k>=1;k--)run=worksOn(ME,isoAdd(iso,-k)).length?run+1:0;
+  let after=0;
+  for(let k=1;k<=6;k++){ if(!worksOn(ME,isoAdd(iso,k)).length)break; after++; }
+  if(run+1+after>7)return (run+1+after)+' days in a row (max 7)';
+  return '';
+}
+
 // Mine that day, theirs that day, and whether taking theirs would clash with mine.
 function ovCell(iso){
-  const mine=(anyDayOf(ME,iso)||{s:[]}).s.filter(x=>isRealShift(ME,iso,x));
+  const mine=worksOn(ME,iso);
   const theirs=[];
   [...OVWITH].forEach(p=>{
-    (anyDayOf(p,iso)||{s:[]}).s.filter(x=>isRealShift(p,iso,x))
-      .forEach(sh=>theirs.push({p,sh}));
+    worksOn(p,iso).forEach(sh=>theirs.push({p,sh}));
   });
   // Same test as the coverage picker: nights and swings are the evening, everything else is the
-  // day, and two shifts only clash if they are on the same side of that line.
-  const night=(x)=>['South Swing','SAH NOC','SAH NOC2','PTR NOC','LAH NOC'].includes(x);
-  const takeable=theirs.filter(t=>!mine.some(m=>night(m)===night(t.sh)));
+  // day, and two shifts only clash if they are on the same side of that line. Then the days
+  // either side, which is what the highlight was missing.
+  const takeable=theirs.filter(t=>!mine.some(m=>isEvening(m)===isEvening(t.sh))
+                                  &&!ovRestProblem(iso,t.sh));
   return {mine,theirs,takeable};
 }
 
@@ -6306,8 +7250,8 @@ function renderOverlay(){
   }
   html+='</div></div>';
   box.innerHTML=`<div class="note" style="margin-top:0">Your shifts are filled; theirs are
-      outlined. <b>${n}</b> day${n===1?'':'s'} you could take — you are free at that time of day.
-      Tap one to offer a trade.</div>`+html;
+      outlined. <b>${n}</b> day${n===1?'':'s'} you could take — you are free at that time of day
+      and clear under the rest rules. Tap one to offer a trade.</div>`+html;
   $$('#ovBody .cell.ovc.can').forEach(c=>{
     const go=()=>ovOffer(c.dataset.ov);
     c.onclick=go;
@@ -6332,7 +7276,7 @@ function renderOverlayList(box){
   });
   if(!rows.length){
     box.innerHTML=`<div class="empty">Nothing of theirs you could take — every shift they have
-      left is a day you are already working.</div>`;
+      left falls on a day you are already working, or too close to one of your nights.</div>`;
     return;
   }
   let last='';
@@ -6554,12 +7498,29 @@ function openCoverAsk(preIso,preShift){
        const pend=pendingCover(s.iso,s.shift);
        return `<option value="${s.iso}|${esc(s.shift)}">${esc(fmtD(s.iso))} — ${esc(META(s.shift).label)}${
          pend?' · already out for cover':''}</option>`;}).join('')}</select>
+     <!-- WHICH ASK IS THIS (Sam, 2026-09-11: "they should be able to select whether they want a
+          trade or for someone ot just take it"). Two different questions were arriving as one
+          notification, so the answer came back by text and the app recorded neither. This does
+          not change who is asked or what the rules allow — the same people are eligible either
+          way — it changes what the other person is told they are being asked. -->
+     <label class="lbl">What are you asking for</label>
+     <div class="segx" id="cvWant">
+       <button data-want="giveaway" class="on">Someone takes it</button>
+       <button data-want="trade">A trade</button>
+     </div>
      <label class="lbl" for="cvNote">Why (optional)</label>
      <input class="inp" id="cvNote" placeholder="e.g. away at a conference">
      <div class="msg" id="cvMsg"></div>
      <div class="btnrow" style="margin-top:12px">
-       <button class="btn pri" id="cvNext">Send request</button></div>
-     <div class="note">You choose who to ask on the next screen.</div>`);
+       <!-- NOT "Send request" (Sam, 2026-09-11: the button "that brings up all the people should
+            instead say Review Available or something"). Nothing is sent when this is pressed: it
+            fetches who could take the shift and opens the list. People read the label, believed
+            they had just asked the whole group, and backed out of the screen that actually does
+            the asking. The note underneath said so and was not enough — a button is read before
+            the sentence below it. -->
+       <button class="btn pri" id="cvNext">Review available</button></div>
+     <div class="note" id="cvNextNote">Nothing is sent yet — you choose who to ask on the next
+       screen.</div>`);
 
   // Arriving from a particular day, that shift is the one being asked about. It may be in the
   // past, in which case there is nothing to preselect and the list opens on the next shift.
@@ -6571,9 +7532,34 @@ function openCoverAsk(preIso,preShift){
   warm();                       // start before they have decided anything else
   $('#cvShift').onchange=warm;  // and again if they change their mind
 
+  // Giveaway is the default because it is the ask that needs nothing back, and it is what every
+  // request meant before today — an old habit should not silently become a trade.
+  let cvWant='giveaway';
+  const cvNote2=()=>{ const n=$('#cvNextNote'), g=$('#cvNext'); if(!n||!g)return;
+    // The button and the line under it both change, because the two paths go to different places
+    // and finding that out after pressing is the thing this screen keeps getting wrong.
+    if(cvWant==='trade'){ g.textContent='Set up the trade';
+      n.textContent='Nothing is sent yet — next you pick the days you could work in return.'; }
+    else { g.textContent='Review available';
+      n.textContent='Nothing is sent yet — you choose who to ask on the next screen.'; } };
+  $$('#cvWant [data-want]').forEach(b=>b.onclick=()=>{
+    cvWant=b.dataset.want;
+    $$('#cvWant [data-want]').forEach(x=>x.classList.toggle('on',x.dataset.want===cvWant));
+    cvNote2();
+  });
+  cvNote2();
+
   $('#cvNext').onclick=async()=>{
     const [date,shift]=$('#cvShift').value.split('|');
     const note=$('#cvNote').value;
+    /* A TRADE IS A CHAIN (Sam, 2026-09-11: "if someone wants a shift covered then we go with the
+       usual way an allow trades, but if someone requests to trade we kickoff a chain").
+       The two asks diverge here rather than three screens later. Wanting it covered is the
+       coverage flow, unchanged: pick who to ask, they take it, an admin signs it off. Wanting a
+       TRADE means you need something back, which is the loop — and the loop needs the days you
+       could work, which the coverage picker never asks for. Handing a trade to the coverage
+       screen was how "neither of them knew it was accepted or swapped" happened. */
+    if(cvWant==='trade'){ closeSheet(); openChainStart(date,shift); return; }
     const m=$('#cvMsg');
     /* REFUSED HERE, not absorbed silently by the server. Asking a second time would notify
        nobody new and leave one request looking like two. */
@@ -6594,7 +7580,7 @@ function openCoverAsk(preIso,preShift){
     try{
       const j=await prefetchWho(date,shift);
       clearTimeout(slow);
-      pickWhoToAsk(date,shift,note,j);
+      pickWhoToAsk(date,shift,note,j,cvWant);
     }catch(e){ clearTimeout(slow);
       m.textContent=e.message; m.className='msg on bad'; $('#cvNext').disabled=false; }
   };
@@ -6607,7 +7593,7 @@ function openCoverAsk(preIso,preShift){
    claims to be clean when it is not.
    No reason is printed against a name. The grouping already says as much as anyone needs to
    choose, and a column of rule citations made the screen read like a rejection notice. */
-function pickWhoToAsk(date,shift,note,j){
+function pickWhoToAsk(date,shift,note,j,want){
   const free=j.free||[], working=j.working||[], blocked=j.blocked||[];
   // A name and a checkbox. There was a "notified" / "sees it next time" tag against every row,
   // which answered a question nobody was asking at that moment — you are choosing colleagues,
@@ -6624,18 +7610,41 @@ function pickWhoToAsk(date,shift,note,j){
     : '';
   sheet('Who to ask',
     `<div class="sub" style="margin-top:0">${esc(META(shift).label||shift)} · ${esc(fmtD(date))}</div>
+     <!-- ONLY THE PEOPLE IT MAKES SENSE TO ASK (Sam, 2026-09-11: "when requesting coverage, we
+          should only see the list of people who it makes sense could cover").
+          Three groups were listed and two of them were noise at the moment of choosing: somebody
+          already working at that hour cannot take it, and somebody the rest rules forbid cannot
+          either. Both were rendered unticked, which meant the screen's real content — who CAN do
+          it — was buried under names that were there to be scrolled past.
+          They are still reachable, behind one press, because "why isn't Sullivan here" is a fair
+          question and the answer is worth keeping. It is just no longer the default view. -->
      <div id="cvWho">
        ${group('Available',free,true)}
-       ${group('Working that day',working,false,'warn')}
-       ${group('Unable',blocked,false,'bad')}
-       ${(!free.length&&!working.length&&!blocked.length)?'<div class="cvload">Nobody to ask.</div>':''}
+       ${(!free.length)?'<div class="cvload">Nobody is free at that time of day.</div>':''}
      </div>
+     ${(working.length||blocked.length)?`
+       <div class="btnrow" style="margin:8px 0 0">
+         <button class="btn" id="cvWhoMore">Show the ${working.length+blocked.length} who
+           can't</button></div>
+       <div id="cvWhoRest" hidden>
+         ${group('Working that day',working,false,'warn')}
+         ${group('Unable',blocked,false,'bad')}
+       </div>`:''}
      <div class="cvactions">
        <div class="msg" id="cvMsg2"></div>
        <div class="btnrow">
          <button class="btn pri" id="cvGo">Send to <span id="cvCount">${free.length}</span></button>
          <button class="btn" id="cvBack">Back</button></div>
      </div>`);
+
+  /* The people who cannot take it are behind one press. Their checkboxes exist in the DOM the
+     whole time, unticked — the count below reads :checked, so a hidden group contributes nothing
+     to it until somebody deliberately opens the list and ticks one. */
+  const more=$('#cvWhoMore');
+  if(more)more.onclick=()=>{ const r=$('#cvWhoRest'); if(!r)return;
+    r.hidden=!r.hidden;
+    more.textContent=r.hidden?('Show the '+(working.length+blocked.length)+" who can't")
+                             :'Hide them'; };
 
   const count=()=>{ const n=document.querySelectorAll('.cvpick:checked').length;
     const c=$('#cvCount'); if(c)c.textContent=n; };
@@ -6651,7 +7660,7 @@ function pickWhoToAsk(date,shift,note,j){
     try{
       const on=onBehalf();
       const r=await api('/coverage',{method:'POST',body:JSON.stringify(
-        {date,shift,mode:'broadcast',to,note,...(on?{person:on}:{})})});
+        {date,shift,mode:'broadcast',to,note,want,...(on?{person:on}:{})})});
       // The ask has changed the picture for this shift, so the cached answer is now wrong.
       WHOCACHE.delete(whoKey(date,shift));
       closeSheet();
@@ -6691,6 +7700,9 @@ function renderSwap(){
 
   pane.innerHTML=`<div class="btnrow two"><button class="btn pri" id="reqCover">Request coverage</button>
       <button class="btn" id="planTrade">Plan a trade</button></div>
+    <!-- Filled asynchronously: it needs this device's push state AND a server answer about the
+         others, and neither is worth blocking the tab on. Empty unless there is genuinely a gap. -->
+    <div id="deviceGap"></div>
     ${notifyCard()}${coverageCard()}
     <!-- THE PERSON-TO-PERSON SWAP FORM IS GONE (Sam 2026-08-23).
          It never did anything "Request coverage" cannot, and it did it worse:
@@ -6737,6 +7749,10 @@ function renderSwap(){
           <button class="btn" data-dec="${s.id}">Can’t</button></div>`:''}
       </div>`).join(''):'<div class="empty">Nothing yet.</div>'}</div>
 
+    <!-- Chains come AFTER your own swaps. They are a separate, rarer thing, and the heading
+         "Trade chains" otherwise sat above "My swaps and trades" — which is the heading that
+         names whose page you are on, and the first thing a reader should meet. -->
+    ${chainSection()}
     ${isAdmin()?'<h2 class="sec">Awaiting your sign-off</h2><div id="swAdmin"></div>':''}
     ${archivedHTML()}`;
 
@@ -6797,11 +7813,19 @@ function renderSwap(){
      the tab had just been opened and nothing had happened since. Re-rendering must not be able
      to leave dead buttons behind. */
   wireCoverage();
+  // Same rule as wireCoverage: renderSwap is called from nine places and each replaces the HTML,
+  // so this has to run here rather than once on navigation.
+  paintDeviceGap();
+  wireChains();
 }
 
 async function loadSwaps(){
   if(!SESSION)return;
+  // Both in flight together. Chains are a second list on the same screen and awaiting one before
+  // asking for the other is the queue this app has now been bitten by three times.
+  const chainsP=loadChains().catch(()=>{});
   try{const r=await api('/swaps');MYSWAPS=r.swaps||[];}catch(e){MYSWAPS=[];}
+  await chainsP;
   paintSwapDot();
 }
 
@@ -7239,6 +8263,8 @@ const readOnlyRole=()=>ROLE==='viewer'||ROLE==='clinic';
    drawn for them, and /api/planning refuses everybody else by name regardless. Hiding a tab is
    presentation; the endpoint is what makes it true. */
 const PLANNERS=['Nadon','sam'];
+// The separate planning site. Its own project; same API, same sign-in, same two-name gate.
+const Q1_SITE='https://critcare-q1.vercel.app/';
 const isPlanner=()=>!!(ACCT&&ACCT.person&&PLANNERS.includes(ACCT.person));
 function syncTabs(){
   const hide=!!visitingOn()||readOnlyRole();
@@ -7651,7 +8677,7 @@ function renderAdminHome(){
   ADMINQ.hol.forEach(r=>cards.push(`<div class="qcard">
     <div class="qk">Priority holiday · needs a decision</div>
     <div class="qt">${who(r.person)} — ${esc(HOLNAME[String(r.holiday).toLowerCase()]||r.holiday)}</div>
-    <div class="qw">Their one guaranteed 4-day holiday block for the year.</div>
+    <div class="qw">Their one priority holiday for the year.</div>
     <div class="qact"><button class="btn pri" data-qh="${esc(r.person)}" data-act="approved">Approve</button>
       <button class="btn" data-qh="${esc(r.person)}" data-act="declined">Decline</button></div></div>`));
 
@@ -7728,7 +8754,24 @@ function renderAdminHome(){
   $('#hAcct').onclick=()=>showAccounts();
   $('#hLog').onclick=()=>showSwapLog();
   $('#hRpt').onclick=()=>showReport();
-  const pb=$('#hPlan'); if(pb)pb.onclick=()=>renderPlanning();
+  /* THE Q1 BUTTON LEAVES THE APP (Sam, 2026-09-11: "Q1 2027 button should link out to a new
+     crticare vercel link ... We need to keep this completely separate", and again: "the q1 button
+     doesnt go to an admin dashboard like thing").
+     It opens critcare-q1.vercel.app — its own Vercel project, so the planning view can be opened,
+     shared and broken without touching the app 58 physicians use. Not its own DATA: it reads the
+     same live API with the same sign-in, and /api/draft refuses anybody who is not Nadon or Sam
+     by name, so there is no second copy of a schedule to drift.
+     The in-app sheet is kept on a long press / right click as a fallback for a phone that will
+     not open a new tab, and because it is the same data either way. */
+  const pb=$('#hPlan');
+  if(pb){
+    pb.onclick=(e)=>{
+      if(e&&(e.metaKey||e.ctrlKey||e.shiftKey)){ renderPlanning(); return; }
+      window.open(Q1_SITE,'_blank','noopener');
+    };
+    pb.oncontextmenu=(e)=>{ e.preventDefault(); renderPlanning(); };
+    pb.title='Opens the Q1 planning site in a new tab';
+  }
   $('#hRef').onclick=async()=>{ await loadAdminQueue(); renderAdminHome(); adminBar(); };
 }
 
@@ -7782,9 +8825,131 @@ async function renderPlanning(){
         <div class="muted sm" style="margin-top:6px">Runs come from
         <code>tools/q1_loop.py</code>; this screen reads what they publish.</div></div>`}
 
+    <h2 class="sec">The draft itself</h2>
+    <div id="q1Draft"><div class="cvload">Reading…</div></div>
+
     <div class="note">Solves are started from a machine, deliberately — a screen that can start
       one is a screen that can start fifty, and a draft block is not something to produce by
       accident.</div>`;
+  paintQ1Draft();
+}
+
+/* ---------- the Q1 draft, as a dashboard (Sam, 2026-09-11) ----------
+   "in the Q1 sheet is it like the admin dashboard? we need an admin dashboard sheet."
+
+   It was not. The sheet said how complete the input was and what the last solve reported —
+   counts about a schedule, with the schedule itself nowhere on screen. You could read that a
+   solve had produced 0 hard failures and still have no way to look at what it produced.
+
+   This is the admin dashboard's shape, at sheet size: the block by month, a day opens its list,
+   and a per-person tally beside it. It reads /api/draft, which is planner-gated exactly like
+   /api/planning — and which exists as a separate endpoint because planning.js is tested to
+   REFUSE a schedule, that being the whole point of the screen above.
+
+   EVERY SURFACE SAYS DRAFT. This is the one screen in the app showing a schedule nobody is
+   working, and the failure mode of the whole idea is somebody reading it as a plan. */
+let Q1DRAFT=null;
+async function paintQ1Draft(){
+  const box=$('#q1Draft'); if(!box)return;
+  let d=null;
+  try{ d=await api('/draft'); }
+  catch(e){
+    if(!box.isConnected)return;
+    box.innerHTML=`<div class="errbox">Could not read the draft. ${esc(e.message||'')}</div>`;
+    return;
+  }
+  if(!box.isConnected)return;
+  Q1DRAFT=(d&&d.draft)||null;
+  if(!Q1DRAFT||!Q1DRAFT.schedule){
+    box.innerHTML=`<div class="empty">No draft has been published yet.
+      <div class="muted sm" style="margin-top:6px">A solve publishes one with
+      <code>tools/q1_loop.py --once --publish</code>. The summary above and the draft are
+      written separately, so one can be present without the other.</div></div>`;
+    return;
+  }
+  const S=Q1DRAFT.schedule;
+  const dates=Object.keys(S).sort();
+  // Per person: how many days, and how many of them are nights. The dashboard's tally, trimmed to
+  // what fits a sheet — enough to see whether anybody has come out of the solve badly.
+  const tally={};
+  dates.forEach(iso=>{
+    Object.entries(S[iso]||{}).forEach(([unit,v])=>{
+      if(unit==='_layered')return;
+      (Array.isArray(v)?v:[v]).filter(Boolean).forEach(p=>{
+        const t=tally[p]||(tally[p]={days:0,noc:0});
+        t.days++; if(NOC_UNITS.includes(unit))t.noc++;
+      });
+    });
+  });
+  const people=Object.keys(tally).sort((a,b)=>tally[b].days-tally[a].days);
+  const months=[...new Set(dates.map(x=>x.slice(0,7)))];
+  const stamp=Q1DRAFT.at?new Date(Q1DRAFT.at).toLocaleString():'unknown';
+  box.innerHTML=`
+    <div class="warnbox" style="margin-top:0"><b>Draft — not anybody's schedule.</b>
+      Solved ${esc(stamp)}${Q1DRAFT.input?` from ${Q1DRAFT.input.withDays||0} providers' requests`:''}.
+      Nothing here is published and nobody else can see it.</div>
+    <div class="balance">
+      <div><span class="n">${dates.length}</span><span class="l">days</span></div>
+      <div><span class="n">${people.length}</span><span class="l">providers placed</span></div>
+      <div><span class="n">${Q1DRAFT.hardFails!=null?Q1DRAFT.hardFails:'—'}</span><span class="l">hard failures</span></div>
+    </div>
+    <div class="btnrow" id="q1Months">${months.map((m,i)=>
+      `<button class="btn${i?'':' pri'}" data-q1m="${m}">${MONL[+m.slice(5)-1]}</button>`).join('')}</div>
+    <div id="q1Cal"></div>
+    <h2 class="sec">Days each</h2>
+    <div class="plist">${people.map(p=>`<div class="cvrow">
+        <span class="cvnm">${esc(fullOf(p)||p)}</span>
+        <span class="cabusy">${tally[p].days} day${tally[p].days===1?'':'s'}${
+          tally[p].noc?' · '+tally[p].noc+' NOC':''}</span></div>`).join('')}</div>`;
+  const paint=(mk)=>{
+    const cal=$('#q1Cal'); if(!cal)return;
+    const y=+mk.slice(0,4), mo=+mk.slice(5)-1;
+    const first=new Date(y,mo,1), dim=new Date(y,mo+1,0).getDate();
+    let h=`<div class="month"><h4><b>${MONL[mo]} ${y}</b></h4><div class="grid7">`;
+    dowLabels().forEach(x=>h+=`<div class="dow${x==='Sat'||x==='Sun'?' we':''}">${x}</div>`);
+    for(let i=0;i<leadFor(first);i++)h+='<div class="cell blank"></div>';
+    for(let dd=1;dd<=dim;dd++){
+      const iso=`${y}-${String(mo+1).padStart(2,'0')}-${String(dd).padStart(2,'0')}`;
+      const day=S[iso];
+      if(!day){ h+='<div class="cell blank"></div>'; continue; }
+      const n=Object.entries(day).filter(([u])=>u!=='_layered')
+        .reduce((a,[,v])=>a+(Array.isArray(v)?v.filter(Boolean).length:(v?1:0)),0);
+      h+=`<div class="cell on" role="button" tabindex="0" data-q1d="${iso}"
+        aria-label="${esc(fmtLong(iso)+', '+n+' assignments — open the list')}">
+        <span class="n">${dd}</span>
+        <span class="blk" style="background:var(--line2);color:var(--dim)"><i class="bt">${n}</i></span>
+      </div>`;
+    }
+    cal.innerHTML=h+'</div></div>';
+    $$('#q1Cal [data-q1d]').forEach(c=>{
+      const go=()=>openQ1Day(c.dataset.q1d);
+      c.onclick=go;
+      c.onkeydown=e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); go(); } };
+    });
+  };
+  $$('#q1Months [data-q1m]').forEach(b=>b.onclick=()=>{
+    $$('#q1Months [data-q1m]').forEach(x=>x.classList.toggle('pri',x===b));
+    paint(b.dataset.q1m);
+  });
+  paint(months[0]);
+}
+/* One day of the draft, the way the admin day view reads: every unit and who is on it. Opened
+   over the planning sheet and returning to it, so paging through days does not lose the screen. */
+function openQ1Day(iso){
+  const day=((Q1DRAFT||{}).schedule||{})[iso]||{};
+  const rows=Object.entries(day).filter(([u])=>u!=='_layered')
+    .map(([unit,v])=>({unit,who:(Array.isArray(v)?v:[v]).filter(Boolean)}))
+    .filter(r=>r.who.length)
+    .sort((a,b)=>a.unit.localeCompare(b.unit));
+  sheet(fmtLong(iso)+' — draft',`
+    <div class="warnbox" style="margin-top:0"><b>Q1 2027 draft.</b> Not published, not anybody's
+      schedule, and it will change as more requests arrive.</div>
+    ${rows.length?`<div class="plist">${rows.map(r=>`<div class="cvrow">
+        <span class="cvnm">${esc((META(r.unit).label)||r.unit)}</span>
+        <span class="cabusy">${esc(r.who.map(p=>fullOf(p)||p).join(', '))}</span>
+      </div>`).join('')}</div>`
+      :'<div class="empty">Nothing scheduled that day.</div>'}`,
+    ()=>renderPlanning());
 }
 
 /* ---------- reports (client item 22) ----------
@@ -7805,7 +8970,7 @@ async function renderPlanning(){
    thing to learn rather than the obvious consequence of pressing two. They are toggles now: press
    what you want, press it again to drop it, and the dates follow. Typing dates clears the
    quarters, because a range that no longer matches the highlighted quarter is a lie. */
-let RPT={people:new Set(), from:null, to:null, units:null, qs:new Set()};
+let RPT={people:new Set(), from:null, to:null, units:null, unitId:null, qs:new Set()};
 function rptQuarters(){
   const out=[];
   const a=(DATA.archive||{});
@@ -7828,10 +8993,26 @@ function showReport(){
   const sp=spanDates();
   RPT.from=RPT.from||sp[0]; RPT.to=RPT.to||sp[1];
   const roster=whoRoster();
+  // The report can be reached without the team schedule having been opened, so the groups may
+  // never have been fetched. Loads once and redraws; the row says "none saved yet" until then.
+  if(!TGROUPSLOADED)loadTeamGroups(null).then(()=>{ if($('#rpGrpRow'))showReport(); }).catch(()=>{});
   const draw=()=>{
     const chosen=roster.filter(p=>RPT.people.has(p));
     sheet('Build a report',`
       ${pickerHTML('rpPick',roster,RPT.people)}
+      <!-- SAVED GROUPS, HERE TOO (Sam, 2026-09-11: "i should be able to save groups of people in
+           the report feature"). They already existed on the team schedule and /api/groups already
+           stored them — but a report is the place you build the same set of people over and over,
+           which is the whole reason to save one. Picking a group also brings its date range if it
+           has one, so "the Finance Team report" is a single press rather than eight names and two
+           dates typed again. -->
+      <h2 class="sec">Saved groups</h2>
+      <div id="rpGrpRow" class="onfilter">${(TGROUPS||[]).length
+        ? TGROUPS.map(g=>`<button class="onfb" data-rpg="${esc(g.id)}">${esc(g.name)}${
+            g.from?'<span class="cvn">dates</span>':''}</button>`).join('')
+        : '<span class="muted sm">None saved yet — pick people below and save them.</span>'}</div>
+      <div class="btnrow" style="margin:6px 0">
+        <button class="btn" id="rpGrpSave">Save these people as a group…</button></div>
       <h2 class="sec">Period</h2>
       <div class="onfilter">
         ${rptQuarters().map(q=>`<button class="onfb${RPT.qs.has(q.id)?' on':''}"
@@ -7844,14 +9025,67 @@ function showReport(){
         <label class="addlbl" for="rpTo">To</label>
         <input type="date" id="rpTo" value="${RPT.to}" min="${sp[0]}" max="${sp[1]}">
       </div>
+      <!-- WHICH GROUP AM I LOOKING AT (Sam, 2026-09-11: "when i press assignments group it is not
+           colored or filled in so i have no idea what group im looking at"). Only "All" ever got
+           the lit state; every other button was drawn plain whether or not it was the one in
+           effect. The filter WAS applied — the table changed underneath — so the screen was
+           showing a filtered report with nothing saying which filter. RPT.unitId remembers the
+           choice so the button can be lit and the table can say it in words. -->
       <h2 class="sec">Assignments</h2>
       <div class="onfilter">
-        <button class="onfb${RPT.units?'':' on'}" data-ru="all">All</button>
-        ${teamFilters().map(([id,label])=>`<button class="onfb" data-ru="${id}">${esc(label)}</button>`).join('')}
+        <button class="onfb${RPT.unitId?'':' on'}" data-ru="all">All</button>
+        ${teamFilters().map(([id,label])=>`<button class="onfb${RPT.unitId===id?' on':''}"
+          data-ru="${id}">${esc(label)}</button>`).join('')}
       </div>
+      <div class="muted sm" style="margin:-4px 0 8px">Showing <b>${RPT.unitId
+        ? esc((teamFilters().find(x=>x[0]===RPT.unitId)||[,RPT.unitId])[1])
+        : 'every assignment'}</b>.</div>
       <div id="rpOut">${chosen.length?reportTable(chosen):'<div class="empty">Choose one or more providers.</div>'}</div>
       ${chosen.length?'<div class="btnrow"><button class="btn" id="rpCsv">Download CSV</button></div>':''}`);
     wirePicker('rpPick',roster,RPT.people,draw);
+    // Selecting a saved group replaces the people, and brings its period if it carries one.
+    $$('[data-rpg]').forEach(b=>b.onclick=()=>{
+      const g=(TGROUPS||[]).find(x=>x.id===b.dataset.rpg); if(!g)return;
+      RPT.people=new Set(g.members.filter(m=>roster.includes(m)));
+      if(g.from&&g.to){ RPT.from=g.from; RPT.to=g.to; RPT.qs=new Set(); }
+      draw();
+    });
+    const gs=$('#rpGrpSave');
+    if(gs)gs.onclick=()=>{
+      if(!RPT.people.size){ toast('Pick some people first'); return; }
+      const mine=[...RPT.people];
+      sheet('Save these people as a group',`
+        <div class="sub" style="margin-top:0">${mine.length} people:
+          ${esc(mine.slice(0,6).map(p=>fullOf(p)||p).join(', '))}${
+            mine.length>6?' and '+(mine.length-6)+' more':''}</div>
+        <div class="addrow"><input class="inp" id="rgName" placeholder="e.g. Finance Team" maxlength="60"></div>
+        <div class="sub" style="margin:10px 0 4px">Remember this period too?
+          <span class="muted">(optional)</span></div>
+        <div class="addrow">
+          <input class="inp" type="date" id="rgFrom" value="${esc(RPT.from||'')}">
+          <input class="inp" type="date" id="rgTo" value="${esc(RPT.to||'')}">
+        </div>
+        <div class="msg" id="rgMsg"></div>
+        <div class="btnrow"><button class="btn pri" id="rgGo">Save</button>
+          <button class="btn" id="rgX">Cancel</button></div>`, ()=>showReport());
+      $('#rgX').onclick=()=>showReport();
+      $('#rgGo').onclick=async()=>{
+        const m=$('#rgMsg'), name=($('#rgName').value||'').trim();
+        if(!name){ m.textContent='Give it a name.'; m.className='msg on bad'; return; }
+        const from=$('#rgFrom').value||'', to=$('#rgTo').value||'';
+        if(!!from!==!!to){ m.textContent='Give both dates, or neither.';
+                           m.className='msg on bad'; return; }
+        if(from&&to&&from>to){ m.textContent='That range starts after it ends.';
+                               m.className='msg on bad'; return; }
+        m.textContent='Saving…'; m.className='msg on';
+        try{
+          await api('/groups',{method:'POST',body:JSON.stringify(
+            {name,members:mine,...(from&&to?{from,to}:{})})});
+          TGROUPSLOADED=false; await loadTeamGroups(null);
+          toast('Saved "'+name+'"'); showReport();
+        }catch(e){ m.textContent=e.message||'Could not save'; m.className='msg on bad'; }
+      };
+    };
     $$('[data-rq]').forEach(b=>b.onclick=()=>{
       const id=b.dataset.rq;
       if(id==='range'){ RPT.qs.clear(); }
@@ -7863,8 +9097,8 @@ function showReport(){
     $('#rpTo').onchange=e=>{RPT.to=e.target.value;RPT.qs.clear();draw();};
     $$('[data-ru]').forEach(b=>b.onclick=()=>{
       const id=b.dataset.ru;
-      if(id==='all')RPT.units=null;
-      else{const f=teamFilterSet(id);RPT.units=f?f.set:null;}
+      if(id==='all'){ RPT.units=null; RPT.unitId=null; }
+      else{ const f=teamFilterSet(id); RPT.units=f?f.set:null; RPT.unitId=f?id:null; }
       draw();});
     const csv=$('#rpCsv');
     if(csv)csv.onclick=()=>downloadReportCSV(chosen);
@@ -8042,6 +9276,8 @@ function acctChips(a){
     if(a.twoFactor) c.push('<span class="achip">2FA</span>');
     if(a.passkeys)  c.push(`<span class="achip">Face ID${a.passkeys>1?' ×'+a.passkeys:''}</span>`);
   }
+  if(a.enrolled&&!a.disabled&&(a.reports||a.role==='admin'))
+    c.push(`<span class="achip">Reports${a.role==='admin'?'':''}</span>`);
   if(a.protectedAccount) c.push('<span class="achip">Protected</span>');
   return c.join('');
 }
@@ -8103,6 +9339,14 @@ async function showAccounts(){
           <div class="accact">${a.protectedAccount
             ? '<span class="accnote">Cannot be changed here.</span>'
             : [ a.lockedFor||a.failedAttempts ? `<button class="btn sm pri" data-un="${esc(a.person)}">Unlock</button>`:'',
+                /* REPORTS IS A CAPABILITY, NOT A ROLE, so it is a toggle on the row rather than a
+                   fifth role. Admins are not offered it: they have it implicitly and a button
+                   that cannot change anything is worse than no button. Closed accounts are not
+                   offered it either — grant it to somebody who cannot sign in and nothing
+                   happens, visibly. */
+                (!a.disabled&&a.role!=='admin')
+                  ? `<button class="btn sm${a.reports?' quiet':''}" data-rp="${esc(a.person)}"
+                       data-on="${a.reports?'0':'1'}">${a.reports?'Remove reports':'Give reports'}</button>`:'',
                 a.disabled ? `<button class="btn sm" data-rs="${esc(a.person)}">Reopen</button>`
                            : `<button class="btn sm" data-re="${esc(a.person)}">Reset sign-in</button>
                               <button class="btn sm quiet" data-rt="${esc(a.person)}" title="Close account">Close</button>`
@@ -8129,6 +9373,19 @@ async function showAccounts(){
            toast(`Unlocked${j.clearedAttempts?` — cleared ${j.clearedAttempts} attempts`:''}`);
            await reload(); }
       catch(e){ toast(e.message||'Could not unlock'); b.disabled=false; }
+    });
+    /* Granting needs no confirmation — it adds one read-only screen and is undone by the same
+       button. Withdrawing does not either: it takes away a report, not access to the app. Both
+       say the one thing that is genuinely surprising, which is that it lands at their NEXT sign
+       in: the capability is baked into the signed token, so "I granted it and she still cannot
+       see it" is otherwise a support call. */
+    $$('[data-rp]').forEach(b=>b.onclick=async()=>{
+      b.disabled=true; const on=b.dataset.on==='1';
+      try{ await api('/account',{method:'POST',
+             body:JSON.stringify({action:'reports',person:b.dataset.rp,on})});
+           toast(`${on?'Reports on':'Reports off'} for ${fullOf(b.dataset.rp)||b.dataset.rp} — takes effect at their next sign-in`);
+           await reload(); }
+      catch(e){ toast(e.message||'Could not change reports'); b.disabled=false; }
     });
     $$('[data-rs]').forEach(b=>b.onclick=()=>confirmAcct('restore',b.dataset.rs));
     $$('[data-re]').forEach(b=>b.onclick=()=>confirmAcct('reenrol',b.dataset.re));
