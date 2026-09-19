@@ -2548,7 +2548,9 @@ const patternDate=(iso)=>!!(DATA.patterns||{})[iso];
 
 /* CAN THIS ACCOUNT STAFF THE CLINICS. Mirrors mayEditUnit() in _lib.js — the app draws the
    controls, the server decides. Both, or the screen offers what the API refuses. */
-const mayStaffClinics=()=>ROLE==='admin'||ROLE==='clinic';
+// Aaron, 2026-09-19: the clinic login is view-only. Mirrors mayEditUnit() — the app must not
+// draw a control the API refuses, or the desk gets an editor that fails on save.
+const mayStaffClinics=()=>ROLE==='admin';
 const clinicUnit=(u)=>CLINIC_UNITS.includes(u);
 
 function clinicDayHTML(iso){
@@ -4316,7 +4318,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260914.0006';           // shown in the account bar so a stale app is obvious
+const BUILD='260919.1142';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 const PH_KEY='phc_pr4QepiHtyMUqSymFZFyH2s2jKesJJEi4sWDjhaKttDN', PH_HOST='https://us.i.posthog.com';
 /* ---------- analytics ----------
@@ -4780,10 +4782,33 @@ function chipList(arr,cls,onX){
    Nights they are available to work, and how many shifts they want, per month of the quarter.
    Nothing about days off: they have no contract to protect. The admin needs both numbers —
    shifts wanted vs nights offered — to see whether the month can actually be covered. */
+/* THE MONTHS YOU ARE REQUESTING FOR, NOT THE ONES YOU ARE WORKING (Aaron, 2026-09-19: "the area
+   for choosing the number of shifts requesting to work each month are set to Oct-Dec instead of
+   Jan-March").
+
+   This read DATA.dates — the PUBLISHED block — so it asked nine moonlighters how many shifts they
+   wanted in October, November and December, months that are solved, staffed and half over. The
+   calendar directly beneath it on the same form already used reqStart()/reqEnd() and was correctly
+   showing January to March. One form, two halves, two different quarters: you typed a number
+   against October and picked nights in January.
+
+   It is the same derivation as the calendar now, so the two cannot disagree again — and it is
+   derived rather than pinned to 2027, because next quarter this has to move on its own.
+
+   Any count saved against a month outside the window is kept, not dropped: shifts_wanted is the
+   moonlighter's record, and silently discarding what somebody typed is worse than showing it.
+   They are listed after the live months and marked, so a stale October figure is visible rather
+   than either invisible or pretending to be current. */
 function monthsOfBlock(){
-  const out=[];
-  DATA.dates.forEach(iso=>{const k=iso.slice(0,7); if(!out.includes(k))out.push(k);});
-  return out;
+  /* THE QUARTER BEING SOLVED — not the published one, and not the whole request window.
+     DATA.dates gave Oct/Nov/Dec, the block already worked. reqStart()..reqEnd() is the window
+     for OFF requests and is deliberately a whole year (2027-01-01 to 2027-12-31), so using it
+     here would ask a moonlighter how many shifts they want in August. Neither is the question.
+     The question is the block being built, which is the quarter reqStart() falls in: Jan-Mar. */
+  const s=reqStart(), y=+s.slice(0,4), q=Math.floor((+s.slice(5,7)-1)/3);
+  const out=[0,1,2].map(i=>`${y}-${String(q*3+1+i).padStart(2,'0')}`);
+  const last=reqEnd().slice(0,7);
+  return out.filter(m=>m<=last);       // a window that closes early shortens the grid
 }
 function renderMoonReq(pane,rq,dl){
   /* THE CALENDAR EDITS RQ.on, so the moonlighter's saved nights have to be IN it before the grid
@@ -4797,6 +4822,8 @@ function renderMoonReq(pane,rq,dl){
   MOONFOR=(ME||'')+'|'+(rq.submittedAt||'');
   const avail=RQ.on;
   const months=monthsOfBlock();
+  // A number they typed against a month that is no longer being collected. Shown, marked, kept.
+  const stale=Object.keys(want).filter(k=>!months.includes(k)&&(+want[k]||0)>0).sort();
   const monthName=k=>MONL[+k.slice(5)-1]+' '+k.slice(0,4);
   const per=k=>avail.filter(d=>d.slice(0,7)===k).length;
   const totalWant=months.reduce((n,k)=>n+(+want[k]||0),0);
@@ -4822,6 +4849,9 @@ function renderMoonReq(pane,rq,dl){
                data-m="${k}" value="${want[k]!=null?want[k]:''}" placeholder="0">
         <span class="mnote">${per(k)} night${per(k)===1?'':'s'} offered</span></label>`).join('')}
     </div>
+    ${stale.length?`<p class="muted" style="margin:6px 0 0;font-size:12px">You also have
+      ${esc(stale.map(k=>want[k]+' in '+monthName(k)).join(', '))} on file from an earlier round.
+      ${stale.length===1?'It is':'They are'} kept, but not part of what is being collected now.</p>`:''}
     <h2 class="sec">Nights you can work</h2>
     <!-- THE SAME CALENDAR EVERYONE ELSE GETS (Aaron, 2026-09-11: "the moonlighter requests don't
          have the same calendar view that you built for the other docs. If you could add that
