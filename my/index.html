@@ -1665,7 +1665,10 @@ function shiftLabel(person,iso,shift,short){
     return short?'Protected':'Protected time';
   }
   const m=META(shift);
-  return short?(m.short||m.label):m.label;
+  // A half-day clinic is the same clinic for half the day, so it is the same label with the half
+  // named on it (Aaron, 2026-09-22 #2). Doing it HERE reaches every view at once — the hero card,
+  // the day sheet, the month chips, the team grid — rather than four near-identical edits.
+  return (short?(m.short||m.label):m.label)+halfTag(person,iso,shift);
 }
 const isICU=s=>DATA.icu.includes(s), isNOC=s=>DATA.noc.includes(s);
 const f1=x=>Number.isInteger(x)?x:Math.round(x*100)/100;
@@ -2114,6 +2117,38 @@ function startHour(sh){
   const h=DATA.kindHours[(META(sh)||{}).kind];
   return h ? h[0] : 7;                       // no clock time (Admin) sits with the day
 }
+
+/* ---------- half-day clinics ----------
+   Aaron, 2026-09-22 (#2): the clinic wanted AM and PM shifts per site for the rare half day, and
+   was rightly wary of tripling the clinic list to record something that happens a handful of
+   times. So a half day is a MARK on the assignment — see portal_api/api/halfday.js — and this is
+   the reading half of it.
+
+   THE SPLIT IS NOT WRITTEN HERE. It comes from the server with the marks, for the reason
+   KIND_HOURS and ics.js HOURS exist as a cautionary tale: two tables holding the same fact drift,
+   and the way anyone finds out is fifty subscribed calendars showing the wrong end time. */
+let HALF={}, HALF_HRS={am:[7,0,12,0],pm:[12,0,17,0]};
+const halfOf=(person,iso,shift)=>HALF[iso+'|'+shift+'|'+person]||null;
+function halfTag(person,iso,shift){
+  const h=halfOf(person,iso,shift);
+  return h==='am'?' (AM)':(h==='pm'?' (PM)':'');
+}
+/* The hours for one person's shift on one day — narrowed when they are there for half of it.
+   Callers used to read DATA.kindHours[m.kind] directly; they ask this instead so a half day can
+   never be shown with a full day's times. Returns undefined for Admin, exactly as before. */
+function hoursFor(person,iso,shift){
+  const base=DATA.kindHours[(META(shift)||{}).kind];
+  const h=halfOf(person,iso,shift);
+  return (base&&h&&HALF_HRS[h])?HALF_HRS[h].slice():base;
+}
+async function loadHalfDays(){
+  try{
+    const r=await api('/halfday');
+    if(!r)return;
+    HALF=r.marks||{};
+    if(r.hours&&r.hours.am&&r.hours.pm)HALF_HRS=r.hours;
+  }catch(e){/* a half day nobody can see is better than a schedule nobody can see */}
+}
 /* ONE PLACE THAT TURNS kindHours INTO WORDS. The day sheet was computing its own end time as
    start + duration, which the (startH, startM, endH, endM) shape makes wrong — 7 + 17 is 24.
    Minutes are shown only when there are any, so "7am – 5pm" stays clean and a night reads
@@ -2343,7 +2378,7 @@ function weekHTML(){
     const isNow=iso===t;
     let body;
     if(!known) body=`<div class="wkoff">Not in the schedule</div>`;
-    else if(shown.length) body=shown.map(x=>{const m=META(x),hrs=DATA.kindHours[m.kind];
+    else if(shown.length) body=shown.map(x=>{const m=META(x),hrs=hoursFor(ME,iso,x);
         return `<div class="wkshift" style="border-left-color:${m.color}">
           <div class="wkname">${esc(shiftLabel(ME,iso,x,false))}</div>
           <div class="wkmeta">${esc(m.sub)}${hrs?' · '+esc(hrsText(hrs)):''}</div></div>`;}).join('');
@@ -3815,7 +3850,7 @@ function renderNow(){
        "your next shift" contradicted the calendar, the day sheet and the subscribed feed. */
     const kindName={noc:'Overnight',icu:'Day shift',swing:'Swing',clinic:'Clinic',
                     admin:'Protected time',jeop:'Backup',proc:'Bronchoscopy'}[m.kind]||'';
-    const kh=DATA.kindHours[m.kind];
+    const kh=hoursFor(ME,next.iso,next.shift);
     const kindTxt=!kindName?'':(kh?kindName+' · '+hrsText(kh):kindName);
     // anyDayOf, not dayOf: `next` can be in either quarter. Defensive fallback too — a shift
     // with no day record must render as a shift with nothing beside it, never as a crash.
@@ -4255,7 +4290,7 @@ function downloadICS(){
     // anyone's calendar app. The SERVER feed has always filtered it; this one-off download did
     // not, so the file you tapped "download" on disagreed with the feed you subscribed to.
     a.s.filter(s=>isRealShift(ME,iso,s)).forEach(s=>{
-      const m=META(s),hrs=DATA.kindHours[m.kind];
+      const m=META(s),hrs=hoursFor(ME,iso,s);
       const uid=`${iso}-${s.replace(/[^A-Za-z0-9]/g,'')}-${ME}@schedulingwiz`;
       L.push('BEGIN:VEVENT','UID:'+uid,'DTSTAMP:'+icsStamp(DATA.generated,0,0)+'Z');
       if(!hrs){
@@ -4318,7 +4353,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260919.1142';           // shown in the account bar so a stale app is obvious
+const BUILD='260922.2049';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 const PH_KEY='phc_pr4QepiHtyMUqSymFZFyH2s2jKesJJEi4sWDjhaKttDN', PH_HOST='https://us.i.posthog.com';
 /* ---------- analytics ----------
@@ -7892,7 +7927,7 @@ function openDay(iso){
   const daySh=(a?a.s:[]).filter(s=>isRealShift(ME,iso,s));
   if(daySh.length){
     daySh.slice().sort((x,y)=>startHour(x)-startHour(y)).forEach(s=>{const m=META(s);
-      const hrs=DATA.kindHours[m.kind];
+      const hrs=hoursFor(ME,iso,s);
       const time=hrsText(hrs);
       b+=`<div class="row" style="margin-top:8px"><span class="sp" style="background:${m.color}"></span>
         <span><span class="t">${esc(shiftLabel(ME,iso,s,false))}</span><span class="s">${esc(m.sub)}</span></span>
@@ -8441,9 +8476,13 @@ async function bootApi(){
        and the record have nothing to say to each other. */
     const schedP=api('/schedule');
     schedP.catch(()=>{});
+    // The half-day marks go out with the overlay for the same reason it does: they change what
+    // the hero card and the day sheet say, and they have nothing to say to the person record.
+    const halfP=loadHalfDays(); halfP.catch(()=>{});
     const personP=loadPersonData();
     try{ const s=await schedP; applyEdits(s.overrides||[]); }catch(e){ applyEdits([]); }
     await personP;
+    await halfP.catch(()=>{});
     renderNow();                       // the hero may now be a different shift
     if(CUR==='sched')renderSched();
   }else{
