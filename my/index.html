@@ -2093,16 +2093,20 @@ async function openEmailChange(){
    quarters. */
 function defaultBlock(){
   try{
-    const t=todayISO(), a=(DATA.archive||{}).dates;
+    const t=todayISO(), a=(DATA.archive||{}).dates, n=(DATA.next||{}).dates;
     if(a&&a.length&&t>=a[0]&&t<=a[a.length-1])return 'archive';
+    if(n&&n.length&&t>=n[0]&&t<=n[n.length-1])return 'next';
   }catch(e){}
   return 'live';
 }
 let VIEWBLOCK='live';
 const archiveOn=()=>VIEWBLOCK==='archive'&&!!(DATA.archive&&DATA.archive.dates);
-const blockDates=()=>archiveOn()?DATA.archive.dates:DATA.dates;
-const blockDayMap=()=>archiveOn()?(DATA.archive.day||{}):DATA.day;
-const blockLabelNow=()=>archiveOn()?DATA.archive.label:DATA.blockLabel;
+// The published next quarter (Q1 2027), read-only. See NEXTQ in build_portal.py.
+const nextOn=()=>VIEWBLOCK==='next'&&!!(DATA.next&&DATA.next.dates);
+const inNext=iso=>!!(DATA.next&&(DATA.next.dates||[]).includes(iso));
+const blockDates=()=>archiveOn()?DATA.archive.dates:nextOn()?DATA.next.dates:DATA.dates;
+const blockDayMap=()=>archiveOn()?(DATA.archive.day||{}):nextOn()?(DATA.next.day||{}):DATA.day;
+const blockLabelNow=()=>archiveOn()?DATA.archive.label:nextOn()?DATA.next.label:DATA.blockLabel;
 /* dayOf IS ALWAYS THE LIVE BLOCK. It feeds the coverage picker, the swaps tab, the .ics
    download, the stats and "your next shift" — none of which may follow a quarter somebody is
    only READING. Letting it track the selection meant choosing Q3 quietly re-pointed the
@@ -2242,14 +2246,12 @@ function isMoonlighter(n){
    DATA.dates, which starts 1 October — so on 25 August they jumped forward to October instead
    of showing this week. */
 function spanDates(){
-  const a=(DATA.archive||{}).dates||[];
-  const l=DATA.dates||[];
-  if(!a.length)return l;
-  if(!l.length)return a;
-  return a[0]<l[0]?[a[0],l[l.length-1]]:[l[0],a[a.length-1]];
+  const all=[].concat((DATA.archive||{}).dates||[],DATA.dates||[],(DATA.next||{}).dates||[]).sort();
+  return all.length?[all[0],all[all.length-1]]:[];
 }
 function knownDate(iso){
   if((DATA.dates||[]).includes(iso))return true;
+  if(inNext(iso))return true;
   const a=DATA.archive;
   return !!(a&&(a.dates||[]).includes(iso));
 }
@@ -2264,6 +2266,7 @@ function knownDate(iso){
 function anyDayOf(n,iso){
   const a=DATA.archive;
   if((DATA.dates||[]).includes(iso))return dayOf(n,iso);
+  if(inNext(iso))return ((DATA.next.day||{})[n]||{})[iso]||null;
   if(a&&a.day&&(a.dates||[]).includes(iso))return (a.day[n]||{})[iso]||null;
   return dayOf(n,iso)||((a&&a.day&&(a.day[n]||{})[iso])||null);
 }
@@ -2272,6 +2275,9 @@ function allShifts(n){
   const a=DATA.archive;
   if(a&&a.dates&&a.dates.length)
     out.push(...myShifts(n,a.dates,(who,iso)=>((a.day||{})[who]||{})[iso]||null));
+  const q=DATA.next;
+  if(q&&q.dates&&q.dates.length)
+    out.push(...myShifts(n,q.dates,(who,iso)=>((q.day||{})[who]||{})[iso]||null));
   return out.sort(byTime);
 }
 function myShifts(n,dates,dayFn){           // [{iso, shift, meta}], in the order they are worked
@@ -2728,7 +2734,7 @@ function clinicRestHTML(iso){
 function applyOneEdit(o){
   if(!o||!o.date||!o.unit)return;
   const a=DATA.archive||{};
-  const map=(a.day&&(a.dates||[]).includes(o.date))?a.day:DATA.day;
+  const map=inNext(o.date)?(DATA.next.day||(DATA.next.day={})):(a.day&&(a.dates||[]).includes(o.date))?a.day:DATA.day;
   if(!map)return;
   const slot=o.layered?'r':'s';
   new Set([...(o.from||[]),...(o.to||[])]).forEach(p=>{
@@ -2853,6 +2859,7 @@ function clinicQuarters(){
   const a=(DATA.archive||{});
   if(a.dates&&a.dates.length)out.push({id:'archive',label:a.label||'Q3 2026',dates:a.dates,pattern:false});
   if((DATA.dates||[]).length)out.push({id:'live',label:DATA.blockLabel||'Q4 2026',dates:DATA.dates,pattern:false});
+  if(DATA.next&&(DATA.next.dates||[]).length)out.push({id:'next',label:DATA.next.label,dates:DATA.next.dates,pattern:false});
   // Everything the pattern reaches, grouped into quarters of its own.
   const pd=Object.keys(DATA.patterns||{}).sort();
   const byQ={};
@@ -2939,6 +2946,7 @@ function clinicMonths(){
   const all=new Set();
   ((DATA.archive||{}).dates||[]).forEach(d=>all.add(d.slice(0,7)));
   (DATA.dates||[]).forEach(d=>all.add(d.slice(0,7)));
+  ((DATA.next||{}).dates||[]).forEach(d=>all.add(d.slice(0,7)));
   Object.keys(DATA.patterns||{}).forEach(d=>all.add(d.slice(0,7)));
   return [...all].sort();
 }
@@ -3427,6 +3435,7 @@ function teamQuarters(){
   const a=(DATA.archive||{});
   if(a.dates&&a.dates.length)out.push(['archive',a.label||'Q3',a.dates]);
   if((DATA.dates||[]).length)out.push(['live',DATA.blockLabel||'Q4',DATA.dates]);
+  if(DATA.next&&(DATA.next.dates||[]).length)out.push(['next',DATA.next.label,DATA.next.dates]);
   return out;
 }
 function teamDays(){
@@ -3586,6 +3595,7 @@ function wireBusyDays(){
 function whoRoster(){
   const r=new Set(DATA.people||[]);
   if(DATA.archive&&DATA.archive.day)Object.keys(DATA.archive.day).forEach(x=>r.add(x));
+  if(DATA.next&&DATA.next.day)Object.keys(DATA.next.day).forEach(x=>{ if((DATA.people||[]).includes(x)||(DATA.providers||{})[x])r.add(x); });
   return [...r].sort();
 }
 /* WHICH HOSPITAL A UNIT BELONGS TO — the client's own list, 2026-09-03.
@@ -4073,7 +4083,7 @@ function renderSched(){
     if(CAN_SWITCH){ pane.innerHTML=provListHTML(); wireProvList(pane); return; }
     pane.innerHTML='<div class="empty" style="margin-top:22px">Choose a provider first.</div>';return;
   }
-  const arch=!!(DATA.archive&&DATA.archive.dates&&DATA.archive.dates.length);
+  const arch=!!(DATA.archive&&DATA.archive.dates&&DATA.archive.dates.length)||!!(DATA.next&&(DATA.next.dates||[]).length);
   /* WHOSE SCHEDULE IS THIS. "My schedule" over somebody else's shifts is the kind of wrong that
      gets acted on — a physician checking a colleague's nights and reading them as their own. When
      visiting, the heading says the name and a line underneath says what is and is not on screen,
@@ -4118,8 +4128,9 @@ function renderSched(){
     html+=`<div class="qrow">
       <label class="qlbl" for="qSel">Quarter</label>
       <select class="acsel" id="qSel">
-        <option value="archive"${archiveOn()?' selected':''}>${esc(DATA.archive.label)}</option>
-        <option value="live"${!archiveOn()?' selected':''}>${esc(DATA.blockLabel)}</option>
+        ${DATA.archive&&DATA.archive.dates?`<option value="archive"${archiveOn()?' selected':''}>${esc(DATA.archive.label)}</option>`:''}
+        <option value="live"${!archiveOn()&&!nextOn()?' selected':''}>${esc(DATA.blockLabel)}</option>
+        ${DATA.next&&DATA.next.dates?`<option value="next"${nextOn()?' selected':''}>${esc(DATA.next.label)}</option>`:''}
       </select>
     </div>`;
   html+=`<div class="btnrow three">
@@ -4247,14 +4258,14 @@ function renderSched(){
   if(b2m)b2m.onclick=returnToMe;
   const qs=$('#qSel');
   if(qs)qs.onchange=()=>{
-    VIEWBLOCK=qs.value==='archive'?'archive':'live';
+    VIEWBLOCK=qs.value==='archive'?'archive':qs.value==='next'?'next':'live';
     track('view_quarter',{block:VIEWBLOCK,view:schedView});
     /* In month and list the quarter FILTERS what is drawn. In week it cannot — a week is seven
        days and may straddle the boundary — so it moves the window instead. Today's week when
        today is inside the quarter chosen, otherwise the quarter's first week, which is the
        useful landing spot rather than an arbitrary one. */
     if(schedView==='week'){
-      const ds=(VIEWBLOCK==='archive'?((DATA.archive||{}).dates||[]):(DATA.dates||[]));
+      const ds=(VIEWBLOCK==='archive'?((DATA.archive||{}).dates||[]):VIEWBLOCK==='next'?((DATA.next||{}).dates||[]):(DATA.dates||[]));
       if(ds.length){
         const t=todayISO();
         WEEKISO=weekStartOf(t>=ds[0]&&t<=ds[ds.length-1] ? t : ds[0]);
@@ -4353,7 +4364,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='260922.2049';           // shown in the account bar so a stale app is obvious
+const BUILD='261008.2140';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 const PH_KEY='phc_pr4QepiHtyMUqSymFZFyH2s2jKesJJEi4sWDjhaKttDN', PH_HOST='https://us.i.posthog.com';
 /* ---------- analytics ----------
@@ -5076,7 +5087,8 @@ let RQQTR=null;
 // Which dates the deadline actually shuts. Everything else in the window stays editable.
 const lockFrom=()=>((CFG&&CFG.lockFrom)||'');
 const lockTo=()=>((CFG&&CFG.lockTo)||'');
-const dateLocked=(iso)=>!!(CFG&&CFG.locked&&lockFrom()&&lockTo()&&iso>=lockFrom()&&iso<=lockTo());
+// closedTo: a published quarter stays closed whatever the deadline says (2026-10-08).
+const dateLocked=(iso)=>!!(CFG&&((CFG.closedTo&&iso<=CFG.closedTo)||(CFG.locked&&lockFrom()&&lockTo()&&iso>=lockFrom()&&iso<=lockTo())));
 /* WHAT IS PICKED AND WHAT IS SAVED ARE TWO THINGS, and they were one array.
    `off` came straight off MYREQ and reqCalHTML assigned it to RQ.off — so every tap pushed into
    the record the app calls "saved". Nothing was lost by it (the picks survived a re-render for
@@ -5145,7 +5157,7 @@ function reqCalHTML(){
   const q=qs.find(x=>x.id===RQQTR)||qs[0];
   let html=`<div class="rqmonths">${qs.map(x=>{
     const n=rqCountIn(x.from,x.to);
-    const shut=!!(CFG&&CFG.locked&&lockFrom()&&x.from>=lockFrom()&&x.to<=lockTo());
+    const shut=!!(CFG&&((CFG.closedTo&&x.to<=CFG.closedTo)||(CFG.locked&&lockFrom()&&x.from>=lockFrom()&&x.to<=lockTo())));
     return `<button class="rqm${x.id===RQQTR?' on':''}${shut?' shut':''}" data-rq="${x.id}">
       <span class="rqml">${esc(x.label)}${shut?'<span>closed</span>':''}</span
       ><i class="rqmn" data-qn="${x.id}">${n||''}</i></button>`;}).join('')}</div>`;
@@ -8057,7 +8069,8 @@ function applyEdits(edits){
   EDITS.forEach(o=>{
     const was=(o.from||[]).includes(ME), now=(o.to||[]).includes(ME);
     if(was===now)return;                          // this edit does not involve me
-    const map=inArchive(o.date)?(arch[ME]||(arch[ME]={})):(DATA.day[ME]||(DATA.day[ME]={}));
+    const nd=inNext(o.date)?(DATA.next.day||(DATA.next.day={})):null;
+    const map=nd?(nd[ME]||(nd[ME]={})):inArchive(o.date)?(arch[ME]||(arch[ME]={})):(DATA.day[ME]||(DATA.day[ME]={}));
     const a=map[o.date]||(map[o.date]={s:[],r:[]});
     /* A ROLE IS NOT A SHIFT, and this never asked. Partner On Call, ECMO Noc Backup and the two
        team captaincies are worn ON TOP of a clinical assignment; they are stored under `layered`
@@ -8687,12 +8700,17 @@ function hideAdminView(){
    itself can be rewritten. Asking for one to see a list of the same two buttons would be
    theatre — and it would fire on every boot for the admins who land here. */
 async function loadAdminQueue(){
-  if(ROLE!=='admin'||!SESSION){ADMINQ={cover:[],swaps:[],hol:[],longrun:[]};return;}
-  const [cov,sw,rq]=await Promise.all([
+  if(ROLE!=='admin'||!SESSION){ADMINQ={cover:[],swaps:[],hol:[],longrun:[],chains:[]};return;}
+  const [cov,sw,rq,ch]=await Promise.all([
     api('/coverage').catch(()=>({offers:[]})),
     api('/swaps').catch(()=>({swaps:[]})),
     api('/requests?all=1').catch(()=>({all:{}})),
+    api('/chain').catch(()=>({chains:[]})),
   ]);
+  /* SWAP CHAINS NEED THE DESK TOO (Aaron, 2026-10-07: "the approval was only listed on the swap
+     page and not on the Home page where approvals are usually handled"; 2026-10-08: approved, "it
+     didn't show up in the swap log"). A chain waiting on an admin is a sign-off like any other. */
+  ADMINQ.chains=(ch.chains||[]).filter(c=>c.status==='awaiting_admin');
   // Claimed, not open: an offer nobody has accepted is not waiting on an admin.
   ADMINQ.cover=(cov.offers||[]).filter(o=>o.status==='claimed');
   // 'blocked' is waiting on the two physicians, not on us — it never reached a partner.
@@ -8714,7 +8732,7 @@ async function loadAdminQueue(){
     .sort((a,b)=>String(a.person).localeCompare(String(b.person)));
 }
 function adminQCount(){ return ADMINQ.cover.length+ADMINQ.swaps.length+ADMINQ.hol.length
-                             +(ADMINQ.longrun||[]).length; }
+                             +(ADMINQ.longrun||[]).length+(ADMINQ.chains||[]).length; }
 
 const HOLNAME={thanksgiving:'Thanksgiving',christmas:'Christmas',newyear:'New Year'};
 function renderAdminHome(){
@@ -8743,6 +8761,13 @@ function renderAdminHome(){
       <button class="btn" data-qs="${esc(s.id)}" data-act="reject">Reject</button>
     </div></div>`));
 
+  (ADMINQ.chains||[]).forEach(c=>cards.push(`<div class="qcard">
+    <div class="qk">Swap chain · ${(c.links||[]).length}-way · needs sign-off</div>
+    ${(c.links||[]).map(l=>`<div class="qw"><b>${who(l.to)}</b> takes ${esc(META(l.shift).label||l.shift)} on ${esc(fmtD(l.date))} from <b>${who(l.from)}</b></div>`).join('')}
+    <div class="qw">Approving puts every link on the schedule at once and logs it.</div>
+    <div class="qact"><button class="btn pri" data-qch="${esc(c.id)}" data-act="approve">Approve</button>
+      <button class="btn" data-qch="${esc(c.id)}" data-act="reject">Reject</button></div></div>`));
+
   ADMINQ.hol.forEach(r=>cards.push(`<div class="qcard">
     <div class="qk">Priority holiday · needs a decision</div>
     <div class="qt">${who(r.person)} — ${esc(HOLNAME[String(r.holiday).toLowerCase()]||r.holiday)}</div>
@@ -8766,7 +8791,7 @@ function renderAdminHome(){
       :'Nothing is waiting on you right now.'}</div>
     ${cards.length?cards.join('')
       :`<div class="hzero"><div class="zt">You are all caught up</div>
-         <div class="zs">Cover approvals, swap sign-offs, holiday and time-off decisions land here.</div></div>`}
+         <div class="zs">Cover approvals, swap and swap-chain sign-offs, holiday and time-off decisions land here.</div></div>`}
     <div class="hlinks">
       <button class="btn" id="hDash">Open the dashboard</button>
       <button class="btn" id="hPick">Look at a provider</button>
@@ -8802,6 +8827,11 @@ function renderAdminHome(){
     const act=b.dataset.act; track('decision',{kind:'swap',action:act,from:'desk'});
     await api('/swaps',{method:'PATCH',body:JSON.stringify({id:b.dataset.qs,
       action:act==='reject'?'reject':'approve', override:act==='override'})});
+    await after(act==='reject'?'Rejected':'Approved — the schedule is updated');
+  });
+  wire('[data-qch]',async b=>{
+    const act=b.dataset.act; track('decision',{kind:'chain',action:act,from:'desk'});
+    await api('/chain',{method:'PATCH',body:JSON.stringify({id:b.dataset.qch,action:act})});
     await after(act==='reject'?'Rejected':'Approved — the schedule is updated');
   });
   wire('[data-qh]',async b=>{
@@ -9045,6 +9075,7 @@ function rptQuarters(){
   const a=(DATA.archive||{});
   if(a.dates&&a.dates.length)out.push({id:'archive',label:a.label||'Q3',from:a.dates[0],to:a.dates[a.dates.length-1]});
   if((DATA.dates||[]).length)out.push({id:'live',label:DATA.blockLabel||'Q4',from:DATA.dates[0],to:DATA.dates[DATA.dates.length-1]});
+  const nq=DATA.next; if(nq&&(nq.dates||[]).length)out.push({id:'next',label:nq.label,from:nq.dates[0],to:nq.dates[nq.dates.length-1]});
   return out;
 }
 // The window the chosen quarters span. Contiguous or not, a report is one from/to — so two
@@ -9090,9 +9121,9 @@ function showReport(){
       </div>
       <div class="addrow rprange">
         <label class="addlbl" for="rpFrom">From</label>
-        <input type="date" id="rpFrom" value="${RPT.from}" min="${sp[0]}" max="${sp[1]}">
+        <input type="date" id="rpFrom" value="${RPT.from}" min="${sp[0]}" max="${((DATA.next||{}).dates||[]).slice(-1)[0]||sp[1]}">
         <label class="addlbl" for="rpTo">To</label>
-        <input type="date" id="rpTo" value="${RPT.to}" min="${sp[0]}" max="${sp[1]}">
+        <input type="date" id="rpTo" value="${RPT.to}" min="${sp[0]}" max="${((DATA.next||{}).dates||[]).slice(-1)[0]||sp[1]}">
       </div>
       <!-- WHICH GROUP AM I LOOKING AT (Sam, 2026-09-11: "when i press assignments group it is not
            colored or filled in so i have no idea what group im looking at"). Only "All" ever got
@@ -9180,7 +9211,7 @@ function reportCounts(people){
   people.forEach(p=>{
     const row={};
     for(let iso=RPT.from; iso<=RPT.to; iso=isoAdd(iso,1)){
-      if(!knownDate(iso))continue;
+      if(!knownDate(iso)&&!inNext(iso))continue;
       const a=anyDayOf(p,iso); if(!a)continue;
       (a.s||[]).forEach(s=>{
         if(!isRealShift(p,iso,s))return;
@@ -9241,10 +9272,17 @@ async function showSwapLog(){
   sheet('Swap log','<div class="cvload">Reading…</div>');
   let rows=[];
   try{
-    const [sw,cov]=await Promise.all([
+    const [sw,cov,ch]=await Promise.all([
       api('/swaps').catch(()=>({swaps:[]})),
       api('/coverage').catch(()=>({offers:[]})),
+      api('/chain').catch(()=>({chains:[]})),
     ]);
+    // An approved chain is every one of its links changing hands, signed off together.
+    (ch.chains||[]).filter(c=>c.status==='approved').forEach(c=>(c.links||[]).forEach(l=>rows.push({
+      at:c.approvedAt||'', kind:'Chain ('+(c.links||[]).length+'-way)',
+      date:l.date, shift:l.shift,
+      what:`${fullOf(l.to)||l.to} took it from ${fullOf(l.from)||l.from}`,
+      by:c.approvedBy, flag:'' })));
     (sw.swaps||[]).filter(s=>s.status==='approved').forEach(s=>rows.push({
       at:(s.history||[]).slice(-1)[0]?.at||'', kind:s.kind==='trade'?'Trade':'Swap',
       date:s.date, shift:s.shift,
