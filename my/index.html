@@ -4364,7 +4364,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='261008.2140';           // shown in the account bar so a stale app is obvious
+const BUILD='261008.2206';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 const PH_KEY='phc_pr4QepiHtyMUqSymFZFyH2s2jKesJJEi4sWDjhaKttDN', PH_HOST='https://us.i.posthog.com';
 /* ---------- analytics ----------
@@ -8637,6 +8637,8 @@ function showAdminView(){
   let w=document.querySelector('#admWrap');
   if(!w){
     w=el('section','pane admwrap');w.id='admWrap';
+    /* WHICH SCHEDULE (2026-10-08): Q4 2026, the one being worked, and Q1 2027, published and
+       editable here — the same dashboard as the Q1 planning link, with edits saved live. */
     w.innerHTML='<div class="admload" id="admLoad">Loading the dashboard…</div>'+
       '<iframe id="admFrame" title="Admin dashboard"></iframe>';
     document.querySelector('main').appendChild(w);
@@ -8646,29 +8648,55 @@ function showAdminView(){
   document.querySelector('.tabs').style.display='none';
   document.body.classList.add('adminmode');
   sizeAdminFrame();
+  /* WHICH SCHEDULE (2026-10-08): the dashboard's own quarter dropdown offers 2027 Q1 (and the
+     Q1 page offers 2026 Q4 back). Picking it swaps the page in place, with no loading screen:
+     both dashboards are fetched once and kept, and each is drawn into a FRESH frame — writing a
+     second page into the same frame reuses its script scope, the second page's setup collides
+     with the first's, and it never draws (what Sam saw on test). */
+  if(!window.__admqWired){ window.__admqWired=true;
+    window.addEventListener('message',ev=>{
+      const d=ev.data||{}; if(typeof d.admq!=='string')return;
+      const f=document.querySelector('#admFrame'); if(!f||ev.source!==f.contentWindow)return;
+      admDraw(d.admq);
+    });
+  }
   if(!w.dataset.loaded){
     w.dataset.loaded='1';
-    fetch(API+'/dashboard?grant='+encodeURIComponent(ADMIN_GRANT||''),
-          {headers:{Authorization:'Bearer '+(SESSION&&SESSION.token)}})
-      .then(r=>{if(!r.ok)throw new Error('HTTP '+r.status);return r.text();})
-      .then(html=>{
-        const f=document.querySelector('#admFrame');
-        const d=f.contentDocument||f.contentWindow.document;
-        d.open();d.write(html);d.close();
-        const l=document.querySelector('#admLoad'); if(l)l.remove();
-      })
-      .catch(e=>{
-        w.dataset.loaded='';
-        if(String(e.message).includes('401')){
-          ADMIN_GRANT=null;
-          try{sessionStorage.removeItem('__grant');}catch(_){}
-          askStepUp(showAdminView);
-          return;
-        }
-        const l=document.querySelector('#admLoad');
-        if(l)l.textContent='Could not load the dashboard ('+e.message+'). Try again.';
-      });
+    admDraw(w.dataset.q||'');
+    admFetch('q1').catch(()=>{});          // ready before anyone picks it
   }
+}
+const ADMHTML={};
+function admFetch(q){
+  if(ADMHTML[q])return Promise.resolve(ADMHTML[q]);
+  return fetch(API+'/dashboard?grant='+encodeURIComponent(ADMIN_GRANT||'')+(q?'&q='+encodeURIComponent(q):''),
+               {headers:{Authorization:'Bearer '+(SESSION&&SESSION.token)}})
+    .then(r=>{ if(!r.ok)throw new Error('HTTP '+r.status); return r.text(); })
+    .then(h=>(ADMHTML[q]=h));
+}
+function admDraw(q){
+  const w=document.querySelector('#admWrap'); if(!w)return;
+  w.dataset.q=q;
+  admFetch(q).then(html=>{
+    const old=document.querySelector('#admFrame');
+    const f=document.createElement('iframe'); f.id='admFrame'; f.title='Admin dashboard';
+    if(old)old.replaceWith(f); else w.appendChild(f);
+    sizeAdminFrame();
+    const d=f.contentDocument||f.contentWindow.document;
+    d.open();d.write(html);d.close();
+    const l=document.querySelector('#admLoad'); if(l)l.remove();
+  }).catch(e=>{
+    w.dataset.loaded='';
+    if(String(e.message).includes('401')){
+      ADMIN_GRANT=null;
+      try{sessionStorage.removeItem('__grant');}catch(_){}
+      askStepUp(showAdminView);
+      return;
+    }
+    const l=document.querySelector('#admLoad');
+    if(l)l.textContent='Could not load the dashboard ('+e.message+'). Try again.';
+    else toast('Could not load that quarter ('+e.message+')');
+  });
 }
 // The portal is phone-first (.wrap is 600px), so the dashboard was being squeezed into a
 // phone-width column on a laptop — which is what made its text overlap. In admin mode the pane
