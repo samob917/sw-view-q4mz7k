@@ -4373,8 +4373,18 @@ function nextMeetingCard(){
 }
 function renderNow(){
   const pane=$('#pane-now');
-  if(!ME){pane.innerHTML=`<div class="empty" style="margin-top:22px">Choose a provider to see a personal schedule.
-    <div class="btnrow"><button class="btn pri" id="pickWho">Choose provider</button></div></div>`;
+  /* WHO'S ON DOES NOT NEED A PERSON (Sam, 2026-10-19: "can we make a new generic login that is
+     view only of the scheudles"). An account with no schedule of its own -- the shared read-only
+     login, or an admin before they have picked anybody -- got a bare "Choose a provider" prompt
+     on the Now tab, which is the one tab whose main block is the GROUP's day and was called "the
+     most important" thing in the app. So the first screen a view-only staff login saw was the
+     one screen with nothing on it. Who's on is drawn first, and the picker sits under it for the
+     personal half, which is the only part that actually needs a name. */
+  if(!ME){
+    pane.innerHTML=`<div id="whosOnWrap">${whosOnBlock(DAYVIEW||inBlockDay(todayISO()))}</div>`
+      +`<div class="empty" style="margin-top:18px">Pick a provider to see one person's schedule.
+        <div class="btnrow"><button class="btn pri" id="pickWho">Choose provider</button></div></div>`;
+    wireDayNav();                       // or the day arrows under Who's on do nothing
     $('#pickWho').onclick=openGate;return;}
   const t=todayISO();
   const all=allShifts(ME);
@@ -4919,7 +4929,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='261019.0038';           // shown in the account bar so a stale app is obvious
+const BUILD='261022.1501';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 const PH_KEY='phc_pr4QepiHtyMUqSymFZFyH2s2jKesJJEi4sWDjhaKttDN', PH_HOST='https://us.i.posthog.com';
 /* ---------- analytics ----------
@@ -10188,6 +10198,15 @@ function adminBar(){
     if(v==='admin'){showAdminView();return;}
     hideAdminHome();
     hideAdminView();
+    /* AND DROP THE REMEMBERED VIEW, HERE. hideAdminView() deliberately does not -- showAdminHome()
+       calls it on its way IN, so clearing there would wipe what that function had just written --
+       and its comment says leaving for a provider's page "goes through go(), which is where the
+       record is dropped". That is true of the tab bar. It is NOT true of this button: boot()
+       checks lastView()==='admin' and calls showAdminView() straight back, before go() is ever
+       reached. So pressing Providers from the admin view put you on the admin view, which reads
+       exactly like the button not working (Sam, 2026-10-22: "when I am on the admin tab, i can
+       not click the provider tab at all"). This press IS the instruction to leave, so it says so. */
+    keepView('');
     if(ME){boot();}               // straight back to whoever was selected, on the same tab
     else togglePicker();          // nobody chosen yet: the same menu, not a different screen
   });
@@ -10230,11 +10249,32 @@ function showAdminView(){
      viewport. Driven by a message rather than a button here, so the control stays in one place
      -- the Focus button on the dashboard itself -- and Escape there brings it all back. */
   if(!window.__admfocusWired){ window.__admfocusWired=true;
+    /* ACCEPT IT FROM ANY FRAME IN THE WRAP, NOT ONLY THE ONE #admFrame RESOLVES TO RIGHT NOW.
+       Being in focus is a layout the PORTAL holds: #admWrap goes position:fixed, inset:0,
+       z-index:9999. If the message that ends it is dropped, the dashboard clears its own class
+       and looks perfectly normal while the frame still covers the header -- so Home, Admin view
+       and Providers are all underneath it and nothing can be pressed (Sam, 2026-10-22: "when i
+       leave focus mode, i am not able to press on to provider or home").
+       admDraw REPLACES the frame when the quarter changes, so identity against one element is a
+       narrower test than it looks. Still same-origin and still a frame we drew. */
+    const fromOurFrame=src=>{
+      const w=document.querySelector('#admWrap'); if(!w)return false;
+      return [...w.querySelectorAll('iframe')].some(x=>{
+        try{ return x.contentWindow===src; }catch(e){ return false; } });
+    };
     window.addEventListener('message',ev=>{
       const d=ev.data||{}; if(typeof d.adminFocus!=='boolean')return;
-      const f=document.querySelector('#admFrame'); if(!f||ev.source!==f.contentWindow)return;
+      if(!fromOurFrame(ev.source))return;
       document.body.classList.toggle('admfocus',d.adminFocus);
       sizeAdminFrame();
+    });
+    /* AND A WAY OUT THAT DOES NOT DEPEND ON A MESSAGE AT ALL. Escape leaves focus inside the
+       dashboard; if the portal ever fails to hear about it, this is the second rope. It only
+       fires when the portal is actually in the focus layout, so it takes nothing away. */
+    window.addEventListener('keydown',e=>{
+      if(e.key!=='Escape')return;
+      if(!document.body.classList.contains('admfocus'))return;
+      document.body.classList.remove('admfocus'); sizeAdminFrame();
     });
   }
   if(!window.__admqWired){ window.__admqWired=true;
