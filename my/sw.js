@@ -20,7 +20,7 @@
  * so the file the whole update path depends on was surviving by luck and would have vanished
  * on any clean checkout.
  */
-const CACHE = 'ccpsa-portal-261022.1501';
+const CACHE = 'ccpsa-portal-261022.2022';
 // The name every notification leads with. One constant, because it is the first thing anyone
 // reads and it must not drift between the two places a notification can be shown.
 const APP_NAME = 'Scheduling Wizard';
