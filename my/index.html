@@ -2883,7 +2883,17 @@ const patternDate=(iso)=>!!(DATA.patterns||{})[iso];
    controls, the server decides. Both, or the screen offers what the API refuses. */
 // Aaron, 2026-09-19: the clinic login is view-only. Mirrors mayEditUnit() - the app must not
 // draw a control the API refuses, or the desk gets an editor that fails on save.
-const mayStaffClinics=()=>ROLE==='admin';
+/* AND NO CLINIC EDITING FROM THE PORTAL AT ALL (Sam, 2026-11-05: "editing the clinic shifts
+   should only be allowed from the admin view ... no edit ability").
+
+   This gated the Add button, each name's remove, the AM/PM/Full switch and the tappable clinic
+   cells on ROLE==='admin'. Providers never had it and the clinic desk is a read-only role, so
+   the admin was the only one who did -- and an admin has the dashboard, which is where this
+   belongs. False rather than deleted: the read-only branch of every one of those call sites
+   already exists and is what providers have always been served, so this turns five edit
+   affordances off through a path that is already exercised, instead of five separate deletions.
+   The half-day marks still SHOW, as "(AM)" / "(PM)" beside the name. */
+const mayStaffClinics=()=>false;
 const clinicUnit=(u)=>CLINIC_UNITS.includes(u);
 
 function clinicDayHTML(iso){
@@ -3336,8 +3346,11 @@ function clinicQuarterHTML(){
        view whose job is the clinics, and the day view answers it precisely, for the day you are
        actually staffing, under "Everyone else that day". BANDS is kept because that is where the
        answer moved, not because it is dead. */
-    html+=`<div class="note">Clinics are yours to change - open a day. Who else is working that
-      day is on the day view, under <b>Everyone else that day</b>.</div>`;
+    /* NOT "yours to change" any more (Sam, 2026-11-05). Clinic staffing moved to the admin
+       dashboard, and the only login still shown this view is the read-only clinic desk, so the
+       old copy promised an edit control that is no longer drawn for anybody here. */
+    html+=`<div class="note">Every clinic in the period - open a day to see who is on it. Who
+      else is working that day is on the day view, under <b>Everyone else that day</b>.</div>`;
   }
   return html;
 }
@@ -3834,36 +3847,45 @@ function renderTeam(into){
   const chip=(id,label,on)=>`<button class="onfb${on?' on':''}" data-tf="${id}">${esc(label)}</button>`;
   pane.innerHTML=`
     <div class="note" style="margin-top:2px">Pick people, then choose how to look at them.</div>
-    ${pickerHTML('tPick',roster,TSEL)}
-    ${showingHTML()}
-    <!-- GROUPINGS ARE AN ADMIN FEATURE, ENTIRELY (Sam, 2026-09-11: "Only ADMIN should see the
-         groupings"). The server already refused to SHOW a non-admin anyone else's group - a
-         grouping is visible to its creator and to admins, filtered server-side - so nothing was
+    <!-- SAVED GROUPINGS SIT ABOVE BOTH PICKERS (Sam, 2026-11-05: "the saved groupings section
+         should either be above the pick people AND pick shifts, or below, not inbetween").
+
+         It used to sit between them, so the two halves of one question -- which people, which
+         assignments -- had a different question wedged in the middle, and the shift picker read
+         as though it belonged to the groupings rather than to the selection. Above both now,
+         which is also where the dashboard's Grouping tab puts its saved views: loading a saved
+         one is the shortcut past both pickers, so it comes before them. The Save button went the
+         other way, to below both, for the reason Sam gave for the dashboard on 2026-11-04
+         ("'Save this grouping' must come UNDER people and assignments") -- it acts on what the
+         two pickers hold, so it cannot sit above them.
+
+         GROUPINGS ARE AN ADMIN FEATURE, ENTIRELY (Sam, 2026-09-11: "Only ADMIN should see the
+         groupings"). The server already refused to SHOW a non-admin anyone else's group -- a
+         grouping is visible to its creator and to admins, filtered server-side -- so nothing was
          leaking. What remained was a section offering every physician a feature meant for the
-         people who build reports: a heading, an empty row telling them to save one, and a button.
-         The six real groups are named BOBOs, Partners, HR Team, Finance Team, MT and Triad, which
-         is the clearest possible statement of who this is for.
-         Gone from the non-admin view rather than disabled, because a control that is present and
-         does nothing is worse than one that was never offered. -->
+         people who build reports. Gone from the non-admin view rather than disabled, because a
+         control that is present and does nothing is worse than one that was never offered. -->
     ${isAdmin()?`
     <h2 class="sec" style="margin-top:14px">Saved groupings</h2>
     <div id="tGrpRow" class="onfilter">${teamGroupChips()||
-      '<span class="muted sm">None yet - pick some people and save the grouping.</span>'}</div>`:''}
-    <!-- REPORTS ARE NOT ON THIS SCREEN (Sam, 2026-10-12: "Team schedules shouldn't have reports
-         as a default, only available for admins from the report tab"). The team schedule is for
-         reading who is on; a report is a different question asked deliberately, and it now has
-         exactly one way in: the Reports button on the admin home, which is admin-only chrome.
-         NOTE this also closes the only route a non-admin with reports granted had - the earlier
-         Carie Barton case (canReport(), 2026-09-11). The SERVER still honours that grant
-         (canReport/denyReport in _lib.js), so re-opening a route for her is a button, not a
-         permission change. canReport() is kept here, unused for drawing, for that reason. -->
-    ${isAdmin()?`
-    <div class="btnrow" style="margin:6px 0">
-      <button class="btn" id="tSave">Save this grouping…</button>
-    </div>`:''}
+      '<span class="muted sm">None yet -- pick some people and save the grouping.</span>'}</div>`:''}
+    ${pickerHTML('tPick',roster,TSEL)}
+    ${showingHTML()}
     <h2 class="sec">Show which assignments</h2>
     ${unitPickerHTML('tUnits',TUNITS)}
     <div class="muted sm" id="tShowU" style="margin:6px 0 8px">${teamShowUnitsHTML()}</div>
+    <!-- AND SAVE SITS UNDER BOTH OF THEM, because it saves what both of them hold.
+         REPORTS ARE NOT ON THIS SCREEN (Sam, 2026-10-12: "Team schedules shouldn't have reports
+         as a default, only available for admins from the report tab"). A report is a different
+         question asked deliberately, and it has exactly one way in: the Reports button on the
+         admin home. NOTE this also closes the only route a non-admin with reports granted had --
+         the earlier Carie Barton case (canReport(), 2026-09-11). The SERVER still honours that
+         grant (canReport/denyReport in _lib.js), so re-opening a route for her is a button, not a
+         permission change. canReport() is kept here, unused for drawing, for that reason. -->
+    ${isAdmin()?`
+    <div class="btnrow" style="margin:10px 0 2px">
+      <button class="btn" id="tSave">Save this grouping…</button>
+    </div>`:''}
     <div class="btnrow">
       <button class="btn${TMODE==='stack'?' pri':''}" data-tm="stack">Calendar overlay</button>
       <button class="btn${TMODE==='grid'?' pri':''}" data-tm="grid">Grid</button>
@@ -4887,7 +4909,18 @@ function wireProvList(pane){
    -- which is the clinic desk, every time it boots. Without this the pane returned early on
    `!ME` with the provider list and no segment bar at all, so the one login whose job is the
    clinics had no route to them. Found by team_tests: "tabs [sched] segments []". */
-const mayClinicSeg=()=>(ROLE==='clinic'||ROLE==='admin');
+/* THE CLINICS SEGMENT IS GONE FROM THE PROVIDERS VIEW (Sam, 2026-11-05: "remove the clinic
+   tab from the providers view all together, they just need my schedule and team schedul").
+
+   It was shown to admins as well, which gave clinic staffing two front doors -- here and the
+   admin dashboard -- and the portal's was the weaker one: it edits one day at a time with no
+   validation report and no history sheet. One door, and it is the dashboard.
+
+   ROLE 'clinic' keeps it, because it is the ONLY screen that login has: a clinic-desk account
+   has no schedule of its own, lands here with ME null, and its tab is relabelled "Providers"
+   below. Taking the segment from it would leave it with a tab bar and nothing behind it --
+   which is the exact fault team_tests caught once already ("tabs [sched] segments []"). */
+const mayClinicSeg=()=>ROLE==='clinic';
 function schedSegHTML(vis){
   if(SCHEDWHO==='clinic'&&!mayClinicSeg())SCHEDWHO='mine';
   return `<div class="segx schedwho" id="schedWho">
@@ -5194,7 +5227,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='261105.0026';           // shown in the account bar so a stale app is obvious
+const BUILD='261105.0118';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 const PH_KEY='phc_pr4QepiHtyMUqSymFZFyH2s2jKesJJEi4sWDjhaKttDN', PH_HOST='https://us.i.posthog.com';
 /* ---------- analytics ----------
@@ -10340,7 +10373,11 @@ function go(t){
      route in goes through here -- the tab bar, a notification deep-link, a resumed session --
      so the old name keeps working rather than landing somebody on a pane that is gone. */
   if(t==='clinic'){
-    if(ROLE==='clinic'||ROLE==='admin')SCHEDWHO='clinic';
+    /* Only the clinic desk now. An admin arriving on the old 'clinic' route -- a notification
+       deep-link, a resumed session, a bookmark -- would otherwise be parked on a segment that
+       is no longer drawn for them; schedSegHTML would quietly put them back on 'mine', but the
+       honest thing is not to send them there in the first place. */
+    if(ROLE==='clinic')SCHEDWHO='clinic';
     t='sched';
   }
   if(t==='now'&&ROLE==='clinic'){ SCHEDWHO='clinic'; t='sched'; }   // the clinics carry their day
