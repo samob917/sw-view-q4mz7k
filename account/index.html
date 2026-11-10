@@ -16,7 +16,25 @@
 const PH_KEY='phc_pr4QepiHtyMUqSymFZFyH2s2jKesJJEi4sWDjhaKttDN', PH_HOST='https://us.i.posthog.com';
 let PH=null;
 function track(e,p){ try{ if(PH&&PH.capture)PH.capture(e,p||{}); }catch(x){} }
-(function(){ if(!PH_KEY)return; try{
+/* CONSENT FIRST (2026-11-08). This page loads analytics only for someone who already agreed to
+   the privacy policy in the app on this device and left analytics on (the app keeps that choice
+   in localStorage 'ccpsa_privacy'). Everyone else gets nothing loaded, and any PostHog storage
+   left from before is cleared. People are known by an opaque id, never by name. */
+function phWipe(){
+  const bad=k=>/^ph_|_posthog|^__ph_opt_in_out_/.test(k);
+  for(const st of [window.localStorage,window.sessionStorage]){
+    try{ Object.keys(st).filter(bad).forEach(k=>st.removeItem(k)); }catch(e){}
+  }
+  try{ document.cookie.split(';').map(c=>c.split('=')[0].trim()).filter(bad)
+         .forEach(n=>{ document.cookie=n+'=; Max-Age=0; path=/'; }); }catch(e){}
+}
+(function(){
+  let pv=null; try{ pv=JSON.parse(localStorage.getItem('ccpsa_privacy')||'null'); }catch(e){}
+  const ok=!!(PH_KEY&&pv&&pv.accepted&&pv.analytics&&pv.aid);
+  if(!ok){ phWipe(); return; }
+  try{ if(localStorage.getItem('ccpsa_ph_scheme')!=='aid1'){ phWipe(); localStorage.setItem('ccpsa_ph_scheme','aid1'); } }catch(e){}
+  try{
+
   !function(t,e){var o,n,p,r;e.__SV||(window.posthog=e,e._i=[],e.init=function(i,s,a){
     function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]);
       t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}
@@ -28,28 +46,28 @@ function track(e,p){ try{ if(PH&&PH.capture)PH.capture(e,p||{}); }catch(x){} }
     u.people.toString=function(){return u.toString(1)+".people (stub)"},
     o="init capture identify alias people.set people.set_once set_config register register_once unregister opt_out_capturing has_opted_out_capturing opt_in_capturing reset isFeatureEnabled onFeatureFlags getFeatureFlag getFeatureFlagPayload reload_feature_flags group updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures getActiveMatchingSurveys getSurveys getNextSurveyStep".split(" "),
     n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
-  /* THIS WHOLE PAGE IS THE ENROLMENT PATH, SO IT IS NEVER RECORDED.
-     It draws, as ordinary DOM text rather than as input values: the TOTP secret, a QR code
-     encoding that same secret, and the eight recovery codes. Input masking does not touch any of
-     them -- maskAllInputs masks <input> values, and none of these are inputs. A replay of this
-     page is a copy of someone's second factor and every one of their bypass codes, sitting where
-     anyone with dashboard access can read it, and unrotatable without asking a physician to
-     enrol again.
-
-     Autocapture is a live risk here too, independently of replay: it records the text of clicked
-     elements, and the user is TOLD to tap the key to copy it. The credential elements carry
-     ph-no-capture, which blocks them from autocapture and masks them in any recording. Belt and
-     braces -- the recording is off, and the secrets are marked anyway. */
+  /* THIS WHOLE PAGE IS THE ENROLMENT PATH, SO IT IS NEVER RECORDED: it draws the TOTP secret,
+     its QR code and the recovery codes as DOM text. Replay stays off; autocapture masks all text
+     and attributes, and the credential elements carry ph-no-capture as well. */
   window.posthog.init(PH_KEY,{api_host:PH_HOST,autocapture:true,capture_pageview:true,
     persistence:'localStorage+cookie',
+    bootstrap:{distinctID:pv.aid,isIdentifiedID:true},
+    person_profiles:'identified_only',
     disable_session_recording:true,
+    mask_all_text:true,
     mask_all_element_attributes:true,
+    enable_heatmaps:false,
+    capture_performance:false,
+    enable_recording_console_log:false,
+    before_send:function(ev){ try{ const p=ev&&ev.properties; if(p){
+      ['$current_url','$referrer','$initial_referrer','$initial_current_url','$pathname'].forEach(k=>{
+        if(typeof p[k]==='string')p[k]=p[k].split(/[?#]/)[0]; }); delete p.$el_text; } }catch(e){} return ev; },
     loaded:function(ph){ PH=ph;
       try{ ph.register({surface:'account'}); }catch(e){}
-      // Belt and braces: if replay is ever enabled at the project end, stop it here too.
       try{ if(ph.stopSessionRecording)ph.stopSessionRecording(); }catch(e){}
     }});
-}catch(e){ PH=null; } })();
+  }catch(e){ PH=null; }
+})();
 window.addEventListener('error',ev=>track('js_error',
   {message:String((ev&&ev.message)||'').slice(0,300),where:'account'}));
 </script>
@@ -350,7 +368,7 @@ $('#b1').onclick=async()=>{
     const j=await api('/account',{action:'identify',code:$('#code').value.trim()});
     STATE.person=j.person;
     // Identify at the FIRST step, so a person who abandons halfway is still findable.
-    try{ if(PH&&PH.identify)PH.identify(j.person,{role:j.role}); }catch(e){}
+    // No identify by name. If analytics is on here, it already runs under the opaque id.
     track('enrol_step',{step:'code',ok:true,already:!!j.alreadyEnrolled,ms:Date.now()-t0});
     if(j.alreadyEnrolled){
       say('#m1','This account is already set up. Sign in with your email and password.');

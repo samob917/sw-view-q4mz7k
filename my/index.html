@@ -1652,6 +1652,46 @@ textarea.uiaf{min-height:88px;resize:vertical;font-family:inherit}
 .uiaok{background:var(--signal);border-color:var(--signal);color:var(--chip-ink)}
 .uiaok.danger{background:var(--alert);border-color:var(--alert);color:#fff}
 .uiac:active,.uiaok:active{transform:translateY(1px)}
+/* The privacy prompt: the same card, a little narrower, never dismissed by the backdrop. */
+.privask{z-index:96}
+.privask .uiabox{max-width:400px}
+.privchk{display:flex;align-items:flex-start;gap:10px;margin-top:16px;font-size:14px;line-height:1.45;
+  color:var(--ink);cursor:pointer}
+.privchk input{width:18px;height:18px;margin:1px 0 0;flex:none;accent-color:var(--signal);cursor:pointer}
+.privchk a{color:var(--signal);font-weight:700;text-decoration:underline;text-underline-offset:2px}
+.privmsg{font-size:13px;color:var(--dim);margin-top:8px;min-height:0}
+.privmsg:empty{display:none}
+#privGo:disabled{opacity:.45;cursor:default}
+/* The policy panel: above the privacy card, scrolls on its own, full screen on a phone. */
+.polask{position:fixed;inset:0;z-index:97;display:none;align-items:center;justify-content:center;padding:24px;
+  background:rgba(4,10,17,.6);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)}
+.polask.on{display:flex}
+.polpanel{background:var(--panel);border:1px solid var(--line2);border-radius:18px;box-shadow:0 24px 60px rgba(0,0,0,.35);
+  width:100%;max-width:680px;max-height:min(86vh,900px);display:flex;flex-direction:column;overflow:hidden;
+  animation:uiain .16s ease-out}
+.polhead{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:18px 18px 14px 22px;
+  border-bottom:1px solid var(--line)}
+.poleye{font-family:var(--mono,ui-monospace,Menlo,monospace);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--faint)}
+.polt{font-size:19px;font-weight:800;letter-spacing:-.02em;color:var(--ink);margin-top:2px}
+.polx{flex:none;width:38px;height:38px;border-radius:50%;border:1px solid var(--line2);background:var(--panel2);
+  color:var(--ink);display:grid;place-items:center;cursor:pointer}
+.polx:focus-visible{outline:2px solid var(--signal);outline-offset:2px}
+.polbody{overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding:16px 22px 22px}
+.polbody .meta{color:var(--dim);font-size:13px;margin:0 0 14px}
+.polbody .pcard{background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:16px 16px 4px;margin:0 0 10px}
+.polbody h2{font-size:15.5px;font-weight:800;margin:0 0 6px;color:var(--ink)}
+.polbody p,.polbody li{font-size:14.5px;line-height:1.6;color:var(--dim)}
+.polbody p{margin:0 0 12px}
+.polbody ul{margin:0 0 12px;padding-left:20px}
+.polbody li{margin:0 0 5px}
+.polbody b{color:var(--ink)}
+.polbody a{color:var(--signal)}
+@media (max-width:520px){
+  .polask{padding:0;align-items:stretch}
+  .polpanel{max-width:none;max-height:none;height:100%;border-radius:0;border:0;
+    padding-top:env(safe-area-inset-top)}
+  .polbody{padding-bottom:calc(22px + env(safe-area-inset-bottom))}
+}
 @media (max-width:520px){
   .uiask{align-items:flex-end;padding:0}
   .uiabox{border-radius:20px 20px 0 0;max-width:600px;padding-bottom:calc(16px + env(safe-area-inset-bottom))}
@@ -2172,6 +2212,15 @@ function openAccountSheet(){
         ${Object.keys(CALSIZES).map(v=>`<option value="${v}"${String(CALSCALE)===v?' selected':''}
           >${CALSIZES[v]}</option>`).join('')}
       </select></div>
+    ${PRIV&&PRIV.accepted?`<div class="row"><span class="sp" style="background:var(--line2)"></span>
+      <span style="flex:1"><span class="t">Usage analytics</span>
+        <span class="s">Masked analytics and session recording that help us find bugs.
+          <a href="${esc(PRIV.policyUrl)}" data-policy target="_blank" rel="noopener" style="color:var(--signal)">Privacy Policy</a>
+          ${PRIV.acceptedAt?' · agreed '+esc(new Date(PRIV.acceptedAt).toLocaleDateString()):''}</span></span>
+      <select class="acsel" id="acPriv" aria-label="Usage analytics">
+        <option value="on"${PRIV.analytics?' selected':''}>On</option>
+        <option value="off"${PRIV.analytics?'':' selected'}>Off</option>
+      </select></div>`:''}
     <div class="btnrow">
       ${CAN_SWITCH?'<button class="btn" id="acSwitch">View another provider</button>':''}
       <button class="btn" id="acMail">Use a different email</button>
@@ -2210,6 +2259,14 @@ function openAccountSheet(){
   // Same painter the Swaps card used, pointed at this sheet's slot.
   paintAccountPush();
   wireNotifyTest();
+  const pv=$('#acPriv');
+  if(pv)pv.onchange=async()=>{
+    pv.disabled=true;
+    try{ await privSetAnalytics(pv.value==='on');
+         toast(pv.value==='on'?'Analytics on':'Analytics off. Nothing more is recorded.'); }
+    catch(e){ pv.value=PRIV&&PRIV.analytics?'on':'off'; toast('That did not save. Try again.'); }
+    pv.disabled=false;
+  };
   $('#acMail').onclick=openEmailChange;
   $('#acAuth').onclick=openAuthReset;
   $('#acOut').onclick=()=>{
@@ -5227,9 +5284,43 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='261105.0118';           // shown in the account bar so a stale app is obvious
+const BUILD='261110.0026';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 const PH_KEY='phc_pr4QepiHtyMUqSymFZFyH2s2jKesJJEi4sWDjhaKttDN', PH_HOST='https://us.i.posthog.com';
+/* THE POLICY OPENS IN THE APP. A link out from an installed app lands in a separate browser
+   window, which reads as being thrown out of the app. The text is built in from
+   privacy_page.html (one source), shown in a panel with a close button, and /privacy/ stays as
+   the page to share. Opening it from the privacy card leaves the card, and its tick, as they were. */
+const POLICY_HTML="<p class=\"meta\">Version 2026-11-08 \u00b7 Effective 8 November 2026<\/p>\n\n  <div class=\"pcard\">\n    <p><b>In short:<\/b> this app holds what it needs to run your practice's schedule. We don't sell\n      it and don't use it for advertising. If you leave analytics on, we see how the app is used,\n      with names, text and anything you type hidden, so we can find and fix problems. You can turn\n      analytics off at any time from the Account button in the app.<\/p>\n  <\/div>\n\n  <div class=\"pcard\">\n    <h2>Who we are<\/h2>\n    <p>This app is the scheduling app for CCPSA. Scheduling Wizard, Inc. builds and runs it for CCPSA\n      under our agreement with the practice. This policy covers this app only. Our website,\n      schedulingwiz.com, has its own separate policy.<\/p>\n    <p>We act for your practice. Your practice decides who has an account and how the schedule\n      is run. We handle your information on its behalf.<\/p>\n  <\/div>\n\n  <div class=\"pcard\">\n    <h2>What we hold<\/h2>\n    <ul>\n      <li><b>Your account:<\/b> your name, role and work email. Your password is stored only as a\n        one-way hash. Your two-factor key is stored encrypted. If you use Face ID or a fingerprint,\n        we keep only the public key your device creates; your biometrics never leave your device.<\/li>\n      <li><b>The schedule:<\/b> your shifts, time off and requests, swaps, cover, and the notes and\n        messages you write in the app.<\/li>\n      <li><b>Your devices:<\/b> when you last signed in, which devices are signed in, and, if you\n        turn them on, the details needed to send notifications to your device and your private\n        calendar link.<\/li>\n      <li><b>Usage analytics, only if you agree and leave it on:<\/b> see below.<\/li>\n    <\/ul>\n  <\/div>\n\n  <div class=\"pcard\">\n    <h2>Usage analytics and session recording<\/h2>\n    <p>With your agreement, we use PostHog (a product analytics service, data held in the\n      United States) to see which screens are used, what errors happen, and short recordings of\n      how the app behaved. This is how we find bugs that are hard to reproduce, especially on\n      phones.<\/p>\n    <ul>\n      <li>You are known by a random code, not your name or email.<\/li>\n      <li>All text on screen and everything you type is hidden before anything is sent.\n        Recordings show the layout of the app, not its content.<\/li>\n      <li>Recording stops completely while you are signing in, setting up two-factor, writing a\n        note or message, or attaching a file.<\/li>\n      <li>We do not collect your IP address, network traffic or browser console.<\/li>\n      <li>Recordings are deleted after 30 days.<\/li>\n    <\/ul>\n    <p>Turn it off at any time: tap Account in the app, then set Usage analytics to Off. When it is off, nothing is\n      loaded or sent, and any analytics data stored in your browser is cleared.<\/p>\n  <\/div>\n\n  <div class=\"pcard\">\n    <h2>How we use it<\/h2>\n    <ul>\n      <li>To show you and your colleagues the schedule, and to handle requests, swaps and cover.<\/li>\n      <li>To send the emails and notifications the app sends (for example, a swap waiting for you).<\/li>\n      <li>To keep accounts secure, and to help when someone can't sign in.<\/li>\n      <li>To find and fix problems and improve the app.<\/li>\n    <\/ul>\n    <p>We never sell your information or use it for advertising.<\/p>\n  <\/div>\n\n  <div class=\"pcard\">\n    <h2>Who can see it<\/h2>\n    <ul>\n      <li><b>People at your practice:<\/b> colleagues see the schedule. Administrators and scheduling\n        staff also see requests, swaps and account status.<\/li>\n      <li><b>Scheduling Wizard:<\/b> our team, to run and support the app.<\/li>\n      <li><b>Services we use to run the app:<\/b> Vercel (hosting and storage), PostHog (analytics,\n        only if on), Google (sending email), and your phone or browser maker's notification service\n        (only if you turn notifications on). They may use the information only to provide their\n        service to us.<\/li>\n      <li><b>If the law requires it:<\/b> we will disclose information when we are legally required to.<\/li>\n    <\/ul>\n  <\/div>\n\n  <div class=\"pcard\">\n    <h2>Patient information<\/h2>\n    <p>This app is for staff scheduling. Please don't enter patient names or any other patient\n      information in notes, messages or requests.<\/p>\n  <\/div>\n\n  <div class=\"pcard\">\n    <h2>How long we keep it<\/h2>\n    <p>Account and schedule records are kept while your practice uses the app, and then returned\n      or deleted as our agreement with the practice sets out. Session recordings are deleted after\n      30 days.<\/p>\n  <\/div>\n\n  <div class=\"pcard\">\n    <h2>Security<\/h2>\n    <p>Everything is sent over encrypted connections. Accounts need a password and two-factor\n      sign-in. Sessions expire, and you can sign out all your devices from the Account button in the app.<\/p>\n  <\/div>\n\n  <div class=\"pcard\">\n    <h2>Your choices<\/h2>\n    <ul>\n      <li>Turn analytics on or off at any time from the Account button in the app.<\/li>\n      <li>To see, correct or delete information about you, ask your practice's scheduling lead or\n        email us. Some schedule records belong to the practice, so we will work with them on\n        requests about those.<\/li>\n    <\/ul>\n  <\/div>\n\n  <div class=\"pcard\">\n    <h2>Changes<\/h2>\n    <p>If this policy changes, the version date above changes and the app asks you to agree again\n      the next time you open it.<\/p>\n  <\/div>\n\n  <div class=\"pcard\">\n    <h2>Contact<\/h2>\n    <p>Questions or requests: <a href=\"mailto:team@schedulingwiz.com\">team@schedulingwiz.com<\/a><\/p>\n  <\/div>";
+function openPolicy(){
+  let box=$('#polBox');
+  if(!box){
+    box=document.createElement('div'); box.id='polBox'; box.className='polask';
+    box.innerHTML='<div class="polpanel" role="dialog" aria-modal="true" aria-labelledby="polT">'
+      +'<div class="polhead"><div><div class="poleye">CCPSA Schedule</div><div class="polt" id="polT">Privacy Policy</div></div>'
+      +'<button type="button" class="polx" id="polX" aria-label="Close">'
+      +'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>'
+      +'<div class="polbody" id="polBody"></div></div>';
+    document.body.appendChild(box);
+    $('#polBody').innerHTML=POLICY_HTML;
+    $('#polX').onclick=closePolicy;
+    box.addEventListener('mousedown',e=>{ if(e.target===box)closePolicy(); });
+    box.addEventListener('keydown',e=>{ if(e.key==='Escape'){ e.preventDefault(); e.stopPropagation(); closePolicy(); } });
+  }
+  box._prev=document.activeElement;
+  box.classList.add('on'); $('#polBody').scrollTop=0;
+  setTimeout(()=>{ const x=$('#polX'); if(x)x.focus(); },0);
+}
+function closePolicy(){
+  const box=$('#polBox'); if(!box)return;
+  box.classList.remove('on');
+  try{ if(box._prev&&box._prev.focus)box._prev.focus({preventScroll:true}); }catch(e){}
+}
+document.addEventListener('click',e=>{
+  const a=e.target&&e.target.closest&&e.target.closest('a[data-policy]');
+  if(!a||!POLICY_HTML)return;
+  e.preventDefault(); e.stopPropagation(); openPolicy();
+},true);
 /* ---------- analytics ----------
    There was NO error reporting in this app at all - no window.onerror, nothing. Every bug found
    so far was found by somebody noticing. That is what this is for first; the funnels are second.
@@ -5241,17 +5332,79 @@ const PH_KEY='phc_pr4QepiHtyMUqSymFZFyH2s2jKesJJEi4sWDjhaKttDN', PH_HOST='https:
      2. Test traffic must not pollute production numbers, so `env` is a super-property on every
         event and the test site reports itself as test.
 
-   Capture level is deliberate and was Sam's call (2026-08-23): full defaults, autocapture and
-   session replay included. That means physicians' names, their schedules, and the free text they
-   type into swap and request notes are recorded. If that is ever revisited, the masking hooks are
-   marked MASK-HERE below. */
-let PH=null;
+   CONSENT FIRST (2026-11-08). Nothing loads until the signed-in person has accepted the current
+   privacy policy and left analytics on. The server says which, on every /portal response
+   (consent: {version, accepted, analytics, aid}); bumping PRIVACY_POLICY_VERSION in
+   portal_api/api/_consent.js asks everyone again on their next page load.
+
+   When it does run, it sees very little:
+     - people are an opaque id (u_ + 16 hex), never a name;
+     - autocapture masks element text and attributes, so names and shifts never leave the device;
+     - replay masks ALL text and ALL inputs, records no network bodies, headers or console, and
+       stops entirely whenever a free-text box, a file picker or a credential is on screen;
+     - URLs lose their query string and hash before sending. */
+let PH=null, PH_AID=null;
+const PRIV_KEY='ccpsa_privacy';            // this browser's copy of the choice, shared by tabs
 function track(event,props){
   try{ if(PH&&PH.capture)PH.capture(event,props||{}); }catch(e){}
 }
-function analyticsInit(){
-  if(!PH_KEY)return;
+/* Removes every trace of PostHog from this browser: stops a running recorder, opts out, resets,
+   then clears ph_* cookies and storage. Used for anyone who has not agreed, and for anyone
+   carrying storage from before consent existed (that storage identified people by surname). */
+function phWipe(){
   try{
+    const ph=window.posthog;
+    if(ph&&ph.__loaded){
+      try{ ph.stopSessionRecording&&ph.stopSessionRecording(); }catch(e){}
+      try{ ph.opt_out_capturing&&ph.opt_out_capturing(); }catch(e){}
+      try{ ph.reset&&ph.reset(true); }catch(e){}
+    }
+  }catch(e){}
+  PH=null; REPLAY_ON=false;
+  const bad=k=>/^ph_|_posthog|^__ph_opt_in_out_/.test(k);
+  for(const st of [window.localStorage,window.sessionStorage]){
+    try{ Object.keys(st).filter(bad).forEach(k=>st.removeItem(k)); }catch(e){}
+  }
+  try{
+    document.cookie.split(';').map(c=>c.split('=')[0].trim()).filter(bad).forEach(n=>{
+      const host=location.hostname, parts=host.split('.');
+      const doms=['',host,'.'+host]; if(parts.length>2)doms.push('.'+parts.slice(-2).join('.'));
+      doms.forEach(d=>{ document.cookie=n+'=; Max-Age=0; path=/'+(d?'; domain='+d:''); });
+    });
+  }catch(e){}
+}
+function phClean(ev){
+  try{
+    const p=ev&&ev.properties;
+    if(p){
+      ['$current_url','$referrer','$initial_referrer','$initial_current_url','$pathname',
+       '$prev_pageview_pathname'].forEach(k=>{
+        if(typeof p[k]==='string')p[k]=p[k].split(/[?#]/)[0]; });
+      delete p.$el_text;
+    }
+    ['$set','$set_once'].forEach(k=>{ const o=ev&&ev[k]; if(o)['$current_url','$initial_current_url',
+      '$referrer','$initial_referrer'].forEach(q=>{ if(typeof o[q]==='string')o[q]=o[q].split(/[?#]/)[0]; }); });
+  }catch(e){}
+  return ev;
+}
+function analyticsStart(aid,role){
+  if(!PH_KEY||!aid)return;
+  // Storage from before consent identified people by surname. Clear it once, before anything
+  // loads, so the new id never gets linked to the old named person.
+  try{ if(localStorage.getItem('ccpsa_ph_scheme')!=='aid1'){ phWipe(); localStorage.setItem('ccpsa_ph_scheme','aid1'); } }catch(e){}
+  PH_AID=aid;
+  const ready=ph=>{ PH=ph;
+    try{ ph.opt_in_capturing&&ph.opt_in_capturing(); }catch(e){}
+    try{ ph.register({build:BUILD, env:TEST_BUILD?'test':'production',
+           standalone:!!(window.matchMedia('(display-mode: standalone)').matches
+                         ||window.navigator.standalone)}); }catch(e){}
+    // A different person on this device: start a fresh identity rather than merge the two.
+    try{ if(ph.get_distinct_id&&ph.get_distinct_id()!==aid){ ph.reset&&ph.reset(true); ph.identify(aid,{role:role||''}); }
+         else if(ph.setPersonProperties)ph.setPersonProperties({role:role||''}); }catch(e){}
+    replayGate();
+  };
+  try{
+    if(window.posthog&&window.posthog.__loaded){ ready(window.posthog); return; }   // turned back on
     !function(t,e){var o,n,p,r;e.__SV||(window.posthog=e,e._i=[],e.init=function(i,s,a){
       function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]);
         t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}
@@ -5266,26 +5419,103 @@ function analyticsInit(){
     window.posthog.init(PH_KEY,{
       api_host:PH_HOST,
       persistence:'localStorage+cookie',
-      // MASK-HERE: set autocapture:false to stop DOM text leaving the device entirely.
+      bootstrap:{distinctID:aid,isIdentifiedID:true},   // known by the opaque id from the first event
+      person_profiles:'identified_only',
       autocapture:true,
+      mask_all_text:true,                // no element text leaves the device
+      mask_all_element_attributes:true,  // nor attributes (titles, aria labels carry names)
       capture_pageview:true,
-      /* REPLAY STARTS OFF AND IS TURNED ON ONLY WHEN NOTHING SECRET IS ON SCREEN.
-         Recording is genuinely wanted -- the tab-bar bug took five attempts and the sliding sheet
-         is still unreproduced, both because there is no way to see the phone it happens on. What
-         cannot be recorded is enrolment: the TOTP secret, its QR code and the eight recovery
-         codes are drawn as DOM TEXT, not as input values, so maskAllInputs does not touch them.
-         Starting disabled means the failure mode is "no recording", never "recorded the secret".
+      enable_heatmaps:false,
+      capture_dead_clicks:false,
+      capture_performance:false,         // no network timing, which would carry request URLs
+      enable_recording_console_log:false,
+      session_recording:{maskAllInputs:true, maskTextSelector:'*',
+                         recordHeaders:false, recordBody:false},
+      before_send:phClean,
+      /* REPLAY STARTS OFF AND IS TURNED ON ONLY WHEN NOTHING SENSITIVE IS ON SCREEN.
          replayGate() below turns it on and off as screens come and go. */
       disable_session_recording:true,
-      // A stale service worker is a real failure mode here, so the build is on EVERY event.
-      loaded:function(ph){ PH=ph;
-        try{ ph.register({build:BUILD, env:TEST_BUILD?'test':'production',
-               standalone:!!(window.matchMedia('(display-mode: standalone)').matches
-                             ||window.navigator.standalone)}); }catch(e){}
-        replayGate();
-      },
+      loaded:ready,
     });
   }catch(e){ PH=null; }
+}
+function analyticsStop(){ phWipe(); PH_AID=null; }
+
+/* ---------- the privacy prompt ----------
+   Shown over the app (never instead of it), so nothing the person was doing is lost. It cannot
+   be dismissed without agreeing, but it asks once per policy version. */
+let PRIV=null;
+function privLocal(){ try{ return JSON.parse(localStorage.getItem(PRIV_KEY)||'null'); }catch(e){ return null; } }
+function privSaveLocal(c){
+  try{ localStorage.setItem(PRIV_KEY,JSON.stringify({person:SESSION&&SESSION.person,version:c.version,
+         accepted:!!c.accepted,analytics:!!c.analytics,aid:c.aid,at:Date.now()})); }catch(e){}
+}
+async function privPost(body){
+  const r=await fetch(API+'/consent',{method:'POST',headers:{'Content-Type':'application/json',
+    Authorization:'Bearer '+SESSION.token},body:JSON.stringify({version:PRIV&&PRIV.version,...body})});
+  const j=await r.json().catch(()=>({}));
+  if(r.status===409){ location.reload(); throw new Error(j.error||'Reload'); }
+  if(!r.ok)throw new Error(j.error||'Could not save');
+  return j.consent;
+}
+function privApply(c){
+  PRIV=c||null;
+  if(!c){ analyticsStop(); return; }                      // an older API: say nothing, record nothing
+  if(!c.accepted){
+    // Another tab, or this one a moment ago, may have agreed already and the store not caught up.
+    const l=privLocal();
+    if(l&&l.accepted&&l.person===(SESSION&&SESSION.person)&&l.version===c.version){
+      PRIV={...c,accepted:true,analytics:!!l.analytics};
+      privPost({accept:true,analytics:!!l.analytics}).catch(()=>{});
+    } else { privSaveLocal({...c,accepted:false,analytics:false}); analyticsStop(); privShow(); return; }
+  }
+  privHide();
+  privSaveLocal(PRIV);
+  if(PRIV.analytics)analyticsStart(PRIV.aid,SESSION&&SESSION.role); else analyticsStop();
+}
+function privShow(){
+  let box=$('#privAsk');
+  if(!box){
+    box=document.createElement('div'); box.id='privAsk'; box.className='uiask privask';
+    box.innerHTML='<div class="uiabox" role="dialog" aria-modal="true" aria-labelledby="privT" aria-describedby="privM">'
+      +'<div class="uiat" id="privT">A quick note on privacy</div>'
+      +'<div class="uiam" id="privM">We use analytics and session recording, with personal details masked, '
+      +'to find bugs and improve your experience. You can turn this off any time from the Account button.</div>'
+      +'<label class="privchk"><input type="checkbox" id="privOk"> <span>I agree to the '
+      +'<a href="'+esc((PRIV&&PRIV.policyUrl)||'/privacy/')+'" data-policy target="_blank" rel="noopener">Privacy Policy</a></span></label>'
+      +'<div class="privmsg" id="privErr" role="alert"></div>'
+      +'<div class="uiab"><button type="button" class="uiaok" id="privGo" disabled>Continue</button></div></div>';
+    document.body.appendChild(box);
+    const ok=$('#privOk'), go=$('#privGo');
+    ok.onchange=()=>{ go.disabled=!ok.checked; };
+    // Not dismissible, but Escape must not fall through to whatever is underneath.
+    box.addEventListener('keydown',e=>{ if(e.key==='Escape'){ e.preventDefault(); e.stopPropagation(); } });
+    go.onclick=async()=>{
+      if(!ok.checked)return;
+      go.disabled=true; $('#privErr').textContent='';
+      try{ const c=await privPost({accept:true,analytics:true}); privApply(c); }
+      catch(e){ $('#privErr').textContent='That did not save. Check your connection and try again.';
+                go.disabled=false; }
+    };
+  }
+  box.classList.add('on');
+  setTimeout(()=>{ const ok=$('#privOk'); if(ok)ok.focus(); },0);
+}
+function privHide(){ const b=$('#privAsk'); if(b)b.classList.remove('on'); }
+// Another tab agreed or changed the setting: follow it here without a reload.
+window.addEventListener('storage',e=>{
+  if(e.key!==PRIV_KEY||!SESSION||!PRIV)return;
+  const l=privLocal();
+  if(!l||l.person!==SESSION.person||l.version!==PRIV.version||!l.accepted)return;
+  if(l.accepted===PRIV.accepted&&l.analytics===PRIV.analytics)return;
+  PRIV={...PRIV,accepted:true,analytics:!!l.analytics}; privHide();
+  if(PRIV.analytics)analyticsStart(PRIV.aid,SESSION.role); else analyticsStop();
+});
+async function privSetAnalytics(on){
+  const c=await privPost({analytics:!!on});
+  PRIV=c; privSaveLocal(c);
+  if(c.analytics)analyticsStart(c.aid,SESSION&&SESSION.role); else analyticsStop();
+  return c;
 }
 /* ---------- when may we record? ----------
    Anything that puts a credential on the glass closes the recorder. Checked from the DOM rather
@@ -5320,6 +5550,14 @@ function replaySensitive(){
 
        Position is the wrong question. A sheet is showing when it carries .on, whatever its
        transform is doing this frame, and that is knowable the instant the class changes. */
+    /* FREE TEXT AND UPLOADS STOP THE RECORDER OUTRIGHT. Masking already hides what is typed,
+       but a note box is where someone might write something about a patient, so those screens
+       are not recorded at all: swap and cover notes, thread replies, request reasons, and any
+       file picker. Visible = rendered with a size. */
+    for(const el of document.querySelectorAll('textarea,input[type=file],[data-ph-block]')){
+      const r=el.getBoundingClientRect();
+      if(r.width>0&&r.height>0&&getComputedStyle(el).visibility!=='hidden')return true;
+    }
     for(const el of document.querySelectorAll('.ph-no-capture')){
       const sh=el.closest('#sheet');
       if(sh) { if(sh.classList.contains('on')) return true; continue; }
@@ -5343,7 +5581,8 @@ function replayGate(){
 }
 applyCalScale();
 measureBanner();
-analyticsInit();
+// Nothing starts until /portal says this person agreed. Until then, clear anything left behind.
+try{ const l=privLocal(); if(!(l&&l.accepted&&l.analytics))phWipe(); }catch(e){}
 
 /* NOTHING WAS WATCHING FOR ERRORS. These two are the reason this went in at all. */
 window.addEventListener('error',ev=>{
@@ -12216,6 +12455,8 @@ async function refreshLive(force){
     const r=await fetch(API+'/portal',{headers:{Authorization:'Bearer '+SESSION.token},cache:'no-store'});
     if(!r.ok)return;
     const j=await r.json();
+    // The policy changed while the app was open: ask now, not on the next sign-in.
+    if(j.consent&&PRIV&&j.consent.version!==PRIV.version)privApply(j.consent);
     const sig=editSig(j.edits);
     if(!force&&sig===LAST_EDIT_SIG)return;      // nothing changed - leave the view alone
     const first=LAST_EDIT_SIG===null;
@@ -12330,10 +12571,9 @@ async function loadPortal(token){
     return;
   }
   setIdentity(j.person,j.role,j.label);
-  /* Identified by the PERSON KEY - "Stramel", the same key the schedule and the accounts table
-     use. When Aaron says "Dr Stramel cannot sign in", that is the string to search for. */
-  try{ if(PH&&PH.identify)PH.identify(j.person,{role:j.role,
-         has_schedule:!!(j.data&&j.data.people&&j.data.people.includes(j.person))}); }catch(e){}
+  /* Privacy first: starts analytics only if they agreed, otherwise asks. People are known to
+     PostHog by an opaque id only. */
+  privApply(j.consent);
   VIEWBLOCK=defaultBlock();          // the quarter today falls in, per the device
   track('portal_opened',{role:j.role,quarter:VIEWBLOCK});
   document.body.classList.remove('locked');
@@ -12680,6 +12920,9 @@ function showGate(){ stepPassword(lastLoginEmail()); }
         body:JSON.stringify({device:dev})});
       if(r.ok){
         const j=await r.json();
+        // Keep the renewed device token, so the 90 days restart every time the app is opened.
+        // Without this the server renewed it and the browser threw the new one away.
+        keepDevice(j.device);
         // Resuming is exactly the moment to ask, if there is something to ask with.
         if(await maybeLock())return;
         try{sessionStorage.setItem('__tok',j.token);}catch(e){}
