@@ -929,6 +929,133 @@ textarea.ta{width:100%;background:var(--panel);border:1px solid var(--line2);bor
 .pkrrow input{width:18px;height:18px;flex:none;accent-color:var(--signal)}
 .segx.schedwho{margin:4px 0 10px}
 
+/* ---------- team schedule controls (2026-11-15) ----------
+   One card for choosing, one bar for viewing. Labels are small and quiet so the controls carry
+   the weight; the view switch is a single segmented pill instead of five full-width buttons. */
+.tctl{margin-top:12px;border:1px solid var(--line);border-radius:16px;background:var(--panel);
+  padding:6px 16px 14px;box-shadow:0 1px 2px var(--shadow)}
+.tsec{padding:12px 0 2px}
+.tsec+.tsec{border-top:1px solid var(--line);margin-top:10px;padding-top:14px}
+.tctl h2.sec.tsh,.tctl .tsh{margin:0 0 9px;font-size:13.5px;font-weight:700;letter-spacing:-.005em;color:var(--dim)}
+.tgrp{margin:0}
+.tgrp .onfb{padding:7px 14px;font-size:13px;color:var(--ink);background:var(--panel2);
+  border-color:var(--line);transition:background .15s,border-color .15s}
+.tgrp .onfb:hover{border-color:var(--line2)}
+.tgrp .onfb.on{background:var(--chip);border-color:var(--chip);color:var(--chip-ink)}
+.tgrp .onfb .cvn{margin-left:7px}
+.tshowu{margin:8px 2px 0}
+.tctl .showing{margin:8px 0 0;background:var(--panel2);border-color:var(--line);border-radius:12px}
+.tctl .showing.muted{background:transparent;border-style:dashed}
+.tctl .showing .btn{width:auto;flex:none;border-radius:9px;padding:6px 12px}
+.tsave{display:flex;justify-content:flex-end;margin-top:12px}
+.tsavebtn{display:inline-flex;align-items:center;gap:7px;padding:8px 14px;border-radius:10px;
+  border:1px solid var(--line2);background:transparent;color:var(--ink);font:inherit;font-size:13px;
+  font-weight:650;cursor:pointer;transition:background .15s}
+.tsavebtn:hover{background:var(--panel2)}
+.tsavebtn svg{color:var(--signal)}
+.tbar{display:flex;flex-direction:column;align-items:stretch;gap:10px;margin:14px 0 4px}
+.tseg{display:flex;gap:3px;padding:3px;border-radius:12px;background:var(--panel2);
+  border:1px solid var(--line);width:100%}
+.tseg button{flex:1 1 0;display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  min-height:36px;padding:7px 12px;border:0;border-radius:9px;background:transparent;color:var(--dim);
+  font:inherit;font-size:13px;font-weight:650;cursor:pointer;white-space:nowrap;transition:background .15s,color .15s}
+.tseg button:hover{color:var(--ink)}
+.tseg button.on{background:var(--panel);color:var(--ink);box-shadow:0 1px 3px var(--shadow),0 0 0 1px var(--line2)}
+.tseg button.on svg{color:var(--signal)}
+.tseg.sm{display:inline-flex;width:auto}
+.tseg.sm button{min-height:30px;padding:5px 14px;font-size:12.5px}
+.ttools{display:flex;align-items:center;gap:8px;width:100%}
+.ttools .tbtn{flex:none}
+.pdd{position:relative;flex:1 1 auto;min-width:0}
+.pddbtn{width:100%;display:flex;align-items:center;gap:9px;min-height:38px;padding:7px 12px;border-radius:10px;
+  border:1px solid var(--line2);background:var(--panel);color:var(--ink);font:inherit;font-size:14px;font-weight:650;
+  cursor:pointer;transition:border-color .15s,box-shadow .15s}
+.pddbtn:hover{border-color:var(--faint)}
+.pddbtn>svg{flex:none;color:var(--signal)}
+.pddbtn .pddlbl{flex:1 1 auto;min-width:0;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pddbtn i{display:inline-flex;color:var(--dim);transition:transform .15s}
+.pdd.open .pddbtn{border-color:var(--signal);box-shadow:0 0 0 3px var(--ok)}
+.pdd.open .pddbtn i{transform:rotate(180deg)}
+.pddpop{position:absolute;z-index:60;top:calc(100% + 6px);left:0;right:0;min-width:270px;max-height:min(62vh,440px);
+  overflow-y:auto;padding:8px 12px 12px;border-radius:14px;border:1px solid var(--line2);background:var(--panel);
+  box-shadow:0 18px 40px var(--shadow),0 2px 6px var(--shadow)}
+.pddh{font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--dim);margin:10px 2px 6px}
+.pddq{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px}
+.pddm{display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:6px}
+.pddi{position:relative;padding:8px 6px;border-radius:9px;border:1px solid var(--line);background:var(--panel2);
+  color:var(--ink);font:inherit;font-size:13px;font-weight:600;cursor:pointer;transition:background .12s,border-color .12s}
+.pddi:hover{border-color:var(--signal)}
+.pddi.now::after{content:'';position:absolute;top:5px;right:6px;width:6px;height:6px;border-radius:50%;background:var(--signal)}
+.pddi.on{background:var(--chip);border-color:var(--chip);color:var(--chip-ink);font-weight:750}
+.pddi.on.now::after{background:var(--chip-ink)}
+.pddr{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;margin-top:12px;padding:9px;border-radius:9px;
+  border:1px dashed var(--line2);background:transparent;color:var(--ink);font:inherit;font-size:13px;font-weight:650;cursor:pointer}
+.pddr:hover,.pddr.on{border-style:solid;border-color:var(--signal)}
+.pddr svg{color:var(--signal)}
+.ttools .tper{width:auto;max-width:210px;font-size:14px;padding:8px 36px 8px 12px;border-radius:10px;
+  background-color:var(--panel);font-weight:600;min-height:38px}
+.tbtn{display:inline-flex;align-items:center;gap:6px;min-height:38px;padding:7px 13px;border-radius:10px;
+  border:1px solid var(--line2);background:var(--panel);color:var(--ink);font:inherit;font-size:13px;
+  font-weight:650;cursor:pointer;white-space:nowrap}
+.tbtn:hover{background:var(--panel2)}
+.tlabel{display:flex;align-items:center;gap:10px;margin:8px 0 4px}
+@media (max-width:560px){
+  .tseg button{padding:7px 6px;gap:5px}
+  .tseg button span{font-size:12.5px}
+}
+
+/* BY ASSIGNMENT: the date row is one soft green band that matches the ASSIGNMENT corner, so it
+   reads as a header and not as another row of shifts; today is a solid chip and its column is
+   outlined all the way down. */
+.gwrap.wkbands .gtab.wkband th.gah{background:rgba(53,214,164,.30);color:var(--ok-ink)}
+.gwrap.wkbands .gtab.wkband th.gh{background:rgba(53,214,164,.13);color:var(--ok-ink);border-color:rgba(53,214,164,.18)}
+.gwrap.wkbands .gtab.wkband th.gh .gdw{color:var(--ok-ink);opacity:.75}
+.gwrap.wkbands .gtab.wkband th.gh.we{background:rgba(53,214,164,.20)}
+.gwrap.wkbands .gtab.wkband th.gh.blank{background:rgba(53,214,164,.06)}
+.gwrap.wkbands .gtab.wkband th.gh.today{background:var(--chip);color:var(--chip-ink);outline:0;font-weight:800}
+.gwrap.wkbands .gtab.wkband th.gh.today .gdw{color:var(--chip-ink);opacity:1;font-weight:800}
+.gwrap.wkbands .gtab.wkband td.gu.istoday{box-shadow:inset 2px 0 var(--signal),inset -2px 0 var(--signal)}
+.gwrap.wkbands .gtab.wkband tr:last-child td.gu.istoday{box-shadow:inset 2px 0 var(--signal),inset -2px 0 var(--signal),inset 0 -2px var(--signal)}
+:root[data-theme="light"] .gwrap.wkbands .gtab.wkband th.gah{background:rgba(10,122,87,.20)}
+:root[data-theme="light"] .gwrap.wkbands .gtab.wkband th.gh{background:rgba(10,122,87,.08);border-color:rgba(10,122,87,.14)}
+:root[data-theme="light"] .gwrap.wkbands .gtab.wkband th.gh.we{background:rgba(10,122,87,.14)}
+:root[data-theme="light"] .gwrap.wkbands .gtab.wkband th.gh.blank{background:rgba(10,122,87,.04)}
+:root[data-theme="light"] .gwrap.wkbands .gtab.wkband th.gh.today{background:var(--chip)}
+
+/* the checklists: a search box, a count, softer rows */
+.pks{border-color:var(--line2);border-radius:12px;transition:border-color .15s,box-shadow .15s}
+.pks:hover{border-color:var(--faint)}
+.pks[open]{border-color:var(--signal);box-shadow:0 0 0 3px var(--ok)}
+.pks>summary{gap:10px;justify-content:flex-start;min-height:46px}
+.pks>summary>span{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pks>summary .pki{flex:none;color:var(--dim)}
+.pks>summary i{display:inline-flex;color:var(--dim)}
+.pkn{flex:none;min-width:22px;height:22px;padding:0 7px;border-radius:999px;background:var(--chip);
+  color:var(--chip-ink);font-size:11.5px;font-weight:800;display:inline-flex;align-items:center;justify-content:center}
+.pkn[hidden]{display:none}
+.pksearch{position:relative;display:flex;align-items:center;padding:10px 12px;border-bottom:1px solid var(--line);background:var(--panel)}
+.pksearch>svg{position:absolute;left:24px;color:var(--dim);pointer-events:none}
+.pksearch .pkq{width:100%;padding:9px 34px 9px 36px;border:1px solid var(--line2);border-radius:10px;
+  background:var(--panel2);color:var(--ink);font:inherit;font-size:16px;outline:none;-webkit-appearance:none;appearance:none}
+.pksearch .pkq::-webkit-search-cancel-button{display:none}
+.pksearch .pkq:focus{border-color:var(--signal);box-shadow:0 0 0 3px var(--ok);background:var(--panel)}
+.pkqx{position:absolute;right:20px;width:24px;height:24px;border-radius:999px;border:0;background:var(--line);
+  color:var(--ink);font-size:15px;line-height:1;cursor:pointer}
+.pks .pkrrow{border-top:0;border-radius:8px;margin:1px 6px;padding:8px 10px;transition:background .12s}
+.pks .pkrrow:hover{background:var(--panel2)}
+.pks .pkrrow.all{background:transparent;margin-top:6px}
+.pks .pkrrow.band{background:transparent;font-weight:700}
+.pks .pkrrow.sub{padding-left:36px}
+.pks .pkrrow.pkrhd{margin-top:10px;border-top:1px solid var(--line);border-radius:0;padding-top:12px}
+.pks .pkrrow:has(input:checked):not(.all){background:var(--ok)}
+.pks .pkrrow input{appearance:none;-webkit-appearance:none;width:18px;height:18px;margin:0;border:1.5px solid var(--line2);
+  border-radius:6px;background:var(--panel);display:grid;place-content:center;cursor:pointer;transition:background .12s,border-color .12s}
+.pks .pkrrow input:checked,.pks .pkrrow input:indeterminate{background:var(--chip);border-color:var(--chip)}
+.pks .pkrrow input:checked::after{content:'';width:9px;height:5px;border-left:2px solid var(--chip-ink);border-bottom:2px solid var(--chip-ink);transform:translateY(-1px) rotate(-45deg)}
+.pks .pkrrow input:indeterminate::after{content:'';width:8px;height:2px;border-radius:1px;background:var(--chip-ink)}
+.pkrbody{padding-bottom:6px}
+.pknone{padding:18px;text-align:center;color:var(--dim);font-size:13px}
+
 /* ---------- "How busy": one calendar, one line per working person ----------
    The stack height is the headcount. No number to read and no legend to learn - a short cell is
    a thin day, which is the whole question this view answers. */
@@ -3645,6 +3772,46 @@ function teamPeriodOptionsHTML(){
        + group(of('month').length===1?'Month':'Months',of('month'))
        + of('range').map(opt).join('');
 }
+/* A PERIOD PICKER THAT LOOKS LIKE THE REST OF THE APP (2026-11-15: "a more modern date
+   dropdown"). The native <select> stays, hidden, as the one source of truth -- its value and its
+   onchange are what everything else reads -- and this is only a face for it: quarters as pills,
+   months as a calendar-style grid per year, then Custom range. Picking sets the select and fires
+   its handler, so nothing downstream knows the difference. */
+const PER_CAL='<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>';
+function perIsOn(id,kind){ return id===TQTR||(kind==='range'&&String(TQTR).startsWith('r:')); }
+function perDropHTML(id){
+  const all=teamPeriods(), of=k=>all.filter(x=>x[2]===k);
+  const nowM='m:'+todayISO().slice(0,7);
+  const btn=([v,label,kind],txt,cls)=>`<button type="button" class="${cls}${perIsOn(v,kind)?' on':''}${v===nowM?' now':''}" data-pv="${esc(v)}" title="${esc(label)}">${esc(txt)}</button>`;
+  const years=[...new Set(of('month').map(m=>m[0].slice(2,6)))];
+  return `<div class="pdd" id="${id}">
+    <button type="button" class="pddbtn" aria-haspopup="true" aria-expanded="false">${PER_CAL}<span class="pddlbl">${esc(teamPeriodLabel()||'Choose a period')}</span><i>${PK_CHEV}</i></button>
+    <div class="pddpop" hidden>
+      ${of('quarter').length?`<div class="pddh">${of('quarter').length===1?'Quarter':'Quarters'}</div>
+      <div class="pddq">${of('quarter').map(q=>btn(q,q[1],'pddi')).join('')}</div>`:''}
+      ${years.map(y=>`<div class="pddh">${esc(y)}</div><div class="pddm">${
+        of('month').filter(m=>m[0].slice(2,6)===y).map(m=>btn(m,MONL[+m[0].slice(7,9)-1].slice(0,3),'pddi')).join('')}</div>`).join('')}
+      ${of('range').map(r=>`<button type="button" class="pddr${perIsOn(r[0],'range')?' on':''}" data-pv="${esc(r[0])}">${PER_CAL}${esc(r[1])}</button>`).join('')}
+    </div></div>`;
+}
+function wirePerDrop(id,selId){
+  const root=document.getElementById(id), sel=document.getElementById(selId); if(!root||!sel)return;
+  const btn=root.querySelector('.pddbtn'), pop=root.querySelector('.pddpop');
+  const close=()=>{ pop.hidden=true; btn.setAttribute('aria-expanded','false'); root.classList.remove('open');
+    document.removeEventListener('pointerdown',away,true); document.removeEventListener('keydown',esc_,true); };
+  const away=e=>{ if(!root.contains(e.target))close(); };
+  const esc_=e=>{ if(e.key==='Escape'){ close(); btn.focus(); } };
+  btn.onclick=()=>{ if(!pop.hidden)return close();
+    pop.hidden=false; btn.setAttribute('aria-expanded','true'); root.classList.add('open');
+    document.addEventListener('pointerdown',away,true); document.addEventListener('keydown',esc_,true);
+    const on=pop.querySelector('.on'); if(on)on.scrollIntoView({block:'nearest'}); };
+  pop.querySelectorAll('[data-pv]').forEach(b=>b.onclick=()=>{
+    close(); sel.value=b.dataset.pv; if(sel.onchange)sel.onchange({target:sel});
+    // A month or quarter only repaints the body, so the face is brought up to date here.
+    const l=root.querySelector('.pddlbl'); if(l)l.textContent=teamPeriodLabel()||b.title;
+    pop.querySelectorAll('[data-pv]').forEach(x=>x.classList.toggle('on',x===b||(x.dataset.pv==='range'&&String(TQTR).startsWith('r:'))));
+  });
+}
 function teamPeriodLabel(){
   if(String(TQTR).startsWith('r:')){ const [,f,t]=TQTR.split(':'); return fmtD(f)+' - '+fmtD(t); }
   const q=teamPeriods().find(x=>x[0]===TQTR); return q?q[1]:'';
@@ -3703,19 +3870,67 @@ function pickerLabel(roster,sel){
   return n===0?'Nobody selected':n===roster.length?`Everyone (${n})`
         :n<=3?[...sel].map(p=>fullOf(p)||p).join(', '):`${n} selected`;
 }
+/* A SEARCH BOX IN EVERY CHECKLIST (2026-11-15: "search bars for the providers and for the
+   assignments"). Sixty-one names is a lot to scroll for one person. Typing narrows the list in
+   place; nothing is redrawn, so ticks and the open state survive. While a search is typed,
+   Select all means "all of these matches", which is what somebody filtering is asking for.
+   The query is remembered per picker so a sheet that redraws itself keeps it. */
+const PKQ={};
+const PK_CHEV='<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>';
+const PK_ICON={
+  ppl:'<svg class="pki" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+  unit:'<svg class="pki" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>'};
+function pkSearchHTML(id,ph){
+  return `<div class="pksearch"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input type="search" class="pkq" placeholder="${esc(ph)}" value="${esc(PKQ[id]||'')}" autocomplete="off" aria-label="${esc(ph)}"><button type="button" class="pkqx" aria-label="Clear search"${PKQ[id]?'':' hidden'}>×</button></div>`;
+}
+function pkCount(n){ return `<b class="pkn"${n?'':' hidden'}>${n}</b>`; }
 function pickerHTML(id,roster,sel){
   const n=sel.size;
   const label=pickerLabel(roster,sel);
-  return `<details class="pkr" id="${id}">
-    <summary><span>${esc(label)}</span><i>▾</i></summary>
+  return `<details class="pkr pks" id="${id}">
+    <summary>${PK_ICON.ppl}<span>${esc(label)}</span>${pkCount(n)}<i>${PK_CHEV}</i></summary>
+    ${pkSearchHTML(id,'Search providers')}
     <div class="pkrbody">
       <label class="pkrrow all"><input type="checkbox" class="pkall"${
         n===roster.length?' checked':''}${n&&n<roster.length?' data-part="1"':''}>
         <span><b>Select all</b></span></label>
-      ${roster.map(p=>`<label class="pkrrow"><input type="checkbox" class="pk" value="${esc(p)}"${
+      ${roster.map(p=>`<label class="pkrrow" data-q="${esc((fullOf(p)+' '+p).toLowerCase())}"><input type="checkbox" class="pk" value="${esc(p)}"${
         sel.has(p)?' checked':''}><span>${esc(fullOf(p)||p)}</span></label>`).join('')}
+      <div class="pknone" hidden>No matches</div>
     </div></details>`;
 }
+/* Hide the rows that do not match. A band row (unit picker) stays when its own name matches --
+   and then shows all its units -- or when any of its units does. */
+function pkFilter(root){
+  const inp=root.querySelector('.pkq'); if(!inp)return '';
+  const q=inp.value.trim().toLowerCase(); PKQ[root.id]=inp.value;
+  const x=root.querySelector('.pkqx'); if(x)x.hidden=!q;
+  const hit=r=>!q||(r.dataset.q||'').includes(q);
+  let shown=0;
+  root.querySelectorAll('.pkrrow[data-q]:not([data-grp])').forEach(r=>{
+    const bandHit=r.dataset.of&&q&&(root.querySelector(`.pkrrow[data-grp="${r.dataset.of}"]`)||{dataset:{}}).dataset.q.includes(q);
+    r.hidden=!(hit(r)||bandHit); if(!r.hidden)shown++; });
+  root.querySelectorAll('.pkrrow[data-grp]').forEach(r=>{
+    const any=[...root.querySelectorAll(`.pkrrow[data-of="${r.dataset.grp}"]`)].some(c=>!c.hidden);
+    r.hidden=!(hit(r)||any); if(!r.hidden)shown++; });
+  root.querySelectorAll('.pkrhd').forEach(h=>{
+    let n=h.nextElementSibling, vis=false;
+    while(n&&!n.classList.contains('pkrhd')){ if(n.matches('.pkrrow')&&!n.hidden)vis=true; n=n.nextElementSibling; }
+    h.hidden=!vis; });
+  const all=root.querySelector('.pkrrow.all:not(.pkrhd)');
+  if(all){ const b=all.querySelector('b'); if(b)b.textContent=q?'Select all matches':'Select all'; }
+  const none=root.querySelector('.pknone'); if(none)none.hidden=!q||shown>0;
+  return q;
+}
+function wirePkSearch(root,after){
+  const inp=root.querySelector('.pkq'); if(!inp)return;
+  inp.oninput=()=>{ pkFilter(root); if(after)after(); };
+  inp.onkeydown=e=>{ if(e.key==='Escape'&&inp.value){ e.preventDefault(); inp.value=''; inp.oninput(); } };
+  const x=root.querySelector('.pkqx'); if(x)x.onclick=()=>{ inp.value=''; inp.oninput(); inp.focus(); };
+  root.addEventListener('toggle',()=>{ if(root.open&&matchMedia('(pointer:fine)').matches)setTimeout(()=>inp.focus(),0); });
+  pkFilter(root);
+}
+function pkVisible(root,sel){ return [...root.querySelectorAll(sel)].filter(c=>!c.closest('.pkrrow').hidden); }
 /* `after` repaints whatever depends on the selection. `relabel` updates the summary line in
    place - optional, and the reason it exists: the Team view used to call renderTeam() on every
    tick, which rebuilt the <details> and slammed the list shut, so choosing five people meant
@@ -3724,6 +3939,7 @@ function wirePicker(id,roster,sel,after,relabel){
   const root=document.querySelector('#'+id); if(!root)return;
   const done=()=>{ if(relabel)relabel(); if(after)after(); syncAll(); };
   const syncAll=()=>{
+    const pn=root.querySelector('.pkn'); if(pn){ pn.textContent=sel.size; pn.hidden=!sel.size; }
     const all=root.querySelector('.pkall');
     if(!all)return;
     all.checked=sel.size===roster.length;
@@ -3735,10 +3951,15 @@ function wirePicker(id,roster,sel,after,relabel){
   const all=root.querySelector('.pkall');
   if(all)all.onchange=()=>{
     const want=all.checked;
+    if(PKQ[id]&&PKQ[id].trim()){
+      // Searching: only the matches are touched.
+      pkVisible(root,'.pk').forEach(c=>{ c.checked=want; want?sel.add(c.value):sel.delete(c.value); });
+      done(); return; }
     sel.clear();
     if(want)roster.forEach(p=>sel.add(p));
     root.querySelectorAll('.pk').forEach(c=>{c.checked=want;});
     done();};
+  wirePkSearch(root);
   syncAll();
 }
 
@@ -3764,18 +3985,21 @@ function unitLabel(sel){
 }
 function unitPickerHTML(id,sel){
   const all=unitAll();
-  return `<details class="pkr" id="${id}">
-    <summary><span>${esc(unitLabel(sel))}</span><i>▾</i></summary>
+  const lc=t=>String(t||'').toLowerCase();
+  return `<details class="pkr pks" id="${id}">
+    <summary>${PK_ICON.unit}<span>${esc(unitLabel(sel))}</span>${pkCount(sel.size)}<i>${PK_CHEV}</i></summary>
+    ${pkSearchHTML(id,'Search assignments')}
     <div class="pkrbody">
       <label class="pkrrow all"><input type="checkbox" class="pkall"${
         sel.size===all.length?' checked':''}><span><b>Select all</b></span></label>
-      ${unitBands().map(b=>`<label class="pkrrow band"><input type="checkbox" class="pkband" data-band="${b.id}"${
+      ${unitBands().map(b=>`<label class="pkrrow band" data-grp="${b.id}" data-q="${esc(lc(b.label))}"><input type="checkbox" class="pkband" data-band="${b.id}"${
           b.units.length&&b.units.every(u=>sel.has(u))?' checked':''}><span>${esc(b.label)}</span></label>${
-        b.units.map(u=>`<label class="pkrrow sub"><input type="checkbox" class="pk" value="${esc(u)}"${
+        b.units.map(u=>`<label class="pkrrow sub" data-of="${b.id}" data-q="${esc(lc((META(u).label||u)+' '+(META(u).short||'')+' '+u))}"><input type="checkbox" class="pk" value="${esc(u)}"${
           sel.has(u)?' checked':''}><span>${esc(META(u).label||u)}</span></label>`).join('')}`).join('')}
-      <div class="pkrrow all" style="cursor:default"><span><b>By site</b> <span class="muted sm">- a site is its units, nights included</span></span></div>
-      ${unitSites().map(b=>`<label class="pkrrow band"><input type="checkbox" class="pkband" data-band="${b.id}"${
+      <div class="pkrrow all pkrhd" style="cursor:default"><span><b>By site</b> <span class="muted sm">- a site is its units, nights included</span></span></div>
+      ${unitSites().map(b=>`<label class="pkrrow band" data-q="${esc(lc(b.label+' '+b.units.map(u=>(META(u).short||u)+' '+(META(u).label||u)).join(' ')))}"><input type="checkbox" class="pkband" data-band="${b.id}"${
           b.units.every(u=>sel.has(u))?' checked':''}><span>${esc(b.label)}</span> <span class="muted sm">${esc(b.units.map(u=>META(u).short||u).join(', '))}</span></label>`).join('')}
+      <div class="pknone" hidden>No matches</div>
     </div></details>`;
 }
 function wireUnitPicker(id,sel,after,relabel){
@@ -3789,6 +4013,7 @@ function wireUnitPicker(id,sel,after,relabel){
       c.checked=!!b&&b.units.length>0&&n===b.units.length; c.indeterminate=n>0&&n<(b?b.units.length:0); });
     root.querySelectorAll('.pk').forEach(c=>{c.checked=sel.has(c.value);});
     const sum=root.querySelector('summary>span'); if(sum)sum.textContent=unitLabel(sel);
+    const pn=root.querySelector('.pkn'); if(pn){ pn.textContent=sel.size; pn.hidden=!sel.size; }
   };
   const done=()=>{ sync(); if(relabel)relabel(); if(after)after(); };
   root.querySelectorAll('.pk').forEach(c=>c.onchange=()=>{ c.checked?sel.add(c.value):sel.delete(c.value); done(); });
@@ -3796,7 +4021,11 @@ function wireUnitPicker(id,sel,after,relabel){
     const b=bands.find(x=>x.id===c.dataset.band); if(!b)return;
     b.units.forEach(u=>c.checked?sel.add(u):sel.delete(u)); done(); });
   const a=root.querySelector('.pkall');
-  if(a)a.onchange=()=>{ sel.clear(); if(a.checked)all.forEach(u=>sel.add(u)); done(); };
+  if(a)a.onchange=()=>{
+    if(PKQ[id]&&PKQ[id].trim()){
+      pkVisible(root,'.pk').forEach(c=>a.checked?sel.add(c.value):sel.delete(c.value)); done(); return; }
+    sel.clear(); if(a.checked)all.forEach(u=>sel.add(u)); done(); };
+  wirePkSearch(root);
   sync();
 }
 
@@ -3922,15 +4151,26 @@ function renderTeam(into){
          leaking. What remained was a section offering every physician a feature meant for the
          people who build reports. Gone from the non-admin view rather than disabled, because a
          control that is present and does nothing is worse than one that was never offered. -->
+    <!-- ONE CARD FOR THE CHOOSING (2026-11-15: "easier, more modern, clean, organized"). Saved
+         groupings, providers and assignments are one question -- what to show -- so they sit in
+         one panel with small labels, and the ways of LOOKING sit under it on their own bar. -->
+    <div class="tctl">
     ${isAdmin()?`
-    <h2 class="sec" style="margin-top:14px">Saved groupings</h2>
-    <div id="tGrpRow" class="onfilter">${teamGroupChips()||
-      '<span class="muted sm">None yet -- pick some people and save the grouping.</span>'}</div>`:''}
-    ${pickerHTML('tPick',roster,TSEL)}
-    ${showingHTML()}
-    <h2 class="sec">Show which assignments</h2>
-    ${unitPickerHTML('tUnits',TUNITS)}
-    <div class="muted sm" id="tShowU" style="margin:6px 0 8px">${teamShowUnitsHTML()}</div>
+    <div class="tsec">
+      <h2 class="sec tsh">Saved groupings</h2>
+      <div id="tGrpRow" class="onfilter tgrp">${teamGroupChips()||
+        '<span class="muted sm">None yet -- pick some people and save the grouping.</span>'}</div>
+    </div>`:''}
+    <div class="tsec">
+      <div class="tsh">Providers</div>
+      ${pickerHTML('tPick',roster,TSEL)}
+      ${showingHTML()}
+    </div>
+    <div class="tsec">
+      <h2 class="sec tsh">Assignments</h2>
+      ${unitPickerHTML('tUnits',TUNITS)}
+      <div class="muted sm tshowu" id="tShowU">${teamShowUnitsHTML()}</div>
+    </div>
     <!-- AND SAVE SITS UNDER BOTH OF THEM, because it saves what both of them hold.
          REPORTS ARE NOT ON THIS SCREEN (Sam, 2026-10-12: "Team schedules shouldn't have reports
          as a default, only available for admins from the report tab"). A report is a different
@@ -3940,24 +4180,30 @@ function renderTeam(into){
          grant (canReport/denyReport in _lib.js), so re-opening a route for her is a button, not a
          permission change. canReport() is kept here, unused for drawing, for that reason. -->
     ${isAdmin()?`
-    <div class="btnrow" style="margin:10px 0 2px">
-      <button class="btn" id="tSave">Save this grouping…</button>
+    <div class="tsave">
+      <button class="tsavebtn" id="tSave"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>Save this grouping…</button>
     </div>`:''}
-    <div class="btnrow">
-      <button class="btn${TMODE==='stack'?' pri':''}" data-tm="stack">Calendar overlay</button>
-      <button class="btn${TMODE==='grid'?' pri':''}" data-tm="grid">Grid</button>
-      <button class="btn${TMODE==='units'?' pri':''}" data-tm="units">By assignment</button>
-      <button class="btn" id="tToday" title="Jump to this month">Today</button>
-      <button class="btn" id="tPrint" title="Print what is showing">Print</button>
-      <select class="inp" id="tQtr" style="max-width:190px" aria-label="Period">${teamPeriodOptionsHTML()}</select>
+    </div>
+    <div class="tbar">
+      <div class="tseg" role="group" aria-label="View">
+        <button class="${TMODE==='stack'?'on':''}" data-tm="stack"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><span>Calendar overlay</span></button>
+        <button class="${TMODE==='grid'?'on':''}" data-tm="grid"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span>Grid</span></button>
+        <button class="${TMODE==='units'?'on':''}" data-tm="units"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg><span>By assignment</span></button>
+      </div>
+      <div class="ttools">
+        <button class="tbtn" id="tToday" title="Jump to this month">Today</button>
+        ${perDropHTML('tPer')}
+        <select class="inp tper" id="tQtr" aria-label="Period" hidden>${teamPeriodOptionsHTML()}</select>
+        <button class="tbtn" id="tPrint" title="Print what is showing"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg><span>Print</span></button>
+      </div>
     </div>
     <div class="addrow rprange" id="tRange"${String(TQTR).startsWith('r:')?'':' hidden'}>
       <label class="addlbl" for="tFrom">From</label><input type="date" id="tFrom" value="${esc(TRANGE.from)}" min="${esc(spanDates()[0]||'')}" max="${esc(spanDates()[1]||'')}">
       <label class="addlbl" for="tTo">To</label><input type="date" id="tTo" value="${esc(TRANGE.to)}" min="${esc(spanDates()[0]||'')}" max="${esc(spanDates()[1]||'')}">
     </div>
-    ${TMODE==='stack'?`<div class="segx" id="tLabel" style="margin:6px 0 0;max-width:260px">
-      <button data-tl="name" class="${TLABEL==='name'?'on':''}">Bars show names</button>
-      <button data-tl="shift" class="${TLABEL==='shift'?'on':''}">Bars show shifts</button></div>`:''}
+    ${TMODE==='stack'?`<div class="tlabel"><span class="muted sm">Bars show</span><div class="tseg sm" id="tLabel">
+      <button data-tl="name" class="${TLABEL==='name'?'on':''}">Names</button>
+      <button data-tl="shift" class="${TLABEL==='shift'?'on':''}">Shifts</button></div></div>`:''}
     <div id="tBody"></div>`;
   paintTeamBody();
   wirePicker('tPick',roster,TSEL,()=>paintTeamBody(),()=>{
@@ -3980,8 +4226,10 @@ function renderTeam(into){
     }
     TQTR=v; const r=$('#tRange'); if(r)r.hidden=true; paintTeamBody();
   };
+  wirePerDrop('tPer','tQtr');
   const setRange=()=>{ const f=$('#tFrom').value, t=$('#tTo').value; if(!f||!t||f>t)return;
-    TRANGE={from:f,to:t}; TQTR='r:'+f+':'+t; paintTeamBody(); };
+    TRANGE={from:f,to:t}; TQTR='r:'+f+':'+t; paintTeamBody();
+    const pl=document.querySelector('#tPer .pddlbl'); if(pl)pl.textContent=teamPeriodLabel(); };
   const tf=$('#tFrom'), tt=$('#tTo'); if(tf)tf.onchange=setRange; if(tt)tt.onchange=setRange;
   $$('[data-tl]',pane).forEach(b=>b.onclick=()=>{TLABEL=b.dataset.tl;renderTeam(into);});
   const tdy=$('#tToday'); if(tdy)tdy.onclick=()=>{ const m=todayISO().slice(0,7);
@@ -4228,7 +4476,8 @@ function teamUnitGrid(people){
       const we=colOf(d)>=(WEEKSTART==='sun'?6:5)||dowOf(d)>=5;
       // MM/DD, because fmtD already starts with the weekday and the strip above it says that.
       const md=d.slice(5,7)+'/'+d.slice(8,10);
-      return `<th class="gh${we?' we':''}${d===todayISO()?' today':''}"><span class="gdw">${esc(lab)}</span>${
+      const td=d===todayISO();
+      return `<th class="gh${we?' we':''}${td?' today':''}"><span class="gdw">${esc(lab)}${td?' · Today':''}</span>${
         esc(md)}</th>`; }).join('');
     const rows=units.map(u=>{ const m=META(u);
       return `<tr><th class="gn" style="border-left:3px solid ${m.color}">${esc(m.label||u)}</th>${
@@ -4236,7 +4485,7 @@ function teamUnitGrid(people){
           if(!d)return '<td class="gc gu blank"></td>';
           const who=(cells[u+'|'+d]||[]).sort();
           const we=dowOf(d)>=5;
-          return `<td class="gc gu${we?' we':''}"${who.length?` style="background:${m.color}22"`:''} title="${
+          return `<td class="gc gu${we?' we':''}${d===todayISO()?' istoday':''}"${who.length?` style="background:${m.color}22"`:''} title="${
             esc(who.map(p=>fullOf(p)||p).join(', '))}">${who.map(p=>`<div>${esc(p)}</div>`).join('')}</td>`;
         }).join('')}</tr>`; }).join('');
     return `<table class="gtab byunit wkband"><thead><tr><th class="gn gah">ASSIGNMENT</th>${head}</tr></thead>
@@ -4327,7 +4576,7 @@ function teamBusy(people){
       html+=`<div class="cell bz${iso===todayISO()?' today':''}" data-iso="${iso}"
         role="button" tabindex="0" data-busyday="${iso}"
         aria-label="${esc(fmtLong(iso)+', '+onService+' of '+people.length+' on service - open the list')}">
-        <span class="bd">${d}${isAdmin()&&(NOTES[iso]||[]).length?' <span title="has a note">✎</span>':''}</span><span class="bstack">${bars}</span>
+        <span class="bd">${d}</span><span class="bstack">${bars}</span>
         <span class="bn">${onService||''}</span></div>`;
     }
     html+='</div></div>';
@@ -5284,7 +5533,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='261110.0026';           // shown in the account bar so a stale app is obvious
+const BUILD='261117.0001';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 const PH_KEY='phc_pr4QepiHtyMUqSymFZFyH2s2jKesJJEi4sWDjhaKttDN', PH_HOST='https://us.i.posthog.com';
 /* THE POLICY OPENS IN THE APP. A link out from an installed app lands in a separate browser
