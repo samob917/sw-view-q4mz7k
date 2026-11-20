@@ -2398,7 +2398,8 @@ function openAccountSheet(){
   $('#acAuth').onclick=openAuthReset;
   $('#acOut').onclick=()=>{
     try{localStorage.removeItem('__code');localStorage.removeItem('ccpsa_me');
-        localStorage.removeItem('__dev');sessionStorage.clear();}catch(e){}
+        localStorage.removeItem('__dev');localStorage.removeItem('__grant');
+        sessionStorage.clear();}catch(e){}
     location.reload();
   };
 }
@@ -5533,7 +5534,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='261117.0001';           // shown in the account bar so a stale app is obvious
+const BUILD='261119.2200';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 const PH_KEY='phc_pr4QepiHtyMUqSymFZFyH2s2jKesJJEi4sWDjhaKttDN', PH_HOST='https://us.i.posthog.com';
 /* THE POLICY OPENS IN THE APP. A link out from an installed app lands in a separate browser
@@ -7319,7 +7320,8 @@ async function paintSignIn(){
       await api('/account',{method:'POST',
         body:JSON.stringify({action:'signOutEverywhere',...(onBehalf()?{person:ME}:{})})});
       toast('Signed out - they will have to sign in again');
-      if(!onBehalf()){ try{localStorage.removeItem('__dev');sessionStorage.clear();}catch(e){}
+      if(!onBehalf()){ try{localStorage.removeItem('__dev');localStorage.removeItem('__grant');
+                           sessionStorage.clear();}catch(e){}
                        setTimeout(()=>location.reload(),700); return; }
       paintSignIn();
     }catch(e){ toast(e.message||'Could not sign them out'); b.disabled=false;
@@ -7677,7 +7679,11 @@ function chainMonthHTML(mk,incoming,pick,only){
     const isIncoming=incoming&&incoming.date===iso;
     if(isIncoming){
       const im=META(incoming.shift);
-      inner+=`<span class="blk" style="background:transparent;border:1px dashed ${im.color};
+      /* NAMED, because a cell can hold two chips. The day the offered shift lands on may be one
+         you already work, and then the cell carries your own chip as well as this one -- so
+         '.cell.incoming .blk' matches either and proves nothing about whether the offered shift
+         was drawn at all. The suite asserts .blk.offered. */
+      inner+=`<span class="blk offered" style="background:transparent;border:1px dashed ${im.color};
         color:${im.color};font-weight:700"><i class="bt">${esc(im.short||incoming.shift)}</i></span>`;
     }
     const say=(isIncoming?'the offered shift lands here; ':'')
@@ -11107,7 +11113,7 @@ function accountBar(){
     // Drop the device token too. Without this, signing out and reloading signed you straight
     // back in - which is not signing out.
     try{sessionStorage.clear();localStorage.removeItem('ccpsa_me');
-        localStorage.removeItem('__dev');}catch(e){}
+        localStorage.removeItem('__dev');localStorage.removeItem('__grant');}catch(e){}
     location.reload();
   };
 }
@@ -11273,7 +11279,7 @@ function admDraw(q){
     w.dataset.loaded='';
     if(String(e.message).includes('401')){
       ADMIN_GRANT=null;
-      try{sessionStorage.removeItem('__grant');}catch(_){}
+      try{localStorage.removeItem('__grant');}catch(_){}
       askStepUp(showAdminView);
       return;
     }
@@ -12536,11 +12542,25 @@ function keepDevice(tok){ if(tok){try{localStorage.setItem('__dev',tok);}catch(e
 // A code entered at sign-in covers the admin view for this session. Without this you typed a
 // code, opened the admin view, were asked for another - and the one you had just used was
 // REFUSED, because its time step is burned to stop replay. Right code, correct use, "not right".
-function keepGrant(g){ if(g){ ADMIN_GRANT=g; try{sessionStorage.setItem('__grant',g);}catch(e){} } }
+/* THE GRANT OUTLIVES THE TAB (Danielle, 2026-11-19, via Sam: she is asked for a code far more
+   often than the twelve hours it is good for). It was in sessionStorage, which dies when the tab
+   closes -- so the twelve-hour window was never actually reached: every new tab or browser
+   restart asked again, all day. In localStorage it lasts as long as the token says and no
+   longer.
+
+   WHAT THIS GIVES UP, SAID OUT LOUD: stepup.js chose sessionStorage so that "an admin who walks
+   away is not leaving edit rights open indefinitely", and closing the tab no longer ends them.
+   Two things still bound it and neither is on the client: the token carries exp = +12h and
+   _lib.verify() refuses it after that, and dashboard.js checks the grant's person against the
+   signed-in person, so a left-behind grant cannot be used by whoever signs in next. What is
+   left is a window of up to twelve hours on an unlocked, un-signed-out machine -- which is why
+   every sign-out path below now removes it by hand, instead of relying on sessionStorage.clear()
+   to take it with everything else. */
+function keepGrant(g){ if(g){ ADMIN_GRANT=g; try{localStorage.setItem('__grant',g);}catch(e){} } }
 // Once per session, not once per reload: the grant lives in sessionStorage, so it survives a
 // refresh but dies with the tab (client 8/17).
 let ADMIN_GRANT=null;
-try{ADMIN_GRANT=sessionStorage.getItem('__grant')||null;}catch(e){}
+try{ADMIN_GRANT=localStorage.getItem('__grant')||null;}catch(e){}
 
 /* ---------- and WHERE YOU WERE survives the refresh too ----------
    Sam, 2026-10-18: "when i refresh on admin view it goes away this is bad."
@@ -12585,7 +12605,7 @@ function askStepUp(then){
     try{
       const j=await api('/stepup',{method:'POST',body:JSON.stringify({totp:$('#suCode').value.trim()})});
       ADMIN_GRANT=j.grant;
-      try{sessionStorage.setItem('__grant',ADMIN_GRANT);}catch(e){}
+      try{localStorage.setItem('__grant',ADMIN_GRANT);}catch(e){}
       onSheetClose(null);      // the code was accepted; do NOT bounce back to physicians
       closeSheet(); then();
     }catch(e){
@@ -13178,8 +13198,10 @@ function showGate(){ stepPassword(lastLoginEmail()); }
         await loadPortal(j.token);
         return;
       }
-      // The token is dead or the account is gone - stop offering it.
-      try{localStorage.removeItem('__dev');}catch(e){}
+      // The token is dead or the account is gone - stop offering it. The grant goes with it:
+      // it is bound to a person whose account may no longer exist, and now that it lives in
+      // localStorage nothing else would clear it.
+      try{localStorage.removeItem('__dev');localStorage.removeItem('__grant');}catch(e){}
     }catch(e){}
   }
   showGate();

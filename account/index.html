@@ -418,6 +418,31 @@ $('#b2').onclick=async()=>{
     STATE.codes=j.recoveryCodes;
     track('enrol_step',{step:'account',ok:true,
       used_suggested:$('#email').value.trim()===(STATE.suggested||'')});
+    /* SOME ACCOUNTS ARE NEVER ASKED FOR A SECOND FACTOR, so do not walk them through setting
+       one up. The clinic desk is exempt by its role, and an authenticator it enrolled would
+       never be requested at any door -- the step was a minute of work for nothing, and it read
+       as though the account were being secured when it was not. The SERVER decides (offer2fa,
+       the same field /api/session returns) so there is no second copy of the role list here to
+       drift. Older API with no such field: fall back to showing the step, which is what it did
+       before. Their account already exists at this point -- enrol created it with two-factor
+       off -- so all that is left is to sign them in, exactly as confirm2fa would have. */
+    if(j.offer2fa===false){
+      try{
+        const s=await api('/session',{email:STATE.email,password:STATE.password});
+        STATE.token=s.token||null; STATE.device=s.device||null; STATE.grant=s.grant||null;
+        track('enrol_complete',{skipped_2fa:true});
+        signedIn('Signed in as '+STATE.person+'. This account does not use two-factor.');
+      }catch(e){
+        /* The account IS set up; only the automatic sign-in failed. Say so and send them to the
+           sign-in screen rather than implying the setup did not take. */
+        track('enrol_complete',{skipped_2fa:true,autosignin:false});
+        $('#liEmail').value=STATE.email;
+        go('pSignin',null,'Sign in');
+        say('#mSignin','Your account is set up. Please sign in.');
+      }
+      busy(b,false,'Continue');
+      return;
+    }
     go('p3',2,'Add two-factor');
     setTimeout(()=>$('#totp').focus(),60);
   }catch(e){ say('#m2',e.message);
@@ -503,14 +528,19 @@ $('#liTotp').addEventListener('input',()=>{
    The portal reads exactly these three on boot, so these are what have to be there:
      sessionStorage __tok    the session — what makes it not ask
      localStorage   __dev    the 90-day device token, so it does not ask again next week either
-     sessionStorage __grant  an admin's step-up, valid for this session (admins only)
+     localStorage   __grant  an admin's step-up, good for 12h by its own exp (admins only).
+                             localStorage, not sessionStorage, since 2026-11-19: in session
+                             storage it died with the tab, so the 12 hours were never
+                             reached and admins were asked again all day.
    All three come back from confirm2fa and from /session; they were being read into a variable
    and dropped on the floor. */
 function handOverSession(){
   try{
     if(STATE.token)  sessionStorage.setItem('__tok', STATE.token);
     if(STATE.device) localStorage.setItem('__dev', STATE.device);
-    if(STATE.grant)  sessionStorage.setItem('__grant', STATE.grant);
+    // localStorage, matching the portal: the grant is good for twelve hours and should not
+    // die with the tab. See keepGrant() for what that trades away.
+    if(STATE.grant)  localStorage.setItem('__grant', STATE.grant);
   }catch(e){ /* private mode: the portal will ask, which is the old behaviour, not a new fault */ }
 }
 $('#goSched').onclick=()=>{ track('went_to_schedule',{}); handOverSession(); location.href=PORTAL; };
@@ -518,7 +548,7 @@ $('#goOut').onclick=()=>{
   STATE={person:null,email:null,password:null,token:null,device:null,grant:null};
   // Whatever was handed to the portal has to go too, or "sign out" leaves a working session
   // behind for whoever picks the device up next.
-  try{ sessionStorage.removeItem('__tok'); sessionStorage.removeItem('__grant');
+  try{ sessionStorage.removeItem('__tok'); localStorage.removeItem('__grant');
        localStorage.removeItem('__dev'); }catch(e){}
   location.reload();
 };
