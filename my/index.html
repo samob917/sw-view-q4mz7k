@@ -5534,7 +5534,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='261120.1411';           // shown in the account bar so a stale app is obvious
+const BUILD='261122.1203';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 const PH_KEY='phc_pr4QepiHtyMUqSymFZFyH2s2jKesJJEi4sWDjhaKttDN', PH_HOST='https://us.i.posthog.com';
 /* THE POLICY OPENS IN THE APP. A link out from an installed app lands in a separate browser
@@ -6055,7 +6055,8 @@ async function signInApi(){
   if(!code)return null;
   try{
     SESSION=await api('/session',{method:'POST',body:JSON.stringify({code})});
-    CFG={deadline:SESSION.deadline,locked:SESSION.locked,lateContact:SESSION.lateContact};
+    CFG={deadline:SESSION.deadline,locked:SESSION.locked,lateContact:SESSION.lateContact,
+         ...cfgWindow(SESSION)};
     return SESSION;
   }catch(e){SESSION=null;return null;}
 }
@@ -6150,6 +6151,23 @@ const dOnly=d=>String(d||'').slice(0,10);
    half months before the first day anyone is requesting.
    reqFrom/reqTo say what may be asked for; deadline/deadlineAt say until when. Config carries
    both; each falls back to the old derivation so a window configured before this still works. */
+/* THE WINDOW FIELDS, IN ONE PLACE (Dorothy Loy, 2026-11-22).
+   Every CFG assignment named deadline/locked/lateContact and stopped there, so reqFrom, reqTo,
+   closedTo, lockFrom and lockTo were dropped on arrival at four separate sites - and two of those
+   replace CFG outright rather than merging, so even a field picked up by one load was lost at the
+   next. One list, read by all four: a field added to the config and sent by the server now
+   reaches the app without a fifth site having to be remembered.
+
+   undefined is NOT copied, deliberately. /api/requests does not send these and must not blank
+   what the portal load already established; null from the server, meaning "configured as empty",
+   still travels. */
+function cfgWindow(s){
+  s=s||{};
+  const out={};
+  for(const k of ['reqFrom','reqTo','closedTo','lockFrom','lockTo'])
+    if(s[k]!==undefined)out[k]=s[k];
+  return out;
+}
 const ISOD=/^\d{4}-\d{2}-\d{2}$/;
 function reqStart(){
   const w=(CFG&&CFG.reqFrom)||'';
@@ -6202,8 +6220,35 @@ function monthsOfBlock(){
      DATA.dates gave Oct/Nov/Dec, the block already worked. reqStart()..reqEnd() is the window
      for OFF requests and is deliberately a whole year (2027-01-01 to 2027-12-31), so using it
      here would ask a moonlighter how many shifts they want in August. Neither is the question.
-     The question is the block being built, which is the quarter reqStart() falls in: Jan-Mar. */
-  const s=reqStart(), y=+s.slice(0,4), q=Math.floor((+s.slice(5,7)-1)/3);
+     The question is the block being built. */
+  /* ANCHORED ON THE FIRST MONTH STILL OPEN, NOT ON THE START OF THE WINDOW (Dorothy Loy,
+     2026-11-22: "on my portal it only shows Jan-March 2027 in the place where I indicate how
+     many shifts I want").
+
+     reqStart() was the anchor, and for the Q1 round it was the right answer by coincidence: the
+     window opened on 2027-01-01 and Jan-Mar was the block being built. Those two facts came
+     apart when closedTo arrived (2026-10-08). The window still legitimately begins on
+     2027-01-01 - all four quarters of next year stay visible, Sam 2026-09-03 - while Jan-Mar is
+     published and shut and the block being built is April-June. So the grid went on collecting
+     a quarter that was already solved, under a calendar that had correctly moved on: one form,
+     two halves, two different quarters, which is the exact bug Aaron reported on 2026-09-19 and
+     that the comment above this one was written for. It came back through config rather than
+     through code.
+
+     It cost real data before anyone reported it. Zhou offered April and May nights on 11-20 and
+     had nowhere to put the counts but January and March; Stiefer offered nights across all six
+     months and entered no counts at all. Those numbers are kept and shown as stale rather than
+     remapped - see the stale list below - because what somebody meant by "2 in January" when
+     January was the only box on offer is a guess, and the only person who can say is them.
+
+     closedTo is the honest anchor: it is what an admin already moves when a block publishes, so
+     the grid now follows the published frontier on its own instead of waiting for somebody to
+     remember a second field. Falls back to reqStart() when closedTo is unset or already behind
+     the window, so a window configured before this still reads. */
+  const closed=(CFG&&CFG.closedTo)||'';
+  const s0=reqStart();
+  const s=(ISOD.test(closed)&&closed>=s0)?isoAdd(closed,1):s0;
+  const y=+s.slice(0,4), q=Math.floor((+s.slice(5,7)-1)/3);
   const out=[0,1,2].map(i=>`${y}-${String(q*3+1+i).padStart(2,'0')}`);
   const last=reqEnd().slice(0,7);
   return out.filter(m=>m<=last);       // a window that closes early shortens the grid
@@ -6520,7 +6565,22 @@ function rqCountIn(from,to){
 function reqCalHTML(){
   const from=reqStart(), to=reqEnd();
   const qs=reqQuarters();
-  if(!RQQTR||!qs.some(q=>q.id===RQQTR))RQQTR=qs[0]&&qs[0].id;
+  /* OPEN ON THE FIRST QUARTER SOMEBODY CAN ACTUALLY USE (Sam, 2026-11-22: "the day selector did
+     not open to Q2 for loy").
+
+     This opened on qs[0] - the first quarter of the request window, which is Q1 2027. For as
+     long as closedTo never reached the browser that merely looked unhelpful: Q1 drew as open,
+     and a moonlighter picking April nights had to find the Q2 tab for herself. Now that the
+     window really travels, the same line lands her on a quarter rendered `closed`, under a box
+     saying so. The fix made the wrong default louder, which is how it got noticed.
+
+     The test is the warning box's own, deliberately: whichever quarter says "is closed" is not
+     one to open on, so the two cannot drift apart. If every quarter in the window is shut there
+     is no good answer and the first is as honest as any - the box then explains itself. */
+  if(!RQQTR||!qs.some(q=>q.id===RQQTR)){
+    const open=qs.find(x=>!(dateLocked(x.from)&&dateLocked(x.to)));
+    RQQTR=(open||qs[0]||{}).id;
+  }
   const q=qs.find(x=>x.id===RQQTR)||qs[0];
   let html=`<div class="rqmonths">${qs.map(x=>{
     const n=rqCountIn(x.from,x.to);
@@ -12463,7 +12523,8 @@ async function _loadPersonDataOnce(seq){
   try{const r=await reqP;
       if(stale())return;
       MYREQ=r.requests||{};REQERR=null;
-      CFG={...(CFG||{}),deadline:r.deadline,locked:r.locked,allowance:r.allowance};}
+      CFG={...(CFG||{}),deadline:r.deadline,locked:r.locked,allowance:r.allowance,
+           ...cfgWindow(r)};}
   catch(e){ if(stale())return;
             MYREQ=null;REQERR=(e&&e.message)||'could not be loaded';}
   // The calendar link belongs to the person on screen, not to the account that signed in - and
@@ -12731,7 +12792,8 @@ async function refreshLive(force){
     const first=LAST_EDIT_SIG===null;
     LAST_EDIT_SIG=sig;
     DATA=j.data;
-    CFG={...(CFG||{}),deadline:j.deadline,locked:j.locked,lateContact:j.lateContact};
+    CFG={...(CFG||{}),deadline:j.deadline,locked:j.locked,lateContact:j.lateContact,
+         ...cfgWindow(j)};
     applyEdits(j.edits||[]);
     if(!first){
       // Re-render in place. boot() lands on the schedule tab, which for an admin with no
@@ -12817,7 +12879,8 @@ async function loadPortal(token){
     sessionStorage.setItem('__acctInfo',JSON.stringify({person:j.person,role:j.role,twoFactor:true}));
   }catch(e){}
   CFG={deadline:j.deadline,locked:j.locked,lateContact:j.lateContact,
-       icsUrl:j.icsUrl,icsFor:j.person};   // whose link this is - see subscribeCard
+       icsUrl:j.icsUrl,icsFor:j.person,   // whose link this is - see subscribeCard
+       ...cfgWindow(j)};
   // A physician who wanders onto the test copy would file real requests into a schedule that
   // gets thrown away, so they are warned plainly. But this used to REFUSE them outright, which
   // also made it impossible to test anything a physician does - requests, swaps, coverage -
