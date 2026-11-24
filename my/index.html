@@ -5534,7 +5534,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='261122.1203';           // shown in the account bar so a stale app is obvious
+const BUILD='261124.1740';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 const PH_KEY='phc_pr4QepiHtyMUqSymFZFyH2s2jKesJJEi4sWDjhaKttDN', PH_HOST='https://us.i.posthog.com';
 /* THE POLICY OPENS IN THE APP. A link out from an installed app lands in a separate browser
@@ -12638,7 +12638,33 @@ try{ADMIN_GRANT=localStorage.getItem('__grant')||null;}catch(e){}
 function keepView(v){ try{ v?sessionStorage.setItem('__view',v):sessionStorage.removeItem('__view'); }catch(e){} }
 function lastView(){ try{ return sessionStorage.getItem('__view')||''; }catch(e){ return ''; } }
 /* Entering the admin view asks for a fresh code: that is where the schedule can be changed. */
-function askStepUp(then){
+async function askStepUp(then){
+  /* ASK WHETHER THERE IS ANYTHING TO TYPE BEFORE ASKING THEM TO TYPE IT (Danielle Greco,
+     2026-11-24: "Looks like my 2FA is still active.")
+
+     Her exemption shipped on 2026-11-20 and the server honoured it from the first minute -- a
+     live check confirms /stepup hands her a grant and refuses every other admin. This function
+     never asked. It opened the code sheet whenever ADMIN_GRANT was empty, which is any browser
+     with no stored grant: a cleared or blocked localStorage, a private window, a grant that
+     aged out after twelve hours, or an admin call that 401'd and cleared it. She then faced
+     "Enter the 6-digit code from your authenticator app" with no way through, because she has
+     no authenticator app and never will.
+
+     So "we removed her second factor" was true of the server and false of her screen. The
+     server was asked and answered; the path a person actually walks was not.
+
+     The probe spends nothing: the exempt branch in stepup.js returns the grant before any code
+     is read, and the probe reply sits before the throttle, so asking cannot cost an attempt for
+     an admin who does need one. A failure here falls through to the sheet, which is exactly the
+     behaviour this had before, so a dropped request cannot lock anybody out of their own admin
+     view. */
+  try{
+    const p=await api('/stepup',{method:'POST',body:JSON.stringify({probe:true})});
+    if(p&&p.exempt&&p.grant){ keepGrant(p.grant); then(); return; }
+  }catch(e){ /* not exempt, not enrolled, or the call failed - the sheet below says which */ }
+  askStepUpSheet(then);
+}
+function askStepUpSheet(then){
   /* WHERE THEY WERE WHEN THEY ASKED - captured before the sheet opens, because after it there is
      nothing left to read it from (client, 2026-09-04: "press x before i put in the 2fa code ...
      shows the provider swap view, which is confusing").
