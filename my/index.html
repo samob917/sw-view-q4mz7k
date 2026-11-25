@@ -1534,6 +1534,10 @@ input,select,textarea{font-size:16px}
   background:var(--panel2);border:1px dashed var(--line2);border-radius:8px;padding:10px;
   display:block;width:100%;text-align:center;cursor:pointer;margin-top:10px}
 .siKey:active{background:var(--panel)}
+.siCodes{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:12px 0 0}
+.siCodes span{font-family:var(--mono);font-size:13px;letter-spacing:.06em;text-align:center;
+  background:var(--panel2);border:1px solid var(--line2);border-radius:8px;padding:8px 4px;
+  color:var(--ink)}
 
 .siCard{position:relative;overflow:hidden;box-shadow:0 14px 40px rgba(0,0,0,.34);
   border-radius:18px;padding:24px 22px;animation:siRise .22s ease-out}
@@ -2354,6 +2358,15 @@ function openAccountSheet(){
       <button class="btn" id="acAuth">Authenticator not working?</button>
       <button class="btn gho" id="acOut">Sign out</button>
     </div>
+    <!-- TWO-FACTOR IS OPTIONAL, SO IT HAS TO BE REACHABLE (Sam, 2026-11-24: "we should allow
+         them to not do 2fa on enrollment if they dont want to, and no one should be stranded").
+         A setting you can enter and never leave is a trap, and "I never saved my recovery codes"
+         had no answer but an admin. Both are self-serve now, behind the account's own password.
+         Filled in after the fetch below, because the state is on the record, not in the token. -->
+    <div class="row" style="margin-top:14px"><span class="sp" style="background:var(--line2)"></span>
+      <span style="flex:1"><span class="t">Two-factor</span>
+        <span class="s" id="ac2faS">Checking…</span></span></div>
+    <div id="ac2faBody"></div>
     <!-- NOTIFICATIONS LIVE HERE NOW. The Swaps card is gone once the question is settled, so this
          is the only permanent home: the state for anybody who wonders, the way back for anybody
          who declined and changed their mind, and the test tools for an admin reproducing a
@@ -2365,7 +2378,7 @@ function openAccountSheet(){
     ${notifyTestHTML()}`);
   // The address lives on the account record, not in the session token - fetched only when
   // somebody opens this sheet, rather than widening every portal load for one line of text.
-  loadMyEmail().then(()=>{const e=$('#acEmail'); if(e)e.textContent=MYEMAIL||'-';});
+  loadMyEmail().then(()=>{const e=$('#acEmail'); if(e)e.textContent=MYEMAIL||'-'; paint2fa();});
   const sw=$('#acSwitch');if(sw)sw.onclick=()=>{closeSheet();openGate();};
   // Five taps on the version turns the layout readout on. Deliberately undiscoverable: it is a
   // diagnostic for one reported fault, not a feature.
@@ -2402,6 +2415,86 @@ function openAccountSheet(){
         sessionStorage.clear();}catch(e){}
     location.reload();
   };
+}
+
+/* The two-factor section of the account sheet. Reads the record rather than the token, because
+   the token says nothing about it and a stale flag here would lie to somebody about whether they
+   are protected. */
+function paint2fa(){
+  const lab=$('#ac2faS'), body=$('#ac2faBody');
+  if(!lab||!body)return;
+  const on=!!(MYACCT&&MYACCT.twoFactor);
+  const left=(MYACCT&&MYACCT.recoveryLeft)||0;
+  lab.textContent=on
+    ? 'On - '+left+' recovery code'+(left===1?'':'s')+' left'
+    : 'Off - your email and password sign you in';
+  body.innerHTML=on
+    ? `<div class="btnrow"><button class="btn" id="ac2faNew">New recovery codes</button>
+         <button class="btn gho" id="ac2faOff">Turn off two-factor</button></div>`
+    : `<div class="btnrow"><button class="btn" id="ac2faOn">Set up two-factor</button></div>`;
+  const on2=$('#ac2faOn'); if(on2)on2.onclick=openAuthReset;
+  const nw=$('#ac2faNew'); if(nw)nw.onclick=openNewCodes;
+  const off=$('#ac2faOff'); if(off)off.onclick=openRemove2fa;
+}
+
+/* ---------- turn it off ----------
+   The only way out used to be starting a replacement through reset2fa and abandoning it
+   half-done, which left a dangling unconfirmed secret and was nobody's intention. */
+function openRemove2fa(){
+  sheet('Turn off two-factor',
+    `<div class="sub">You will sign in with your email and password alone. Your recovery codes
+       stop working, because there is no longer a second factor for them to recover.</div>
+     <div class="sub" style="margin-top:8px">You can turn it back on whenever you like.</div>
+     <label class="lbl" for="r2Pw">Password</label>
+     <input class="inp" id="r2Pw" type="password" autocomplete="current-password">
+     <div class="msg" id="r2Msg"></div>
+     <div class="btnrow"><button class="btn pri" id="r2Go">Turn it off</button>
+       <button class="btn" id="r2No">Cancel</button></div>`);
+  const m=$('#r2Msg');
+  const go=async()=>{
+    if(!$('#r2Pw').value){ m.textContent='Enter your password.'; m.className='msg on bad'; return; }
+    m.textContent='Working…'; m.className='msg on'; $('#r2Go').disabled=true;
+    try{
+      await api('/account',{method:'POST',
+        body:JSON.stringify({action:'remove2fa',password:$('#r2Pw').value})});
+      if(MYACCT){MYACCT.twoFactor=false;MYACCT.recoveryLeft=0;}
+      closeSheet(); toast('Two-factor is off');
+    }catch(e){ m.textContent=e.message||'Could not turn it off'; m.className='msg on bad';
+               $('#r2Go').disabled=false; }
+  };
+  $('#r2Go').onclick=go; $('#r2No').onclick=closeSheet;
+  const i=$('#r2Pw');
+  i.addEventListener('keydown',ev=>{if(ev.key==='Enter'){ev.preventDefault();go();}});
+  setTimeout(()=>i.focus(),60);
+}
+
+/* ---------- a fresh set of recovery codes ----------
+   Shown once and never retrievable, which is right -- but it left "I never saved them" with no
+   answer but an admin, and that is most of what being stranded means. */
+function openNewCodes(){
+  sheet('New recovery codes',
+    `<div class="sub">You will get eight new codes. <b>Any you still have stop working.</b></div>
+     <label class="lbl" for="ncPw">Password</label>
+     <input class="inp" id="ncPw" type="password" autocomplete="current-password">
+     <div class="msg" id="ncMsg"></div>
+     <div class="btnrow"><button class="btn pri" id="ncGo">Replace my codes</button>
+       <button class="btn" id="ncNo">Cancel</button></div>`);
+  const m=$('#ncMsg');
+  const go=async()=>{
+    if(!$('#ncPw').value){ m.textContent='Enter your password.'; m.className='msg on bad'; return; }
+    m.textContent='Working…'; m.className='msg on'; $('#ncGo').disabled=true;
+    try{
+      const j=await api('/account',{method:'POST',
+        body:JSON.stringify({action:'newRecoveryCodes',password:$('#ncPw').value})});
+      if(MYACCT)MYACCT.recoveryLeft=(j.recoveryCodes||[]).length;
+      showRecoveryCodes(j.recoveryCodes||[]);
+    }catch(e){ m.textContent=e.message||'Could not replace them'; m.className='msg on bad';
+               $('#ncGo').disabled=false; }
+  };
+  $('#ncGo').onclick=go; $('#ncNo').onclick=closeSheet;
+  const i=$('#ncPw');
+  i.addEventListener('keydown',ev=>{if(ev.key==='Enter'){ev.preventDefault();go();}});
+  setTimeout(()=>i.focus(),60);
 }
 
 /* ---------- replace a broken authenticator ----------
@@ -2468,6 +2561,10 @@ function showNewAuth(setup){
          totp:$('#arCode').value.trim()})});
       if(j.grant)keepGrant(j.grant);
       if(j.device)keepDevice(j.device);
+      // Same rule as the sign-in screen: if this call minted codes, they get shown. Replacing a
+      // broken authenticator through reset2fa keeps the codes already in a password manager, so
+      // nothing is returned and nothing changes here.
+      if(j.recoveryCodes&&j.recoveryCodes.length){ showRecoveryCodes(j.recoveryCodes); return; }
       closeSheet();
       toast('Two-factor is set up again');
     }catch(e){ m.textContent=e.message||'That code is not right.'; m.className='msg on bad';
@@ -2477,6 +2574,22 @@ function showNewAuth(setup){
   const c=$('#arCode');
   c.addEventListener('input',()=>{ if(/^\d{6}$/.test(c.value.trim()))finish(); });
   setTimeout(()=>c.focus(),60);
+}
+
+/* The in-app half of stepRecoveryCodes - same rule, same once-only wording. */
+function showRecoveryCodes(codes){
+  sheet('Save your recovery codes',
+    `<div class="sub">If you lose your phone, any one of these signs you in - each works once.
+       <b>They are not shown again.</b></div>
+     <div class="siCodes ph-no-capture">${codes.map(c=>'<span>'+esc(c)+'</span>').join('')}</div>
+     <button class="btn" id="rcCopy">Copy all</button>
+     <div class="btnrow"><button class="btn pri" id="rcDone">I have saved them</button></div>`);
+  $('#rcCopy').onclick=async()=>{
+    try{ await navigator.clipboard.writeText(codes.join('\n'));
+         $('#rcCopy').textContent='Copied';
+         setTimeout(()=>{$('#rcCopy').textContent='Copy all';},1500); }catch(e){}
+  };
+  $('#rcDone').onclick=()=>{ closeSheet(); toast('Two-factor is set up again'); };
 }
 
 /* ---------- sign in with a different address ----------
@@ -2490,10 +2603,11 @@ function showNewAuth(setup){
 
    The old address KEEPS WORKING. Nothing here can lock somebody out of the account they are
    standing in - the worst case is that they now have two ways in. */
-let MYEMAIL=null;
+let MYEMAIL=null, MYACCT=null;
 async function loadMyEmail(){
   if(MYEMAIL||!SESSION)return MYEMAIL;
-  try{ const r=await api('/account'); MYEMAIL=(r.account&&r.account.email)||null; }catch(e){}
+  try{ const r=await api('/account'); MYACCT=r.account||null;
+       MYEMAIL=(r.account&&r.account.email)||null; }catch(e){}
   return MYEMAIL;
 }
 async function openEmailChange(){
@@ -5534,7 +5648,7 @@ function save(txt,name,mime){
 let pickSel=new Set(),pickKind='off',pickMonth=0;
 /* ---------- live API: identity, requests, swaps ---------- */
 const API='https://elig-api.vercel.app/api';
-const BUILD='261124.1740';           // shown in the account bar so a stale app is obvious
+const BUILD='261124.2159';           // shown in the account bar so a stale app is obvious
 const TEST_BUILD=false;   // true only on the copy at /test/
 const PH_KEY='phc_pr4QepiHtyMUqSymFZFyH2s2jKesJJEi4sWDjhaKttDN', PH_HOST='https://us.i.posthog.com';
 /* THE POLICY OPENS IN THE APP. A link out from an installed app lands in a separate browser
@@ -13034,7 +13148,33 @@ function step2fa(email,pw){
            maxlength="6" placeholder="000000">
     <button class="siB" id="siGo2">Verify and sign in</button>
     <button class="siGhost" id="siBack">Back</button>
+    <button class="siGhost" id="siNoAuth">I do not have my authenticator</button>
     <div class="siNote">Lost your phone? Enter one of your recovery codes above instead.</div>`);
+  /* A DEAD END UNTIL NOW. This screen asked for a code and offered Back, so somebody whose
+     authenticator is gone and who never saved the recovery codes had nowhere to go -- and the
+     one route that did open, the password reset, worked only because it skipped the second
+     factor altogether. That hole is closed, so this screen owes them a real answer. */
+  document.querySelector('#siNoAuth').onclick=()=>{
+    siPaint(`
+      <div class="siStep">No authenticator</div>
+      <div class="siLead">Two things still get you in, and they are the only two.</div>
+      <div class="siLead"><b>A recovery code.</b> Eight were shown when two-factor was set up,
+        each usable once. They go in the same box as a 6-digit code.</div>
+      <div class="siLead"><b>Or, on a phone or computer you already use for this,</b> you may
+        still be signed in - this only gets asked on a device we have not seen before. Open it
+        there, tap your name, and you can turn two-factor off or take a fresh set of recovery
+        codes with just your password.</div>
+      <div class="siLead"><b>Failing both, ask Dr. Nadon to reset your sign-in.</b> That clears
+        the authenticator and the password together; you set both up again from your access code,
+        which still works. Nobody - us included - can read your authenticator back.</div>
+      <div class="siLead" style="color:var(--dim)">A new password on its own will not do it. An
+        account with two-factor on cannot be opened from a mailbox alone, which is the whole
+        point of having it.</div>
+      <button class="siB" id="siNaBack">Try a code after all</button>
+      <button class="siGhost" id="siNaSign">Back to sign in</button>`);
+    document.querySelector('#siNaBack').onclick=()=>step2fa(email,pw);
+    document.querySelector('#siNaSign').onclick=()=>stepPassword(email);
+  };
   const go=async()=>{
     const code=document.querySelector('#siTotp').value.trim();
     if(!code){siSay('Enter the code from your app.',true);return;}
@@ -13153,6 +13293,9 @@ function stepScan(email,pw,token,setup){
       const j=await r.json();
       if(!r.ok){siSay(j.error||'That code is not right.',true);return;}
       keepDevice(j.device); keepGrant(j.grant);       // else the next sign-in asks for a code it does not need
+      /* CODES NOBODY HAS SEEN ARE NOT A FALLBACK. confirm2fa mints them when the account has
+         none, and this is the only moment they exist in the clear. */
+      if(j.recoveryCodes&&j.recoveryCodes.length){ stepRecoveryCodes(j.recoveryCodes,j.token||token); return; }
       await loadPortal(j.token||token);
     }catch(e){ siSay('Could not reach the server.',true); }
   };
@@ -13161,6 +13304,29 @@ function stepScan(email,pw,token,setup){
   n.addEventListener('keydown',ev=>{if(ev.key==='Enter'){ev.preventDefault();go();}});
   setTimeout(()=>n.focus(),60);
 }
+/* ---------- the codes that get you back in ----------
+   Recovery codes used to be minted in ONE place, first-time enrolment, so turning the
+   authenticator on from anywhere else produced an account with a second factor and no fallback.
+   Loy was in exactly that state (2026-11-24) and the only way in was the password reset, which
+   hands out a session without asking for a code. confirm2fa mints them now when there are none,
+   and this screen is the other half: an account holding codes it was never shown is no better
+   off than one holding none. Shown once, never retrievable. */
+function stepRecoveryCodes(codes,tok){
+  siPaint(`
+    <div class="siStep">Save these</div>
+    <div class="siLead">If you lose your phone, any one of these signs you in - each works once.
+      <b>They are not shown again.</b></div>
+    <div class="siCodes ph-no-capture">${codes.map(c=>'<span>'+esc(c)+'</span>').join('')}</div>
+    <button class="siGhost" id="siCopyCodes">Copy all</button>
+    <button class="siB" id="siCodesGo">I have saved them - take me in</button>`);
+  document.querySelector('#siCopyCodes').onclick=async()=>{
+    try{ await navigator.clipboard.writeText(codes.join('\n'));
+         const b=document.querySelector('#siCopyCodes'); b.textContent='Copied';
+         setTimeout(()=>{b.textContent='Copy all';},1500); }catch(e){}
+  };
+  document.querySelector('#siCodesGo').onclick=()=>loadPortal(tok).catch(e=>siSay(e.message,true));
+}
+
 /* ---------- forgotten password ----------
    Ask for the address, and say the same thing whichever answer the server has. Telling someone
    "no account with that email" turns this box into a way to find out who works here. */
@@ -13183,11 +13349,28 @@ function stepForgot(email){
         body:JSON.stringify({action:'request',email:em,
           appUrl:location.origin+location.pathname})});   // so the link comes back to THIS page
     }catch(e){}
+    /* NAME THE REASONS, IDENTICALLY FOR EVERYBODY (Amber Schoenrock, 2026-11-24: "I clicked the
+       forgot password and I'm not getting an email").
+
+       The old wording offered one explanation for silence -- check spam -- and buried the useful
+       sentence under it in dim text. Hers was neither spam nor a broken mailer: her address was
+       on the shared front-desk login, which is now refused outright, and she had no password of
+       her own to reset in the first place. She read "check your email", waited five hours, and
+       wrote in. Both real reasons are now said out loud, and the way out of each is a link she
+       can press.
+
+       This text does not vary by address -- everyone is told all of it -- so it still reveals
+       nothing about who has an account, which is the whole reason this screen says the same
+       thing to everybody. */
     siPaint(`
-      <div class="siLead"><b>Check your email.</b> If <b>${esc(em)}</b> is on an account, a link
-        to set a new password is on the way. It works once and expires in 45 minutes.</div>
-      <div class="siLead" style="color:var(--dim)">Nothing after a few minutes? Check spam, or
-        ask Dr. Nadon - your access code still signs you in.</div>
+      <div class="siLead"><b>Check your email.</b> If <b>${esc(em)}</b> is on an account that has
+        a password, a link to set a new one is on the way. It works once and expires in 45
+        minutes.</div>
+      <div class="siLead" style="color:var(--dim)"><b>Nothing arrives?</b> It is not always spam.
+        If you have never set a password, there is nothing to reset - your access code signs you
+        in, and lets you <a href="/account/">set one up</a>. If your address is on a shared
+        front-desk login, it cannot be reset by one person - you need an account of your own.
+        Dr. Nadon can sort out either.</div>
       <button class="siGhost" id="siFback2">Back to sign in</button>`);
     document.querySelector('#siFback2').onclick=()=>stepPassword(em);
   };
@@ -13214,6 +13397,12 @@ async function stepReset(token){
     }
     who=j;
   }catch(e){ siPaint('<div class="siLead">Could not reach the server. Try the link again.</div>'); return; }
+  /* A RESET IS NO LONGER A WAY PAST THE SECOND FACTOR (see the long note in reset.js). If this
+     account has an authenticator, the code is asked for HERE, on the same screen as the
+     password, rather than refusing once and then asking -- `check` reports it so we know.
+     Wrapped in a named function because it has to be repaintable: an authenticator turned on
+     after the link was sent arrives as need:'2fa' on a screen with no box to type it in. */
+  const paint=()=>{
   siPaint(`
     <div class="siLead">Choose a new password for <b>${esc(who.email||who.person||'')}</b>.</div>
     <label class="siL" for="siRp">New password</label>
@@ -13222,16 +13411,29 @@ async function stepReset(token){
     <input class="siI" id="siRp2" type="password" autocomplete="new-password">
     <div class="siLead" style="color:var(--dim)">At least 12 characters. A short phrase is
       easiest to remember.</div>
+    ${who.twoFactor?`
+      <label class="siL" for="siRtotp">Code from your authenticator app</label>
+      <input class="siI siCode" id="siRtotp" inputmode="numeric" autocomplete="one-time-code"
+             placeholder="000000">
+      <div class="siLead" style="color:var(--dim)">A recovery code works here too. Without
+        either, Dr. Nadon can reset your sign-in - a new password on its own is not enough to
+        open an account that has two-factor on.</div>`:''}
     <button class="siB" id="siRgo">Set password and sign in</button>`);
   const go=async()=>{
     const a=document.querySelector('#siRp').value, b2=document.querySelector('#siRp2').value;
     if(a!==b2){siSay('Those two do not match.',true);return;}
     siSay('Saving…');
     try{
+      const tf=document.querySelector('#siRtotp');
       const r=await fetch(API+'/reset',{method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({action:'confirm',token,password:a})});
+        body:JSON.stringify({action:'confirm',token,password:a,
+                             totp:tf?tf.value.trim():''})});
       const j=await r.json();
-      if(!r.ok){siSay(j.error||'Could not set that password.',true);return;}
+      if(!r.ok){
+        /* The server wants a code and this screen has no box for one -- an older page, or an
+           authenticator turned on after the link was sent. Repaint with the field. */
+        if(j.need==='2fa'&&!tf){ who.twoFactor=true; paint(); siSay(j.error,true); return; }
+        siSay(j.error||'Could not set that password.',true);return;}
       try{sessionStorage.setItem('__tok',j.token);}catch(e){}
       history.replaceState(null,'',location.pathname);   // the token leaves the address bar
       await loadPortal(j.token);
@@ -13240,7 +13442,11 @@ async function stepReset(token){
   document.querySelector('#siRgo').onclick=go;
   document.querySelector('#siRp2').addEventListener('keydown',ev=>{
     if(ev.key==='Enter'){ev.preventDefault();go();}});
+  const rt=document.querySelector('#siRtotp');
+  if(rt)rt.addEventListener('keydown',ev=>{if(ev.key==='Enter'){ev.preventDefault();go();}});
   setTimeout(()=>document.querySelector('#siRp').focus(),60);
+  };
+  paint();
 }
 
 /* WHICH SIGN-IN THE PASSWORD MANAGER OFFERS.

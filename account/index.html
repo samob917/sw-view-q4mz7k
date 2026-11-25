@@ -211,6 +211,13 @@ button:not(.ghost):hover{filter:brightness(1.06)}
     <label for="totp">Enter the 6-digit code it shows</label>
     <input id="totp" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000">
     <button id="b3">Finish setup</button>
+    <!-- OPTIONAL, AND IT HAS TO LOOK OPTIONAL (Sam, 2026-11-24). This panel had no way past it
+         but a working 6-digit code, which is why 45 of 55 physicians carry two-factor and how
+         one of them spent a month unable to sign in at all: enrolled an authenticator, lost it,
+         and every door afterwards asked for a code. The sign-in path has always called this
+         "offered, not imposed"; this panel was the half that did not agree. -->
+    <button id="b3skip" class="ghost">Not now — just use my password</button>
+    <p class="note">You can turn it on any time from your account, and off again.</p>
     <div class="msg err" id="m3"></div>
   </section>
 
@@ -414,8 +421,10 @@ $('#b2').onclick=async()=>{
       email:$('#email').value.trim(),password:$('#pw').value});
     STATE.email=j.email; STATE.password=$('#pw').value;
     $('#qr').src=j.totpQr||''; $('#secret').textContent=j.totpSecret;
-    $('#codes').innerHTML=j.recoveryCodes.map(c=>'<span>'+c+'</span>').join('');
-    STATE.codes=j.recoveryCodes;
+    /* RECOVERY CODES NO LONGER COME FROM HERE. enrol does not mint them any more -- there is no
+       second factor yet for them to recover, and codes on a record that nobody has been shown is
+       the one state that strands people. confirm2fa mints and returns them, which is also the
+       only moment they can be displayed. */
     track('enrol_step',{step:'account',ok:true,
       used_suggested:$('#email').value.trim()===(STATE.suggested||'')});
     /* SOME ACCOUNTS ARE NEVER ASKED FOR A SECOND FACTOR, so do not walk them through setting
@@ -427,19 +436,8 @@ $('#b2').onclick=async()=>{
        before. Their account already exists at this point -- enrol created it with two-factor
        off -- so all that is left is to sign them in, exactly as confirm2fa would have. */
     if(j.offer2fa===false){
-      try{
-        const s=await api('/session',{email:STATE.email,password:STATE.password});
-        STATE.token=s.token||null; STATE.device=s.device||null; STATE.grant=s.grant||null;
-        track('enrol_complete',{skipped_2fa:true});
-        signedIn('Signed in as '+STATE.person+'. This account does not use two-factor.');
-      }catch(e){
-        /* The account IS set up; only the automatic sign-in failed. Say so and send them to the
-           sign-in screen rather than implying the setup did not take. */
-        track('enrol_complete',{skipped_2fa:true,autosignin:false});
-        $('#liEmail').value=STATE.email;
-        go('pSignin',null,'Sign in');
-        say('#mSignin','Your account is set up. Please sign in.');
-      }
+      await finishWithoutTwoFactor('exempt',
+        'Signed in as '+STATE.person+'. This account does not use two-factor.');
       busy(b,false,'Continue');
       return;
     }
@@ -450,7 +448,32 @@ $('#b2').onclick=async()=>{
   busy(b,false,'Continue');
 };
 
+/* The end of enrolment for anybody who is not setting up an authenticator -- an exempt account,
+   or somebody who has just declined. The account already exists with two-factor off, so all that
+   is left is to sign them in, exactly as confirm2fa would have. */
+async function finishWithoutTwoFactor(why,msg){
+  try{
+    const s=await api('/session',{email:STATE.email,password:STATE.password});
+    STATE.token=s.token||null; STATE.device=s.device||null; STATE.grant=s.grant||null;
+    track('enrol_complete',{skipped_2fa:true,why:why});
+    signedIn(msg);
+  }catch(e){
+    /* The account IS set up; only the automatic sign-in failed. Say so and send them to the
+       sign-in screen rather than implying the setup did not take. */
+    track('enrol_complete',{skipped_2fa:true,why:why,autosignin:false});
+    $('#liEmail').value=STATE.email;
+    go('pSignin',null,'Sign in');
+    say('#mSignin','Your account is set up. Please sign in.');
+  }
+}
+
 /* ---- 3. authenticator ---- */
+$('#b3skip').onclick=async()=>{
+  const b=$('#b3skip'); busy(b,true,'Finishing…');
+  await finishWithoutTwoFactor('declined',
+    'Signed in as '+STATE.person+'. You can add two-factor any time from your account.');
+  busy(b,false,'Not now — just use my password');
+};
 $('#b3').onclick=async()=>{
   say('#m3','');
   const b=$('#b3'); busy(b,true,'Checking…');
@@ -461,6 +484,9 @@ $('#b3').onclick=async()=>{
     // again, both now and on the next visit. See handOverSession().
     STATE.token=j.token||null; STATE.device=j.device||null; STATE.grant=j.grant||null;
     track('enrol_step',{step:'two_factor',ok:true});
+    // Minted by confirm2fa, returned once, and this is the only place they can be shown.
+    STATE.codes=j.recoveryCodes||[];
+    $('#codes').innerHTML=STATE.codes.map(c=>'<span>'+c+'</span>').join('');
     go('p4',3,'Save your recovery codes');
   }catch(e){ say('#m3',e.message);
     track('enrol_step',{step:'two_factor',ok:false,reason:String(e.message).slice(0,120)}); }
